@@ -1,0 +1,34 @@
+# tcb.yaml — what a passing gate rests on, and what a submission may not do.
+
+banned_in_submissions:
+  - pattern: '\bassume\b'                    # assume (any form) — accepts a fact without proof
+    why: an assume is an axiom; the gate accepts only proved facts
+  - pattern: '\{:axiom\}'
+    why: declares a bodyless or unproven item true
+  - pattern: '\{:verify\s+false\}'
+    why: disables the checker for a member
+  - pattern: '\{:extern\}'
+    why: pulls in unverified foreign code
+  - pattern: '\{:termination\s+false\}|@AssumeCrossModuleTermination'
+    why: termination assumption; the template already carries the one it needs
+  - pattern: 'decreases\s+\*'
+    why: possibly non-terminating method; the template obligations are total
+  - pattern: '\bexpect\b'
+    why: runtime checks belong in traces, not in the submission; they are not proof
+  - pattern: '\{:only\}|\{:focus\}'
+    why: narrows what the checker verifies
+
+assumptions:                                 # these are the TCB; a passing gate is relative to them
+  - Dafny 4.11 verifier and Boogie/Z3 are sound for the constructs used
+  - the Dafny-to-Python translator preserves the verified semantics of the submission
+  - spec/AuthSpec.dfy correctly captures the approved obligations (validated by the signed traces and the wrong-candidate suite, not by this gate)
+  - Sum(holds) is the intended meaning of "funds reserved"; Available is limit - posted - Sum(holds)
+  - the cross-module trait declaration ({:termination false} on the template's traits) is harmless because no obligation is recursive through the trait
+  - each call to Decide or Release is executed atomically by the surrounding system; interleaving is outside the proof
+
+not_covered:                                 # what the surrounding system must still establish
+  - atomicity and isolation of Decide/Release in the deployed stack (model-check the design, PBT the stack)
+  - persistence, serialization, network, framework and library behaviour
+  - the mapping from real request/account records to Account and Request values (the glossary binds names, not bytes)
+  - "liveness: that every request is eventually decided"
+  - everything the template does not mention (UI, performance, operations)

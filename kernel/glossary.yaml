@@ -1,0 +1,24 @@
+# glossary.yaml — the only prose the template carries: one line per atom.
+# It binds the words in the approved requirement to expressions over spec/AuthSpec.dfy
+# and to the observable a monitor would use. It does not justify anything; the gate never reads it.
+
+requirement: >
+  When an authorization request exceeds the account's available limit, the system shall
+  decline the request and shall not reserve funds. Requests within the limit, equality
+  included, are authorized and reserved.
+
+atoms:
+  authorization request:   { model: "Request(id, amount) with id !in a.status",        observed: "auth.decided.request_id, first occurrence" }
+  exceeds:                 { model: "r.amount as int > Available(a)  (strict)",         observed: "amount > available_at_decision" }
+  available limit:         { model: "Available(a) = limit - posted - Sum(holds)",       observed: "available_at_decision, cross-checked against reservation.* and ledger.posted" }
+  decline:                 { model: "d == Declined && a'.status[r.id] == Decl",         observed: "decision = DECLINED" }
+  reserve funds:           { model: "r.id in a'.holds",                                  observed: "reservation.created.request_id = r" }
+  release:                 { model: "Release(a, id): hold removed, status Rel",          observed: "reservation.released.request_id" }
+  the system:              { model: "methods Decide and Release of a class implementing Authorizer, Releaser", observed: "producer = auth-service" }
+
+semantics:
+  trigger_evaluated_at: the Decide call (the atomic step); not request receipt
+  response_timing: immediate — the postcondition holds in the state Decide returns
+  trigger_persistence: single-shot; a retry is a new Request with a new id
+  comparison: strict; equality authorizes (P0)
+  terminality: Declined is terminal (P3); Released is terminal for holds (R1, R2)

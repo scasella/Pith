@@ -1,0 +1,21 @@
+name: authorization-core/v1
+spec: spec/AuthSpec.dfy
+spec_sha256: c5955b0e80f6b086d53db6abd7edb08649cacf67edaa938fa8fbffe9125315d9
+required_traits: [Authorizer, Releaser]
+traces: adequacy/traces.dfy
+adequacy:
+  - file: adequacy/always_decline.dfy
+    describes: always decline, never reserve
+    rejected_by: [P0]
+  - file: adequacy/decline_at_equality.dfy
+    describes: decline a request exactly at the available limit
+    rejected_by: [P0]
+  - file: adequacy/hold_on_decline.dfy
+    describes: leave a hold in place on a declined request
+    rejected_by: [P2]      # P1 also rejects it; the checker reports the first failing postcondition, Valid(a')
+  - file: adequacy/rewrites_history.dfy
+    describes: rewrite earlier Declined decisions while recording a new one
+    rejected_by: [P3]
+  - file: adequacy/release_leaves_hold.dfy
+    describes: mark released but keep the funds reserved
+    rejected_by: [P2]      # a hold on a Released request; R1 also rejects it

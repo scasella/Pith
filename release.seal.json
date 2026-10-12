@@ -1,0 +1,12 @@
+{
+  "format": 1,
+  "created": "2026-10-12T12:08:56Z",
+  "policy_dirs": [
+    "kernel",
+    "obligations",
+    "gate",
+    "profiles"
+  ],
+  "files": 52,
+  "release_digest": "7c161daa9147f952a3385d275fa134c848890a60bc0a87aa89e2849750d63433"
+}

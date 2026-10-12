@@ -1,0 +1,15 @@
+# obligations/app/delivery.yaml — application delivery criteria. Frozen.
+# "Behavioral assurance passed" and "an application exists" are different statuses; this file defines the second.
+required_workflows:          # driven in a real browser by obligations/app/browser_workflows.py through UI-CONTRACT.md affordances; each named in app/SPEC.md
+  - { id: W1, name: create_account,       description: an operator creates an account with a limit }
+  - { id: W2, name: authorize_within,     description: an authorization within the limit is submitted and the AUTHORIZED decision is shown }
+  - { id: W3, name: authorize_over_limit, description: an authorization over the limit is submitted and the DECLINED decision is shown, distinctly }
+  - { id: W4, name: release,              description: a live hold is released and the available amount recovers }
+  - { id: W5, name: view_events,          description: the event stream the monitor reads is visible }
+required_evaluations:        # human approvals; status is read from the "Human evaluation record" table in app/SPEC.md
+  - { id: E1, name: usability,            description: a payments-ops analyst completes W1–W4 unassisted in under 3 minutes }
+  - { id: E2, name: decline_distinction,  description: declined decisions are visually distinct from authorized ones }
+  - { id: E3, name: glossary_copy,        description: user-facing copy uses the glossary's terms and no synonyms }
+ui_must_be_served: true      # GET / on the running service returns a non-empty body
+ui_contract: obligations/app/UI-CONTRACT.md
+browser_viewports: [desktop, mobile]

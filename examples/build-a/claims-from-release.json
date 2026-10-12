@@ -1,0 +1,287 @@
+{
+  "gate_mode": "authoritative",
+  "policy_source": "/home/claude/repo",
+  "evidence_dir": "/tmp/ex-a",
+  "judged_copy": "/tmp/judged-bj3ybwf3",
+  "started": "2026-10-12T12:08:56Z",
+  "release_digest": "7c161daa9147f952a3385d275fa134c848890a60bc0a87aa89e2849750d63433",
+  "authority": "externally-pinned-release",
+  "artifact_digest": "c8961552db342d4db555280326bbd1fc97df634c651c96bd5870ae469700b818",
+  "release_ready": false,
+  "toolchain": {
+    "dafny": "4.11.0+fcb2042d6d043a2634f0854338c08feeaaaf4ae2",
+    "python": "3.12.3",
+    "hypothesis": "6.169.0",
+    "jsonschema": "4.26.0",
+    "playwright": "1.57.0",
+    "cryptography": "46.0.6",
+    "tlc": "TLC - provides model checking and simulation of TLA+ specifications - Version 2.19 of 08 August 2024",
+    "java": "21.0.10"
+  },
+  "checks": [
+    {
+      "area": "policy",
+      "check": "frozen files intact",
+      "result": "pass",
+      "claim": "52 frozen files intact; nothing added under ['kernel', 'obligations', 'gate', 'profiles'] (OS metadata files ignored)"
+    },
+    {
+      "area": "policy",
+      "check": "release seal",
+      "result": "pass",
+      "claim": "platform release 7c161daa9147f952 matches release.seal.json"
+    },
+    {
+      "area": "policy",
+      "check": "external release pin",
+      "result": "pass",
+      "claim": "platform matches the externally pinned release 7c161daa9147f952"
+    },
+    {
+      "area": "policy",
+      "check": "manifest allowlisted",
+      "result": "pass",
+      "claim": "manifest keys within ['name', 'profile', 'extra_tests', 'ui_entry']"
+    },
+    {
+      "area": "policy",
+      "check": "integration profile",
+      "result": "pass",
+      "claim": "profile = sqlite (shipped; in-process tests apply)"
+    },
+    {
+      "area": "policy",
+      "check": "artifact",
+      "result": "pass",
+      "claim": "deployment artifact copied and digested (c8961552db342d4d); judged in a fresh copy, never the live checkout"
+    },
+    {
+      "area": "ring0",
+      "check": "kernel gate",
+      "result": "pass",
+      "claim": "proven core: include closure verified, translation reproduced fail-closed, TCB scan, adequacy, traces"
+    },
+    {
+      "area": "ring1",
+      "check": "design module present",
+      "result": "pass",
+      "claim": "design/Design.tla"
+    },
+    {
+      "area": "ring1",
+      "check": "design extends obligations",
+      "result": "pass",
+      "claim": "EXTENDS CoreActions"
+    },
+    {
+      "area": "ring1",
+      "check": "core state only via core actions",
+      "result": "pass",
+      "claim": "status/held change only through CoreDecide/CoreReplay/CoreRelease"
+    },
+    {
+      "area": "ring1",
+      "check": "design interface",
+      "result": "pass",
+      "claim": "declares VARIABLE responses; does not redefine any checked predicate (they are bound in the frozen MC.tla)"
+    },
+    {
+      "area": "ring1",
+      "check": "design model (safety)",
+      "result": "pass",
+      "claim": "INV1, P2, P3, DecideCorrect, Idempotent, Consistent hold over the configured model (predicates bound by the frozen MC.tla)"
+    },
+    {
+      "area": "ring1",
+      "check": "design coverage (CovDecided)",
+      "result": "pass",
+      "claim": "the design reaches the behaviour CovDecided guards"
+    },
+    {
+      "area": "ring1",
+      "check": "design coverage (CovContention)",
+      "result": "pass",
+      "claim": "the design reaches the behaviour CovContention guards"
+    },
+    {
+      "area": "ring1",
+      "check": "design coverage (CovDecline)",
+      "result": "pass",
+      "claim": "the design reaches the behaviour CovDecline guards"
+    },
+    {
+      "area": "ring1",
+      "check": "design coverage (CovRelease)",
+      "result": "pass",
+      "claim": "the design reaches the behaviour CovRelease guards"
+    },
+    {
+      "area": "ring1",
+      "check": "design coverage (CovRetry)",
+      "result": "pass",
+      "claim": "the design reaches the behaviour CovRetry guards"
+    },
+    {
+      "area": "ring1",
+      "check": "obligations reject the known-bad design",
+      "result": "pass",
+      "claim": "receipt-time design violates INV1 under the same obligations"
+    },
+    {
+      "area": "ring2",
+      "check": "generated artifacts present",
+      "result": "pass",
+      "claim": "gen/out present"
+    },
+    {
+      "area": "ring2",
+      "check": "generated artifacts current",
+      "result": "pass",
+      "claim": "openapi, event schema and monitor equal the generator's output"
+    },
+    {
+      "area": "ring1",
+      "check": "service entrypoint",
+      "result": "pass",
+      "claim": "service/run.py present (the supervisor starts it as a separate process)"
+    },
+    {
+      "area": "ring1",
+      "check": "shipped profile tests",
+      "result": "pass",
+      "claim": "sqlite profile (frozen) in-process tests pass (22)"
+    },
+    {
+      "area": "ring1",
+      "check": "lifecycle harness (black-box)",
+      "result": "pass",
+      "claim": "through the running service: duplicate create, idempotent replay and conflicts, crash (SIGKILL) + restart + retry, restart durability, event contract (op_id, chain, state_after, one commit per op), concurrency with readers (6 checks)"
+    },
+    {
+      "area": "ring2",
+      "check": "monitor negative suite",
+      "result": "pass",
+      "claim": "generated monitor detects each named violation (rehashed mutants), op lifecycle, watermark; silent on the good stream"
+    },
+    {
+      "area": "ring2",
+      "check": "boundary harness (black-box)",
+      "result": "pass",
+      "claim": "API not falsified: JSON-Schema-valid requests/responses/events; invalid and malformed inputs rejected without effect; conflicts rejected; agrees with the proven core under bursts; idempotent; monitor silent; both branches exercised (20 checks)"
+    },
+    {
+      "area": "ring3",
+      "check": "application delivery",
+      "result": "pass",
+      "claim": "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5'] + replay display passed at ['desktop', 'mobile'] (sandboxed=False); SPEC structurally complete (lint is structural, not semantic)"
+    },
+    {
+      "area": "ring3",
+      "check": "human approval",
+      "result": "pass",
+      "claim": "pending (no attestation supplied)"
+    },
+    {
+      "area": "policy",
+      "check": "judged copy unchanged",
+      "result": "pass",
+      "claim": "the artifact copy that was judged is byte-identical at the end (an observation at two points, not a monitor)"
+    }
+  ],
+  "behavioral_assurance": "passed; scoped: ring0 proven under kernel/tcb.yaml; ring1 design model-checked within configured bounds and service not falsified by the frozen black-box lifecycle harness; ring2 not falsified by the frozen boundary harness; conformance of the implementation to the design model is by test only",
+  "application_delivery": "passed",
+  "human_approval": "pending",
+  "app": "payments-authorization-app/v2 build A (sqlite profile, web console)",
+  "ring0_scope": {
+    "proves": "for every input satisfying each obligation's precondition, the submitted methods establish its postconditions; the template's lemmas (Sum independence) are verified in the same run",
+    "over": "the Dafny semantics of the submitted source; the shipped executable is byte-identical to the backend's translation of that source",
+    "runtime_assumptions_not_checked_by_compiled_code": "preconditions (Valid(a), fresh request id) and nat domains are NOT enforced by the translated Python; the caller must establish them (see obligations/adapter)",
+    "does_not_cover": [
+      "atomicity and isolation of Decide/Release in the deployed stack (model-check the design, PBT the stack)",
+      "persistence, serialization, network, framework and library behaviour",
+      "the mapping from real request/account records to Account and Request values (the glossary binds names, not bytes)",
+      "liveness: that every request is eventually decided",
+      "everything the template does not mention (UI, performance, operations)"
+    ]
+  },
+  "delivery_detail": {
+    "workflows": {
+      "W1": {
+        "ok": true,
+        "evidence": [
+          "desktop: available shows '100'",
+          "mobile: available shows '100'"
+        ]
+      },
+      "W2": {
+        "ok": true,
+        "evidence": [
+          "desktop: decision=AUTHORIZED available='40'",
+          "mobile: decision=AUTHORIZED available='40'"
+        ]
+      },
+      "W3": {
+        "ok": true,
+        "evidence": [
+          "desktop: decision=DECLINED styles differ=True",
+          "mobile: decision=DECLINED styles differ=True"
+        ]
+      },
+      "W4": {
+        "ok": true,
+        "evidence": [
+          "desktop: available='100' holds 1->0",
+          "mobile: available='100' holds 1->0"
+        ]
+      },
+      "W5": {
+        "ok": true,
+        "evidence": [
+          "desktop: events panel lists decided/released",
+          "mobile: events panel lists decided/released"
+        ]
+      },
+      "R": {
+        "ok": true,
+        "evidence": [
+          "desktop: replay shown: 'AUTHORIZED request 1 (replayed receipt \u2014 not a new decision) \u00b7 available at decision 100'",
+          "mobile: replay shown: 'AUTHORIZED request 1 (replayed receipt \u2014 not a new decision) \u00b7 available at decision 100'"
+        ]
+      }
+    },
+    "browser": {
+      "status": "passed",
+      "browser_sandbox": false,
+      "chromium_version": "141.0.7390.37",
+      "detail": null
+    },
+    "problems": []
+  },
+  "human_approval_detail": {
+    "attestation": {
+      "reason": "no attestation supplied"
+    },
+    "spec_table_informational": {
+      "E1": "pending",
+      "E2": "pending",
+      "E3": "pending"
+    },
+    "semantic_flags_for_reviewers": []
+  },
+  "release_ready_requires": {
+    "behavioral_assurance": "passed",
+    "application_delivery": "passed",
+    "human_approval": "approved",
+    "gate_mode": "authoritative",
+    "authority": "externally-pinned-release",
+    "browser_sandbox": true
+  },
+  "finished": "2026-10-12T12:10:33Z",
+  "policy_sha256": {
+    "kernel": "4a571aefb5fa655943b3948da7673d6e8aaa4ad4843679d74747644ff30f5c3a",
+    "obligations": "aa51cd1f026bafba0826369d98d02bdb61c56f5556c49767f9ef49306be8d1fd",
+    "gate": "cad0d9e985cd33c4889d76cebb7e7581a866366539b9326dbf2be47c58223cba",
+    "profiles": "ff340f1892d37c31356c736e4e97c3239e97703692b8dce006ac59211c4ed35a"
+  },
+  "artifact_digest_at_end": "c8961552db342d4db555280326bbd1fc97df634c651c96bd5870ae469700b818"
+}

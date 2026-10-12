@@ -1,0 +1,12 @@
+.tools/
+.venv/
+.env
+evidence/
+app-claims.json
+__pycache__/
+.pytest_cache/
+.hypothesis/
+states/
+*.pyc
+.DS_Store
+reviewer.key

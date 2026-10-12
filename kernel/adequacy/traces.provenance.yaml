@@ -1,0 +1,5 @@
+# Approval record for the traces in traces.dfy. The kernel gate reports this; it does not infer it.
+status: unsigned           # unsigned | signed
+traces: [T1_EqualityAuthorizes, T2_OverLimitDeclinesWithoutHold, T3_TwoOfSixtyAgainstHundred, T4_ReleaseFreesFunds, T5_DeclinedIsTerminal]
+reviewers: []              # e.g. - { role: product owner, name: "", date: "" }
+note: illustrative seed release; a production template records real reviewer identities here

@@ -1,0 +1,4 @@
+name: "payments-authorization-app/v2 build B (custom JSON-file profile, queued design, plain console)"
+profile: custom
+extra_tests: []
+ui_entry: ui/console.html

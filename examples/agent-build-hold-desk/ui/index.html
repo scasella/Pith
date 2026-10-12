@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hold Desk</title>
+  <style>
+    :root { color-scheme: light; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #182336; background: #f3f6fa; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; }
+    header { padding: 24px max(20px, calc((100vw - 1040px) / 2)); color: white; background: #142b49; }
+    header p { margin: 6px 0 0; color: #c5d7ed; }
+    h1, h2, p { margin-top: 0; }
+    h1 { margin-bottom: 0; font-size: 1.5rem; }
+    main { width: min(1040px, calc(100% - 32px)); margin: 24px auto 48px; display: grid; gap: 16px; }
+    .card { padding: 20px; border: 1px solid #dbe3ed; border-radius: 14px; background: #fff; box-shadow: 0 4px 14px #243c5a0b; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    label { display: grid; gap: 6px; color: #40516a; font-size: .9rem; font-weight: 600; }
+    input { width: 100%; min-height: 42px; padding: 8px 10px; border: 1px solid #bdcada; border-radius: 8px; color: #182336; font: inherit; }
+    button { min-height: 42px; padding: 9px 15px; border: 0; border-radius: 8px; color: #fff; background: #215f9b; font: inherit; font-weight: 700; cursor: pointer; }
+    button:hover { background: #174b80; }
+    button:focus-visible, input:focus-visible { outline: 3px solid #81baff; outline-offset: 2px; }
+    .actions { display: flex; align-items: end; }
+    .summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px; }
+    .summary strong { font-size: 2rem; color: #174b80; }
+    .muted { color: #63738a; }
+    #notice { min-height: 1.4em; margin: 12px 0 0; color: #9a3412; }
+    .decision { display: inline-block; margin: 4px 0 0; padding: 8px 12px; border-radius: 999px; font-weight: 800; }
+    .decision[data-decision="AUTHORIZED"] { color: #075e3b; background: #dcf7e9; }
+    .decision[data-decision="DECLINED"] { color: #982c31; background: #ffeaeb; }
+    ul { display: grid; gap: 8px; padding: 0; margin: 12px 0 0; list-style: none; }
+    li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid #e1e7ef; border-radius: 9px; }
+    li button { min-height: 36px; padding: 6px 12px; }
+    pre { max-height: 260px; overflow: auto; margin: 12px 0 0; padding: 14px; border-radius: 9px; color: #e1eaf5; background: #17283e; white-space: pre-wrap; overflow-wrap: anywhere; font: .84rem/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    @media (max-width: 560px) {
+      header { padding: 20px 16px; }
+      main { width: calc(100% - 24px); margin-top: 12px; gap: 12px; }
+      .card { padding: 16px; }
+      .grid { grid-template-columns: 1fr; gap: 12px; }
+      .actions button { width: 100%; }
+      .summary strong { font-size: 1.7rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Hold Desk</h1>
+    <p>Review accounts, authorization decisions, holds, and the event stream.</p>
+  </header>
+  <main>
+    <section class="card" aria-labelledby="account-title">
+      <h2 id="account-title">Account</h2>
+      <div class="grid">
+        <label>Account ID<input data-testid="acct-id" id="acct-id" type="number" min="0" step="1" value="100"></label>
+        <label>Limit<input data-testid="acct-limit" id="acct-limit" type="number" min="0" step="1" value="100"></label>
+        <div class="actions"><button data-testid="btn-create" id="btn-create" type="button">Create account</button></div>
+      </div>
+      <p id="notice" role="status" aria-live="polite"></p>
+      <div class="summary"><span>Available</span><strong data-testid="available" id="available">—</strong></div>
+    </section>
+
+    <section class="card" aria-labelledby="authorization-title">
+      <h2 id="authorization-title">Authorization</h2>
+      <div class="grid">
+        <label>Request ID<input data-testid="req-id" id="req-id" type="number" min="0" step="1" value="1"></label>
+        <label>Amount<input data-testid="req-amount" id="req-amount" type="number" min="1" step="1" value="60"></label>
+        <div class="actions"><button data-testid="btn-authorize" id="btn-authorize" type="button">Submit authorization</button></div>
+      </div>
+      <p class="muted">Last decision</p>
+      <p class="decision" data-testid="decision" id="decision" data-decision=""></p>
+    </section>
+
+    <section class="card" aria-labelledby="holds-title">
+      <h2 id="holds-title">Live holds</h2>
+      <p class="muted">Release a hold to return its amount to available funds.</p>
+      <ul data-testid="holds" id="holds"><li class="muted">No account loaded.</li></ul>
+    </section>
+
+    <section class="card" aria-labelledby="events-title">
+      <h2 id="events-title">Event stream</h2>
+      <p class="muted">Events are returned by the service in commit order.</p>
+      <pre data-testid="events" id="events">No events loaded.</pre>
+    </section>
+  </main>
+  <script>
+    const byId = id => document.getElementById(id);
+    const accountId = () => byId("acct-id").value;
+    const notice = message => { byId("notice").textContent = message || ""; };
+    async function call(path, options = {}) {
+      const response = await fetch(path, options);
+      let payload;
+      try { payload = await response.json(); } catch { payload = {}; }
+      if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
+      return payload;
+    }
+    function showAccount(account) {
+      byId("available").textContent = String(account.available);
+      const holds = byId("holds");
+      holds.replaceChildren();
+      const entries = Object.entries(account.holds);
+      if (!entries.length) {
+        const empty = document.createElement("li");
+        empty.className = "muted";
+        empty.textContent = "No live holds.";
+        holds.append(empty);
+        return;
+      }
+      for (const [requestId, amount] of entries) {
+        const row = document.createElement("li");
+        row.dataset.testid = "hold-row";
+        row.dataset.requestId = requestId;
+        const description = document.createElement("span");
+        description.textContent = `Request ${requestId} · hold ${amount}`;
+        const release = document.createElement("button");
+        release.type = "button";
+        release.dataset.testid = "btn-release";
+        release.textContent = "Release";
+        release.addEventListener("click", async () => {
+          try {
+            await call(`/accounts/${encodeURIComponent(accountId())}/release`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ request_id: Number(requestId) })
+            });
+            notice("");
+            await refresh();
+          } catch (error) { notice(error.message); }
+        });
+        row.append(description, release);
+        holds.append(row);
+      }
+    }
+    async function refresh() {
+      const [account, events] = await Promise.all([
+        call(`/accounts/${encodeURIComponent(accountId())}`),
+        call("/events")
+      ]);
+      showAccount(account);
+      byId("events").textContent = events.length
+        ? events.map(event => `${event.seq} · ${event.type}`).join("\n")
+        : "No events yet.";
+    }
+    byId("btn-create").addEventListener("click", async () => {
+      try {
+        await call("/accounts", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: Number(accountId()), limit: Number(byId("acct-limit").value) })
+        });
+        notice("");
+        await refresh();
+      } catch (error) { notice(error.message); }
+    });
+    byId("btn-authorize").addEventListener("click", async () => {
+      try {
+        const receipt = await call(`/accounts/${encodeURIComponent(accountId())}/authorize`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ request_id: Number(byId("req-id").value), amount: Number(byId("req-amount").value) })
+        });
+        const decision = byId("decision");
+        decision.dataset.decision = receipt.decision;
+        decision.textContent = receipt.replayed ? `${receipt.decision} · replay` : receipt.decision;
+        notice("");
+        await refresh();
+      } catch (error) { notice(error.message); }
+    });
+  </script>
+</body>
+</html>

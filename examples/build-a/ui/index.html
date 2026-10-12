@@ -1,0 +1,39 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Authorization console</title>
+<style>
+body{font:15px/1.45 system-ui,sans-serif;margin:0;padding:1.2rem;max-width:960px;margin-inline:auto;color:#1b2430;background:#f6f7f4}
+h1{font-size:1.3rem;margin:.2rem 0 1rem}fieldset{border:1px solid #d8ddd6;border-radius:6px;margin:0 0 1rem;padding:.8rem 1rem;background:#fff}
+legend{font-weight:600;padding:0 .3rem}label{display:inline-block;margin:.2rem .8rem .2rem 0}input{width:7rem;padding:.25rem .4rem}
+button{padding:.3rem .8rem;cursor:pointer}.row{display:flex;gap:1rem;flex-wrap:wrap}.row>fieldset{flex:1 1 280px}
+.dec{display:inline-block;padding:.15rem .5rem;border-radius:4px;font-weight:600}.AUTHORIZED{background:#e4f2f0;color:#0e6b66}.DECLINED{background:#fbeae7;color:#b42318}[data-decision="AUTHORIZED"]{color:#0e6b66}[data-decision="DECLINED"]{color:#b42318}
+table{border-collapse:collapse;width:100%;font-size:.9rem}td,th{text-align:left;padding:.3rem .5rem;border-bottom:1px solid #e8ece6}
+pre{background:#fff;border:1px solid #d8ddd6;border-radius:6px;padding:.6rem;max-height:14rem;overflow:auto;font-size:.78rem}
+.note{color:#4a5563;font-size:.86rem}
+</style></head><body>
+<h1>Authorization console</h1>
+<p class="note">Displays what the service decided. It computes nothing: decisions are the core's (P0, P1), availability is the service's (INV1).</p>
+<div class="row">
+<fieldset><legend>Account</legend>
+ <label>id <input id="aid" data-testid="acct-id" type="number" value="1"></label><label>limit <input id="lim" data-testid="acct-limit" type="number" value="100"></label>
+ <button data-testid="btn-create" onclick="createAcct()">Create</button> <button onclick="refresh()">Load</button>
+ <div id="acct"></div></fieldset>
+<fieldset><legend>Authorize</legend>
+ <label>request id <input id="rid" data-testid="req-id" type="number" value="1"></label><label>amount <input id="amt" data-testid="req-amount" type="number" value="60"></label>
+ <button data-testid="btn-authorize" onclick="authorize()">Authorize</button><div id="decision"></div></fieldset>
+</div>
+<fieldset><legend>Holds</legend><table id="holds"><thead><tr><th>request</th><th>amount</th><th></th></tr></thead><tbody></tbody></table></fieldset>
+<fieldset><legend>Events (what the monitor sees)</legend><pre id="events" data-testid="events"></pre></fieldset>
+<script>
+const $=id=>document.getElementById(id);
+const api=async(m,p,b)=>{const r=await fetch(p,{method:m,headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});return r.json();};
+async function createAcct(){await api('POST','/accounts',{id:+$('aid').value,limit:+$('lim').value});refresh();}
+async function authorize(){const a=+$('aid').value;const r=await api('POST',`/accounts/${a}/authorize`,{request_id:+$('rid').value,amount:+$('amt').value});
+ $('decision').innerHTML=r.error?`<p data-testid="decision" data-decision="ERROR">${r.error}</p>`:`<p data-testid="decision" data-decision="${r.decision}"><span class="dec ${r.decision}">${r.decision}</span> request ${r.request_id}${r.replayed?' (replayed receipt — not a new decision)':''}${r.available_at_decision!==undefined?` · available at decision ${r.available_at_decision}`:''}</p>`;
+ $('rid').value=+$('rid').value+1;refresh();}
+async function release(rid){await api('POST',`/accounts/${+$('aid').value}/release`,{request_id:rid});refresh();}
+async function refresh(){const a=+$('aid').value;const v=await api('GET',`/accounts/${a}`);
+ if(v.error){$('acct').textContent=v.error;return;}
+ $('acct').innerHTML=`<p>limit <b>${v.limit}</b> · posted <b>${v.posted}</b> · available <b data-testid="available">${v.available}</b></p>`;
+ $('holds').tBodies[0].innerHTML=Object.entries(v.holds).map(([r,x])=>`<tr data-testid="hold-row" data-request-id="${r}"><td>${r}</td><td>${x}</td><td><button data-testid="btn-release" onclick="release(${r})">Release</button></td></tr>`).join('')||'<tr><td colspan=3 class="note">no live holds</td></tr>';
+ const ev=await api('GET','/events');$('events').textContent=ev.slice(-30).map(e=>JSON.stringify(e)).join('\n');}
+</script></body></html>

@@ -1,0 +1,36 @@
+name: gate
+on: [push, pull_request]
+jobs:
+  judge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
+      - name: toolchain
+        run: |
+          bash bootstrap.sh
+          .venv/bin/python -m playwright install-deps chromium >/dev/null 2>&1 || true
+          echo "DAFNY=$PWD/.tools/dafny/dafny" >> "$GITHUB_ENV"
+          echo "TLA2TOOLS=$PWD/.tools/tla2tools.jar" >> "$GITHUB_ENV"
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - name: release identity matches the seal
+        run: |
+          test "$(python3 gate/release.py id)" = "$(python3 -c 'import json;print(json.load(open("release.seal.json"))["release_digest"])')"
+      - name: frozen unit suites
+        run: python3 -m pytest obligations/boundary/test_monitor.py profiles/sqlite/tests/test_profile.py -q -p no:cacheprovider --noconftest -c /dev/null
+      - name: fresh seed refuses at ring 1
+        run: |
+          set +e; python3 gate/app_gate.py --out "$RUNNER_TEMP/ev-seed" --expected-release "$(python3 gate/release.py id)" | tee seed.log; code=$?; set -e
+          test $code -eq 1 && grep -q "ring1 · design module present" seed.log
+      - name: judge the examples with the pristine gate
+        run: |
+          for ex in build-a build-b agent-build-hold-desk; do
+            validation/judge_example.sh "examples/$ex" "$RUNNER_TEMP/ev-$ex" | tail -1
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: evidence, path: "${{ runner.temp }}/ev-*", retention-days: 14 }

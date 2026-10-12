@@ -1,0 +1,5 @@
+# app.manifest.yaml — the agent's configuration. Only the keys in gate/policy.yaml:manifest_allowlist.
+name: <your app name>
+profile: sqlite            # sqlite (shipped profile) or custom (your own adapter; judged only through your service)
+extra_tests: []            # supplementary pytest commands (reported, never relied on)
+ui_entry: ui/index.html    # served at "/" by service/run.py

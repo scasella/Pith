@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hybrid spec-driven development</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#F6F7F4;--surface:#FFFFFF;--ink:#1B2430;--ink-2:#4A5563;--rule:#D8DDD6;--rule-soft:#E8ECE6;
+  --prose:#9A6A12;--prose-bg:#FBF3E3;--prose-rule:#E6CFA0;
+  --formal:#0E6B66;--formal-bg:#E4F2F0;--formal-rule:#A9D3CE;
+  --code:#4338CA;--code-bg:#ECEBFB;--code-rule:#C4C1F0;
+  --bad:#B42318;--bad-bg:#FBEAE7;--ok:#1F7A3A;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --serif:"Source Serif 4",Georgia,"Times New Roman",serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#141A20;--surface:#1B232C;--ink:#E6EAEE;--ink-2:#A3ADB8;--rule:#303A46;--rule-soft:#262F39;
+  --prose:#E2B25B;--prose-bg:#2A2416;--prose-rule:#5E4A1E;
+  --formal:#5FC7BC;--formal-bg:#13302E;--formal-rule:#1F5450;
+  --code:#A5A0F5;--code-bg:#23223D;--code-rule:#3E3B77;
+  --bad:#F28B7D;--bad-bg:#3A1F1C;--ok:#6FCF8B;color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#141A20;--surface:#1B232C;--ink:#E6EAEE;--ink-2:#A3ADB8;--rule:#303A46;--rule-soft:#262F39;
+  --prose:#E2B25B;--prose-bg:#2A2416;--prose-rule:#5E4A1E;
+  --formal:#5FC7BC;--formal-bg:#13302E;--formal-rule:#1F5450;
+  --code:#A5A0F5;--code-bg:#23223D;--code-rule:#3E3B77;
+  --bad:#F28B7D;--bad-bg:#3A1F1C;--ok:#6FCF8B;color-scheme:dark;}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--serif);font-size:17px;line-height:1.55;font-feature-settings:"onum" 1;-webkit-text-size-adjust:100%}
+main{max-width:980px;margin:0 auto;padding:3rem 1.1rem 5rem;min-width:0}
+h1{font-size:clamp(1.9rem,4vw,2.7rem);font-weight:600;line-height:1.15;letter-spacing:-.01em;margin:0}
+h2{font-size:1.5rem;font-weight:600;line-height:1.2;margin:0 0 .6rem}
+h3{font-size:1.1rem;font-weight:600;margin:1.6rem 0 .5rem}
+p{margin:.55rem 0;max-width:68ch}
+ol,ul{margin:.5rem 0;padding-left:1.3rem;max-width:68ch}
+li{margin:.3rem 0}
+em{font-style:italic}
+code,pre{font-family:var(--mono);font-size:.84em;font-feature-settings:normal;font-variant-ligatures:none}
+pre{margin:0;white-space:pre;overflow-x:auto;line-height:1.5;padding:.9rem 1rem;font-size:.78rem}
+section{padding:2.2rem 0 .4rem;border-top:1px solid var(--rule)}
+.num{font-family:var(--mono);font-size:.76rem;color:var(--ink-2);display:block;margin-bottom:.35rem}
+.lede{font-size:1.12rem;color:var(--ink-2);max-width:62ch;margin-top:1rem}
+.small{font-size:.86rem;color:var(--ink-2)}
+
+.rule{margin:1.6rem 0 .4rem;padding:1rem 1.2rem;border:1.5px solid var(--ink);border-radius:6px;background:var(--surface);max-width:72ch}
+.rule p:first-child{font-size:1.25rem;font-weight:600;line-height:1.3;margin:0 0 .4rem}
+.rule ul{margin:.2rem 0 0}
+
+figure{margin:1.3rem 0}
+figure svg{display:block;width:100%;height:auto}
+figcaption{font-size:.84rem;color:var(--ink-2);margin-top:.5rem;max-width:72ch}
+.svg-text{font-family:var(--serif)}.svg-mono{font-family:var(--mono)}
+
+.l-prose{--c:var(--prose);--cbg:var(--prose-bg);--crule:var(--prose-rule)}
+.l-formal{--c:var(--formal);--cbg:var(--formal-bg);--crule:var(--formal-rule)}
+.l-code{--c:var(--code);--cbg:var(--code-bg);--crule:var(--code-rule)}
+.tag{display:inline-block;font-family:var(--mono);font-size:.72rem;padding:.1rem .45rem;border-radius:4px;background:var(--cbg);color:var(--c);border:1px solid var(--crule);white-space:nowrap}
+.tag.bad{--c:var(--bad);--cbg:var(--bad-bg);--crule:var(--bad)}
+.tag.ok{--c:var(--ok);--cbg:transparent;--crule:var(--ok)}
+
+.tbl{overflow-x:auto;margin:1rem 0;border:1px solid var(--rule);border-radius:6px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.9rem;line-height:1.4}
+th,td{text-align:left;vertical-align:top;padding:.55rem .7rem;border-bottom:1px solid var(--rule-soft)}
+th{font-weight:600;font-size:.8rem;color:var(--ink-2);background:var(--bg);white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+td.k{font-weight:600;white-space:nowrap}
+td.c code{white-space:normal}
+
+.pane{border:1px solid var(--crule,var(--rule));border-radius:6px;background:var(--surface);overflow:hidden;margin:.8rem 0}
+.pane .ph{font-family:var(--mono);font-size:.72rem;color:var(--c,var(--ink-2));background:var(--cbg,var(--bg));padding:.35rem .8rem;border-bottom:1px solid var(--crule,var(--rule))}
+.pane .pb{padding:.8rem .9rem}
+.ears{font-size:1.18rem;line-height:1.45;max-width:60ch;margin:0}
+.ears b{color:var(--prose);font-weight:600}
+.cols{display:grid;grid-template-columns:1fr;gap:.8rem}
+@media (min-width:860px){.cols{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+.cols .pane{margin:0}
+
+.step{display:grid;grid-template-columns:2.4rem minmax(0,1fr);column-gap:.8rem;padding:1rem 0 1.1rem;border-top:1px dashed var(--rule)}
+.step:first-of-type{border-top:0}
+.step .n{font-family:var(--mono);font-size:.76rem;color:var(--ink-2);padding-top:.3rem}
+.step h3{margin:0 0 .4rem}
+
+.forms{font-size:.78rem}
+.forms td:first-child{font-family:var(--mono);font-size:.74rem;color:var(--ink-2);white-space:nowrap}
+.forms td code{white-space:pre;display:block}
+
+.record{border:1px solid var(--rule);border-radius:6px;background:var(--surface)}
+.record .k{color:var(--ink-2)}.record .s{color:var(--formal)}.record .cm{color:var(--ink-2);font-style:italic}
+
+footer{margin-top:2.5rem;padding-top:1rem;border-top:1px solid var(--rule);font-size:.84rem;color:var(--ink-2)}
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>Hybrid spec-driven development</h1>
+  <p class="small" style="margin-top:.6rem">An assurance-oriented extension to spec-driven development: validated behavioral obligations, scoped verification evidence, and change control that keeps the evidence current.</p>
+  <p class="lede">Spec-driven development with one change: the spec has two layers, and only one of them supports correctness claims. Prose carries intent and rationale. Formal properties, with their meaning validated and their semantics pinned, carry what must hold. Code is checked against the properties and reviewed against the prose.</p>
+  <div class="rule">
+    <p>No unvalidated interpretation of prose is the sole basis of an automated correctness claim.</p>
+    <ul>
+      <li>Every claim names its approved behavioral obligation and the evidence behind it, with the evidence's scope: what was checked, over what inputs or states, under which assumptions.</li>
+      <li>In particular: a test the implementing model derived from its own reading of the prose is not approved evidence. A reviewed, approved acceptance example is, as a point property.</li>
+      <li>Editorial prose changes change nothing. A change to intended behavior reopens intent validation until the formal layer is reconciled; it does not by itself invalidate proofs.</li>
+    </ul>
+  </div>
+</header>
+
+<!-- ============================================================ 1 -->
+<section id="model">
+  <span class="num">1</span>
+  <h2>The model</h2>
+  <figure>
+    <svg viewBox="0 0 960 370" role="img" aria-labelledby="fig1t" xmlns="http://www.w3.org/2000/svg">
+      <title id="fig1t">Three layers: prose formalized into properties, properties checked against code, no verification inference from prose to code</title>
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--ink-2)"/></marker>
+        <marker id="arrbad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--bad)"/></marker>
+      </defs>
+      <!-- prose -->
+      <rect x="10" y="30" width="285" height="150" rx="8" fill="var(--prose-bg)" stroke="var(--prose-rule)" stroke-width="1.5"/>
+      <text x="30" y="62" class="svg-text" font-size="22" font-weight="600" fill="var(--ink)">Prose</text>
+      <text x="30" y="90" class="svg-text" font-size="13.5" fill="var(--ink)">EARS requirements, design narrative,</text>
+      <text x="30" y="110" class="svg-text" font-size="13.5" fill="var(--ink)">rationale, incident references,</text>
+      <text x="30" y="130" class="svg-text" font-size="13.5" fill="var(--ink)">what is deliberately not formalized.</text>
+      <text x="30" y="162" class="svg-mono" font-size="11.5" fill="var(--prose)">owner: product + engineering</text>
+      <!-- formal -->
+      <rect x="337" y="30" width="285" height="150" rx="8" fill="var(--formal-bg)" stroke="var(--formal-rule)" stroke-width="1.5"/>
+      <text x="357" y="62" class="svg-text" font-size="22" font-weight="600" fill="var(--ink)">Formal properties</text>
+      <text x="357" y="90" class="svg-text" font-size="13.5" fill="var(--ink)">Temporal properties and contracts</text>
+      <text x="357" y="110" class="svg-text" font-size="13.5" fill="var(--ink)">over a named state model, with</text>
+      <text x="357" y="130" class="svg-text" font-size="13.5" fill="var(--ink)">pinned timing semantics.</text>
+      <text x="357" y="162" class="svg-mono" font-size="11.5" fill="var(--formal)">owner: eng; product signs traces</text>
+      <!-- code -->
+      <rect x="665" y="30" width="285" height="150" rx="8" fill="var(--code-bg)" stroke="var(--code-rule)" stroke-width="1.5"/>
+      <text x="685" y="62" class="svg-text" font-size="22" font-weight="600" fill="var(--ink)">Code</text>
+      <text x="685" y="90" class="svg-text" font-size="13.5" fill="var(--ink)">The service, its proven core,</text>
+      <text x="685" y="110" class="svg-text" font-size="13.5" fill="var(--ink)">its tests, its monitors. Mostly</text>
+      <text x="685" y="130" class="svg-text" font-size="13.5" fill="var(--ink)">LLM-written, always tool-checked.</text>
+      <text x="685" y="162" class="svg-mono" font-size="11.5" fill="var(--code)">owner: engineering + the LLM</text>
+      <!-- prose -> formal -->
+      <line x1="297" y1="105" x2="333" y2="105" stroke="var(--ink-2)" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="316" y="93" text-anchor="middle" class="svg-mono" font-size="10.5" fill="var(--ink-2)">formalize</text>
+      <!-- formal -> code -->
+      <line x1="624" y1="105" x2="661" y2="105" stroke="var(--ink-2)" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="643" y="93" text-anchor="middle" class="svg-mono" font-size="10.5" fill="var(--ink-2)">check</text>
+      <!-- validation loop formal -> prose -->
+      <path d="M380 183 C 380 228, 255 228, 255 186" fill="none" stroke="var(--ink-2)" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#arr)"/>
+      <text x="318" y="248" text-anchor="middle" class="svg-text" font-size="13" fill="var(--ink-2)">validate: satisfying and violating traces</text>
+      <text x="318" y="265" text-anchor="middle" class="svg-text" font-size="13" fill="var(--ink-2)">reviewed against intent</text>
+      <!-- checkers under code -->
+      <text x="807" y="208" text-anchor="middle" class="svg-mono" font-size="11.5" fill="var(--ink-2)">TLC, Dafny, Hypothesis, monitors</text>
+      <!-- forbidden prose -> code -->
+      <path d="M120 183 C 120 365, 807 365, 807 228" fill="none" stroke="var(--bad)" stroke-width="1.5" marker-end="url(#arrbad)"/>
+      <line x1="480" y1="305" x2="520" y2="335" stroke="var(--bad)" stroke-width="3"/>
+      <line x1="520" y1="305" x2="480" y2="335" stroke="var(--bad)" stroke-width="3"/>
+      <text x="500" y="292" text-anchor="middle" class="svg-text" font-size="13" fill="var(--bad)">no verification inference from prose to code</text>
+      <text x="500" y="358" text-anchor="middle" class="svg-text" font-size="12" fill="var(--bad)">(implementation and review still read the prose)</text>
+    </svg>
+    <figcaption>Information flows left to right. The one loop back is validation: the formal layer is checked against human intent with concrete traces. Prose still guides implementation and review; what it never does is justify a correctness claim on its own.</figcaption>
+  </figure>
+
+  <div class="tbl"><table>
+    <thead><tr><th>Layer</th><th>Carries</th><th>Checked by</th><th>May never</th></tr></thead>
+    <tbody>
+      <tr class="l-prose"><td class="k"><span class="tag">prose</span></td><td>Intent, rationale, scope, incident history, and an explicit list of what is deliberately left informal.</td><td>Review. Every behavioral statement links to a property or carries an <code>informal:</code> marker with a reason.</td><td>Be the sole basis for a correctness claim.</td></tr>
+      <tr class="l-formal"><td class="k"><span class="tag">formal</span></td><td>Properties over a named state model, with timing semantics and atom bindings pinned.</td><td>Trace review against intent; vacuity and antecedent-coverage checks; realizability across the set.</td><td>Exist without a binding that executes it. Change meaning without re-validation. Pass trivially: adequacy is checked with deliberately wrong candidates.</td></tr>
+      <tr class="l-code"><td class="k"><span class="tag">code</span></td><td>The service, its proven core, its generated tests and monitors.</td><td>Executing a binding: proof, model check, property-based test, monitor.</td><td>Be called correct because a reader, human or model, agreed with the prose. Carry one label for four kinds of evidence.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>What changes in the loop</h3>
+  <p>Current practice is not prose-only: some spec-driven tools, <a href="https://kiro.dev/docs/specs/correctness/">Kiro</a> for example, already extract properties from EARS requirements, run property-based tests, and are careful to call the result evidence rather than proof. The hybrid's contribution is narrower and firmer: properties with pinned semantics and validated meaning, bound to a state model, with evidence that stays scoped and current.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Step</th><th>Current practice</th><th>Hybrid</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Specify</td><td>Structured prose with acceptance criteria; properties extracted from it by the tool.</td><td>Same prose, plus a property per requirement over a named state model, with timing semantics and atoms pinned and the meaning validated by trace review, or an explicit <code>informal</code> opt-out.</td></tr>
+      <tr><td class="k">Plan</td><td>Design narrative.</td><td>Narrative plus a state model with named variables and actions; checked (TLA+ or equivalent) for requirements that need it.</td></tr>
+      <tr><td class="k">Tasks</td><td>Implementation tasks per requirement.</td><td>Plus one task per verification binding and one for trace review.</td></tr>
+      <tr><td class="k">Implement</td><td>LLM derives code from the spec.</td><td>Unchanged. Tests assert properties by id. Critical cores are written in a verifiable language and transpiled.</td></tr>
+      <tr><td class="k">Verify</td><td>Review against the spec; example tests and tool-generated property tests.</td><td>Execute the bindings. Each records a scoped claim; a policy gate computes over them. The gate is simple, the claims stay distinguishable.</td></tr>
+      <tr><td class="k">Change</td><td>Edit the spec, regenerate.</td><td>Classify the edit. Editorial: nothing moves. Intent: validation reopens. Property, atom, model, build, or schema: the dependent evidence goes stale. Then regenerate.</td></tr>
+    </tbody>
+  </table></div>
+  <p>The spec stays the source of truth. Prose is the truth about <em>intent</em>; properties record the approved obligations for required <em>behavior</em>. Code is still regenerated from the spec; the regeneration is checked against the second and reviewed against the first.</p>
+</section>
+
+<!-- ============================================================ 2 -->
+<section id="example">
+  <span class="num">2</span>
+  <h2>One requirement, end to end</h2>
+  <p>Payment authorization: one account, concurrent authorization requests, a limit that in-flight reservations count against. The requirement is <code>REQ-AUTH-001</code>; its record is in section 3. Available limit is the only authorization criterion modeled; the requests are otherwise eligible.</p>
+  <div class="rule" style="border-style:dashed;margin:.8rem 0 .4rem"><p style="font-size:1rem">Illustrative example.</p><p class="small" style="margin:0">The model fragments, record, identifiers, and verification outcomes below demonstrate the proposed workflow. They are not reported results from an executed implementation or deployment. Where a counterexample is described, it is one the reader can construct by hand.</p></div>
+
+  <div class="step"><div class="n">2.1</div><div>
+    <h3>Sentence</h3>
+    <div class="pane l-prose"><div class="ph">prose · spec/requirements</div><div class="pb">
+      <p class="ears"><b>When</b> an authorization request exceeds the account's available limit, the system <b>shall</b> decline the request <b>and shall not</b> reserve funds.</p>
+    </div></div>
+    <p class="small">Five things are open, and all five matter under concurrency. Each becomes a recorded decision.</p>
+  </div></div>
+
+  <div class="step"><div class="n">2.2</div><div>
+    <h3>Decisions</h3>
+    <div class="tbl"><table>
+      <thead><tr><th>Open in the prose</th><th>Decision</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td class="k">When is "exceeds" evaluated?</td><td>At the decision step, the linearization point of <code>Decide(r)</code>. Not at receipt.</td><td>Under a receipt-time policy, two requests of 60 that each observe 100 available at receipt both authorize, leaving 120 reserved against a limit of 100: INV1 fails. Evaluating availability atomically at the decision step removes that trace. The counterexample is about this policy and this model, not every receipt-time design.</td></tr>
+        <tr><td class="k">What does "when" mean?</td><td><b>Immediate</b>: the response holds in the post-state of the same atomic step. Not next, not eventually, not within a bound.</td><td>Receipt-to-decision latency is a separate liveness requirement, <code>REQ-AUTH-002</code>.</td></tr>
+        <tr><td class="k">Must the trigger persist?</td><td>Single-shot. Evaluated once per request; a retry is a new request.</td><td>Re-evaluation would couple this requirement to idempotency (<code>REQ-AUTH-007</code>).</td></tr>
+        <tr><td class="k">"Exceeds" and "available"</td><td>Strict: <code>amount &gt; available</code>, where available is limit minus posted minus live reservations, read in the same step. Equality authorizes, and that is its own property (P0), not an inference from P1's silence.</td><td>An implication says nothing when its antecedent is false. Without P0, "always decline" satisfies every property here.</td></tr>
+        <tr><td class="k">"Shall not reserve"</td><td>A reservation exists only while its request is Authorized (P2); the account never exceeds its limit (INV1); Declined is terminal (P3).</td><td>"No reservation while Declined" would admit reserve-then-release-then-decline. P2 as stated forbids a reservation in any other status, so the optimistic-reserve bug is out.</td></tr>
+      </tbody>
+    </table></div>
+  </div></div>
+
+  <div class="step"><div class="n">2.3</div><div>
+    <h3>Properties and glossary</h3>
+    <div class="pane l-formal"><div class="ph">formal · specs/formal/PaymentAuth.tla</div>
+<pre><code>VARIABLES status, reservations, posted
+\* status       : Reqs -> {"Pending","Authorized","Declined"}
+\* reservations : partial Reqs -> Nat   (live holds)
+Avail(a)   == Limit[a] - posted[a] - Reserved(a)
+Decided(r) == status[r] = "Pending" /\ status'[r] # "Pending"
+
+P0 == [][ \A r \in Reqs :                 \* within limit: authorize and reserve
+          Decided(r) /\ Amount[r] &lt;= Avail(Owner[r])
+            => status'[r] = "Authorized"
+               /\ reservations' = reservations @@ (r :> Amount[r]) ]_vars
+
+P1 == [][ \A r \in Reqs :                 \* over limit: decline, reserve nothing
+          Decided(r) /\ Amount[r] > Avail(Owner[r])
+            => status'[r] = "Declined"          \* P1.a
+               /\ reservations' = reservations ]_vars   \* P1.b
+
+P2 == [](\A r \in Reqs :                   \* a hold exists only while Authorized
+          r \in DOMAIN reservations => status[r] = "Authorized")
+
+P3 == [][ \A r \in Reqs :                  \* terminal
+          status[r] = "Declined" => status'[r] = "Declined" ]_vars
+
+INV1 == \A a \in Accts :                   \* invariant
+          posted[a] + Reserved(a) &lt;= Limit[a]</code></pre></div>
+      <div class="tbl"><table>
+        <thead><tr><th>Atom</th><th>Predicate</th><th>Observed as</th></tr></thead>
+        <tbody>
+          <tr><td>authorization request</td><td class="c"><code>r ∈ Reqs, status[r] = "Pending"</code></td><td class="c"><code>auth.decided.request_id</code>, first occurrence</td></tr>
+          <tr><td>exceeds</td><td class="c"><code>Amount[r] &gt; Avail(Owner[r])</code></td><td class="c"><code>amount &gt; available_at_decision</code></td></tr>
+          <tr><td>available limit</td><td class="c"><code>Limit − posted − Reserved</code></td><td class="c">emitted figure, cross-checked against stream reconstruction</td></tr>
+          <tr><td>decline</td><td class="c"><code>status'[r] = "Declined"</code></td><td class="c"><code>decision = "DECLINED"</code></td></tr>
+          <tr><td>reserve funds</td><td class="c"><code>r ∈ DOMAIN reservations'</code></td><td class="c"><code>reservation.created.request_id = r</code></td></tr>
+          <tr><td>the system</td><td class="c"><code>Decide(r)</code> in auth-service</td><td class="c">producer = <code>auth-service</code> only</td></tr>
+        </tbody>
+      </table></div>
+    <p class="small">Every atom binds to one expression over the model and one observation in production. Scoping "the system" to a single action is what makes the property checkable; naming the producer is what lets the monitor notice a second writer.</p>
+    <div class="tbl"><table>
+      <thead><tr><th>Adequacy: deliberately wrong candidate</th><th>Rejected by</th></tr></thead>
+      <tbody>
+        <tr><td>Always decline, never reserve.</td><td>P0. Nothing else: P1, P2, P3, INV1 all pass.</td></tr>
+        <tr><td>Decline at equality.</td><td>P0 at the boundary; the trace set must include it.</td></tr>
+        <tr><td>Reserve optimistically on receipt, release on decline.</td><td>P2 (a hold while Pending). The weaker "no hold while Declined" would have passed it.</td></tr>
+        <tr><td>Commit decisions from receipt-time availability.</td><td>INV1: two requests of 60 sharing a snapshot of 100.</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small">Trace review asks whether the properties mean what stakeholders meant. Wrong candidates ask whether the properties reject what stakeholders consider wrong. Both are required before the formal layer may serve as an oracle.</p>
+  </div></div>
+
+  <div class="step"><div class="n">2.4</div><div>
+    <h3>Bindings</h3>
+    <p>Four harnesses, four scopes. Each binding declares which property components it covers and the claim a pass supports. The shared id does not make them the same obligation; the declaration is what keeps them honest.</p>
+    <div class="tbl"><table>
+      <thead><tr><th>Binding</th><th>Form</th><th>Covers</th><th>A pass establishes</th><th>Cannot see</th></tr></thead>
+      <tbody>
+        <tr><td class="k">TLC</td><td class="c"><code>P1</code> as an action property of <code>PaymentAuth.tla</code>, 3 accounts × 4 requests, all interleavings</td><td>P0, P1.a, P1.b, P2, P3, INV1</td><td>The properties hold in every state of the configured finite model; exhaustive within those bounds. Nothing about the Python.</td><td>Whether the implementation refines the model.</td></tr>
+        <tr><td class="k">Dafny</td><td class="c"><code>ensures amount &gt; old(Available()) ==&gt; d == Declined &amp;&amp; reservations == old(reservations)</code></td><td>P0, P1.a, P1.b, INV1 over the core's own map</td><td>For all inputs satisfying the contract, the transpiled core meets the postconditions, under the stated assumptions and the transpiler.</td><td>Transaction isolation, the wrapper, the database.</td></tr>
+        <tr><td class="k">Hypothesis</td><td class="c"><code>if amount &gt; avail_before: assert d.decision == "DECLINED" and not svc.has_reservation(d.request_id)</code><br>Sequential rule: <code>avail_before</code> is the oracle's read and equals the decision-step value only because the state machine is sequential. Burst rule: P1.a and INV1 only.</td><td>P0, P1.a, P1.b restricted to <em>r</em>, P2, P3, INV1</td><td>Not falsified over the executed runs (2,000 sequences, 200 bursts) against build <code>#8812</code>. Evidence, not proof.</td><td>Production configuration and traffic; other writers.</td></tr>
+        <tr><td class="k">Monitor</td><td class="c"><code>amount &gt; available_at_decision and decision != "DECLINED"</code> on <code>auth.decided</code>; the reservation side is <code>P2-obs</code> on <code>reservation.created</code></td><td>P1.a; P2 and INV1 as observed; P1.b not covered</td><td>No violation detected among emitted events in the window, subject to emission being complete. Detects; never prevents.</td><td>Internal state. Anything not emitted.</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small">Where bindings can be generated from one restricted semantic form, generate them. Where they cannot, each translation is reviewed and a shared set of concrete conformance traces is fed to every binding, so divergences those traces exercise fail visibly. They do not find divergences they do not exercise.</p>
+  </div></div>
+</section>
+
+<!-- ============================================================ 3 -->
+<section id="record">
+  <span class="num">3</span>
+  <h2>The record</h2>
+  <p>One per requirement, next to its prose, shown here schematically; an executable record uses a valid serialization and makes freshness and required coverage explicit in the gate. The gate is computed, never typed. Beneath it, every binding keeps its own claim and scope, so the record can always answer: verified in what sense, for which artifact, over what bounds, under which assumptions.</p>
+<pre class="record"><code><span class="k">id:</span> REQ-AUTH-001            <span class="k">class:</span> money-moving invariant   <span class="k">rung:</span> 4
+<span class="k">gate:</span> <span class="s">assurance policy satisfied</span>   <span class="cm"># required coverage met ∧ all required bindings pass ∧ validation current ∧ adequacy current ∧ evidence fresh</span>
+
+<span class="k">prose:</span>
+  <span class="k">ears:</span> When an authorization request exceeds the account's available limit,
+        the system shall decline the request and shall not reserve funds.
+  <span class="k">rationale:</span> Reserving past the limit creates negative balances settlement
+        cannot unwind without manual reversal (INC-2231).
+  <span class="k">informal:</span> []
+
+<span class="k">semantics:</span>
+  <span class="k">trigger_evaluated_at:</span> decision step, not receipt
+  <span class="k">response_timing:</span> immediate          <span class="cm"># immediate | next | eventually | within(bound)</span>
+  <span class="k">trigger_persistence:</span> single-shot
+  <span class="k">comparison:</span> strict; equality authorizes (P0)
+  <span class="k">terminality:</span> Declined is terminal (P3)
+  <span class="k">environment:</span> arrivals uncontrolled; may interleave before any decision
+
+<span class="k">state_model:</span> specs/formal/PaymentAuth.tla@4f1c2e9
+<span class="k">atoms:</span> { authorization request: "r ∈ Reqs ∧ status[r] = Pending",
+         exceeds: "Amount[r] &gt; Avail(Owner[r])",
+         available limit: "Limit[a] − posted[a] − Reserved(a)",
+         decline: "status'[r] = Declined",
+         reserve funds: "r ∈ DOMAIN reservations'",
+         the system: "Decide(r) in auth-service" }
+<span class="k">properties:</span> [P0 response, P1 response {a: decline, b: holds unchanged}, P2 invariant, P3 universality, INV1 invariant]
+
+<span class="k">verification:</span>
+  - <span class="k">kind:</span> model_check  <span class="k">tool:</span> TLC         <span class="k">artifact:</span> specs/formal/PaymentAuth.tla
+    <span class="k">covers:</span> [P0,P1.a,P1.b,P2,P3,INV1]  <span class="k">result:</span> <span class="s">pass</span>
+    <span class="k">claim:</span> holds in all states of 3 accts × 4 reqs, exhaustive
+  - <span class="k">kind:</span> proof        <span class="k">tool:</span> Dafny       <span class="k">artifact:</span> core/auth/AuthCore.dfy::Decide
+    <span class="k">covers:</span> [P0,P1.a,P1.b,INV1]        <span class="k">result:</span> <span class="s">pass</span>
+    <span class="k">claim:</span> all contract-satisfying inputs, under module assumptions, transpiled output pinned
+  - <span class="k">kind:</span> pbt          <span class="k">tool:</span> Hypothesis  <span class="k">artifact:</span> tests/prop/test_req_auth_001.py
+    <span class="k">covers:</span> [P0,P1.a,P1.b(r),P2,P3,INV1] <span class="k">result:</span> <span class="s">pass</span>  <span class="k">antecedent_hit:</span> P1 41% (floor 10%)
+    <span class="k">claim:</span> not falsified in 2,000 sequences + 200 bursts against build #8812
+  - <span class="k">kind:</span> monitor      <span class="k">tool:</span> monitor-gen <span class="k">artifact:</span> monitors/req_auth_001.py
+    <span class="k">covers:</span> [P1.a,P2-obs,INV1-obs]      <span class="k">result:</span> <span class="s">live</span>, 0 violations
+    <span class="k">claim:</span> no violation among emitted events on payments.auth.v3, window 2026-09-20 to 2026-10-10 (20 days)
+
+<span class="k">validation:</span>
+  <span class="k">traces:</span> 6 satisfying, 4 violating (incl. equality and burst cases)
+  <span class="k">signed:</span> product, risk · 2026-09-18     <span class="k">current:</span> true
+  <span class="k">adequacy:</span> wrong candidates rejected: [always-decline → P0, decline-at-equality → P0,
+             optimistic-reserve → P2, receipt-time-avail → INV1]
+  <span class="k">realizability:</span> set {REQ-AUTH-001, -002, -007, REQ-LEDGER-014} realizable under
+             semantics.environment; checked 2026-09-18
+
+<span class="k">evidence_depends_on:</span>              <span class="cm"># any change here marks the dependent claims stale</span>
+  <span class="k">model:</span> PaymentAuth.tla@4f1c2e9    <span class="k">build:</span> #8812     <span class="k">schema:</span> payments.auth.v3
+  <span class="k">config:</span> auth-service.prod@c21a   <span class="k">assumptions:</span> [serializable isolation on reservations]
+
+<span class="k">change_policy:</span> editorial prose → nothing; intent → validation.current=false;
+               properties|atoms|model → bindings stale + validation reopened;
+               build|schema|config → dependent claims stale
+<span class="k">related:</span> [REQ-AUTH-002 liveness, REQ-AUTH-007 idempotency, REQ-LEDGER-014 posting]</code></pre>
+</section>
+
+<!-- ============================================================ 4 -->
+<section id="ladder">
+  <span class="num">4</span>
+  <h2>The ladder</h2>
+  <p>Evidence should match the failure mode, consequence, and observability of the requirement, not a fixed inventory of tools. The table is the default assignment; the principle governs exceptions, which are recorded with their reasoning. Rungs are cumulative by default.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Rung</th><th>Bindings</th><th>What a pass supports</th><th>Default for</th></tr></thead>
+    <tbody>
+      <tr><td class="k">1</td><td>Prose spec, derived code, review, example tests, tool-extracted property tests with unvalidated meaning.</td><td><span class="tag bad">no correctness claim</span> The obligation was never approved.</td><td>Nothing with consequential behavior.</td></tr>
+      <tr><td class="k">2</td><td>Validated properties executed by stateful property-based tests; a live monitor where the behavior is observable in production.</td><td>Not falsified over executed runs; no violation observed in the window.</td><td>Stated behavior with bounded consequence: contracts, schemas, audit events. A pure library skips the monitor.</td></tr>
+      <tr><td class="k">3</td><td>Plus a model-checked state model.</td><td>Properties hold throughout the configured finite model.</td><td>Concurrency, protocols, state machines, retry and idempotency.</td></tr>
+      <tr><td class="k">4</td><td>Plus a proven core with the properties as contracts, transpiled and pinned.</td><td>Postconditions hold for all contract-satisfying inputs, under stated assumptions.</td><td>Money-moving and safety invariants.</td></tr>
+    </tbody>
+  </table></div>
+  <p>A requirement moves up when its monitor fires, when it is named in an incident, when its blast radius grows, or when a counterexample appears after its gate was satisfied. It moves down only with an explicit risk reassessment: a redesign that removes the concurrency or the external dependency can legitimately remove the binding that existed for it. Requirements that resist formal oracles (copy, layout, interaction quality) keep human evaluation and an <code>informal</code> marker; absence of a formal oracle does not mean absence of evaluation.</p>
+</section>
+
+<!-- ============================================================ 5 -->
+<section id="failures">
+  <span class="num">5</span>
+  <h2>How the layers can agree and still be wrong</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Failure</th><th>In this example</th><th>Caught by</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Spec drift</td><td>A hotfix in the wrapper reads available balance from a 500 ms cache. Prose and properties still say "same step." With nothing tracking the build, the gate would still read satisfied.</td><td>The dependency set marks stack-level claims stale on the build change, before any binding runs. When they run, burst PBT can surface the stale read and the monitor's cross-check fires on divergence; neither is guaranteed within a finite run. The pinned Dafny core is unchanged, which is correct: the proof's claim never covered the wrapper.</td></tr>
+      <tr><td class="k">Formalization ≠ intent</td><td>The formalizer uses the wrong boundary consistently: P0 authorizes only when <code>amount &lt; available</code>, P1 declines when <code>amount ≥ available</code>. The implementation satisfies both mistaken properties; every checker passes; customers at exactly their limit are declined.</td><td>Boundary traces in the review set, signed against the traces rather than the formula, and the "decline at equality" candidate, which approved intent requires the set to reject. Verification succeeded against an internally consistent, wrong formalization; only validation sees it.</td></tr>
+      <tr><td class="k">Inadequate property set</td><td>P0 is missing. An implementation that declines everything satisfies P1, P2, P3 and INV1 and every checker passes.</td><td>Wrong-candidate implementations run against the property set before it is accepted as an oracle: always-decline, decline-at-equality, optimistic-reserve, receipt-time availability. Each must be rejected by a named property.</td></tr>
+      <tr><td class="k">Vacuous property</td><td>An atom binds to an unreachable predicate; P1's antecedent is never true; TLC and PBT pass trivially.</td><td>Antecedent coverage: TLC asserts the trigger is reachable; Hypothesis records antecedent hits against a floor; Dafny carries a witness for the precondition; the monitor alerts on zero antecedents over a window with traffic.</td></tr>
+      <tr><td class="k">Binding divergence</td><td>Four forms share the id <code>P1</code> and encode three different obligations; the monitor silently covers only the decline half.</td><td>Each binding declares the components it covers and the claim a pass supports. Shared conformance traces are fed to every binding. Where possible, bindings are generated from one semantic form.</td></tr>
+      <tr><td class="k">Unrealizable set</td><td>A later requirement demands a decision within 50 ms with the ledger unavailable, which forbids reading the state P1 needs. Each passes alone.</td><td>Realizability analysis over the set, with the environment assumptions and controlled variables stated: does a strategy exist for every permitted input, not merely some satisfying trace. A TLC deadlock on a conjoined model is evidence about that design, not a proof of unrealizability; it prompts the analysis, it does not replace it.</td></tr>
+      <tr><td class="k">Proven core, unverified glue</td><td><code>Decide</code> is proven; the service wraps it in two unlocked round trips.</td><td>The proof's claim is scoped to the core and says so. Rung 4 keeps the rung 2 and 3 bindings; stateful bursts and the production invariant monitor are what see the glue.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============================================================ 6 -->
+<section id="start">
+  <span class="num">6</span>
+  <h2>Starting</h2>
+  <ol>
+    <li>Pilot the whole method on one bounded workflow with consequential state transitions. Measure defects caught, but also how often trace review and wrong candidates change a property before code exists, whether bindings stay aligned, and what the evidence costs to maintain. Let those numbers govern rollout.</li>
+    <li>In the pilot, add <code>semantics</code>, <code>atoms</code>, <code>properties</code>, <code>verification</code> (with <code>covers</code> and <code>claim</code> per binding), <code>validation</code>, and <code>evidence_depends_on</code> to each requirement record, with <code>informal</code> as the explicit opt-out. Replace any hand-typed status with a computed gate.</li>
+    <li>Give the design artifact a state model with named variables and actions, and state the environment assumptions the requirements rely on.</li>
+    <li>Before a property set becomes an oracle: trace review with boundary cases, and a short list of deliberately wrong candidates that the set must reject.</li>
+    <li>Change the test-generation instruction: assert declared property components, stateful where there is state, with an antecedent-hit floor in CI.</li>
+    <li>Generate monitors from the records where behavior is observable; make "monitor live" a release gate at the rungs that require one; let CI write results and claims.</li>
+  </ol>
+</section>
+
+<footer>The worked example, including every verification outcome in it, is illustrative, as noted in section 2. The TLA+ excerpt assumes a <code>Reserved(a)</code> sum helper and the full <code>Decide</code> action. Revised after external review: the property set gained P0 and a stronger P2, bindings now declare coverage and claim, and the single <code>verified</code> label was replaced by a gate over scoped claims.</footer>
+</main>
+</body>
+</html>
