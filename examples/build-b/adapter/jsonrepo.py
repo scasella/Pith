@@ -7,7 +7,7 @@ is rebuilt from the event log on open. Must pass obligations/adapter/harness.py 
 """
 import json, os, tempfile, threading
 from profiles.sqlite import core      # validators and the proven core loader; no storage code is shared
-from profiles.sqlite.repo import seal, ZERO, check_decide_post, check_release_post   # chain + runtime post-check helpers (pure functions)
+from profiles.sqlite.repo import seal, ZERO, check_decide_post, check_release_post, check_capture_post   # chain + runtime post-check helpers (pure functions)
 import uuid
 
 def _enc(a): return {"limit": int(a.limit), "posted": int(a.posted), "holds": sorted((int(k), int(v)) for k, v in a.holds.items), "status": sorted((int(k), core.STATUS_NAME[v]) for k, v in a.status.items)}
@@ -22,7 +22,7 @@ def _dec(row):
 class Repo:
     def __init__(self, path=None):
         self.path = path or os.path.join(tempfile.mkdtemp(prefix="jsonrepo-"), "state.json")
-        self.lock = threading.RLock(); self.core = core.Core()
+        self.lock = threading.RLock(); self.core = core.Core(); self.poster = core.Poster()
         if not os.path.exists(self.path): self._write({"accounts": {}, "events": []})
         self._oracle = {}; self._rebuild()
     def close(self): pass
@@ -46,6 +46,7 @@ class Repo:
             if t == "account.created": self._oracle[a] = core.fresh_account(ev["limit"])
             elif t == "auth.decided": _, self._oracle[a] = self.core.Decide(self._oracle[a], core.Request(ev["request_id"], ev["amount"]))
             elif t == "reservation.released": self._oracle[a] = self.core.Release(self._oracle[a], ev["request_id"])
+            elif t == "capture.posted":       self._oracle[a] = self.poster.Capture(self._oracle[a], ev["request_id"])
     def verify_replay(self):
         doc = self._read(); diffs = []
         for k, row in doc["accounts"].items():
@@ -90,6 +91,20 @@ class Repo:
             self._emit(doc, {"type": "reservation.released", "account_id": acct_id, "request_id": req_id}); self._done(doc, acct_id, req_id, "release", a2)
             self._write(doc); self._oracle[acct_id] = self.core.Release(self._oracle[acct_id], req_id)
             return {"request_id": req_id, "released": True}
+    def capture(self, acct_id, req_id):
+        acct_id, req_id = core.validate_id(acct_id, "account_id"), core.validate_id(req_id, "request_id")
+        with self.lock:
+            self._op = uuid.uuid4().hex; doc = self._read()
+            if str(acct_id) not in doc["accounts"]: raise core.UnknownAccount(acct_id)
+            a = _dec(doc["accounts"][str(acct_id)])
+            if req_id not in core.holds(a):
+                if core.status(a).get(req_id) == "POST": return {"request_id": req_id, "captured": True, "replayed": True}
+                return {"request_id": req_id, "captured": False}
+            amount = core.holds(a)[req_id]; a2 = self.poster.Capture(a, req_id); check_capture_post(a, req_id, a2); doc["accounts"][str(acct_id)] = _enc(a2)
+            self._emit(doc, {"type": "capture.posted", "account_id": acct_id, "request_id": req_id, "amount": amount}); self._done(doc, acct_id, req_id, "capture", a2)
+            self._write(doc); self._oracle[acct_id] = self.poster.Capture(self._oracle[acct_id], req_id)
+            return {"request_id": req_id, "captured": True, "amount": amount, "replayed": False}
+
     # -- reads ----------------------------------------------------------------
     def account(self, acct_id):
         acct_id = core.validate_id(acct_id, "account_id"); doc = self._read()

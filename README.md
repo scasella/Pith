@@ -12,12 +12,12 @@
 **A formally verified application core that a coding agent builds an application around, with a judge that
 says exactly which properties of the result are proved, model-checked, tested, or awaiting human review.**
 
-The seed contains a proven authorization-and-reservation kernel (Dafny), the obligations every surrounding
+The seed contains two proven kernels (Dafny): authorization-and-reservation, and posting (capture), the obligations every surrounding
 layer must satisfy (TLA+ invariants, black-box harnesses, a UI contract), and an evaluator that runs the
 candidate as a separate process and never trusts its output. An agent clones the repository, reads
 `AGENT.md`, and builds the design model, service, and user interface. The gate decides when it is done.
 
-> Status: research prototype, v0.4.1. The method and the judge have been through four external reviews and
+> Status: research prototype, v0.5.0. The method and the judge have been through four external reviews and
 > one unassisted agent build (see `docs/VALIDATION.md`). It is not a payment system; no funds move. Read
 > `INTENT.md` for what the core means and `kernel/tcb.yaml` for what a green result rests on.
 

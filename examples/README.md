@@ -9,7 +9,7 @@ environment, hence `release_ready: false`).
 |---|---|---|---|---|
 | `build-a` | shipped sqlite profile | client phases with lost responses and resends | web console | reference |
 | `build-b` | custom JSON-file adapter (`profile: custom`) | single-writer queue with resends | plain terminal-style page | reference |
-| `agent-build-hold-desk` | shipped sqlite profile | decide/lose/replay, no client phases | web console | first unassisted agent build (macOS), unchanged |
+| `archive/agent-build-hold-desk-v0.4.1` | shipped sqlite profile | decide/lose/replay | web console | first unassisted agent build (macOS), v0.4.1 only, not judged by CI |
 
 Judge one: `validation/judge_example.sh examples/build-a ../evidence-a`. To approve one, sign an attestation for
 the `artifact_digest` in its claims with `gate/review.py` and pass `--review`/`--reviewer-key`

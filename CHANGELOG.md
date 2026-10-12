@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.5.0 — 2026-10-12
+Second proven kernel: posting (`Capture`), as a separate Dafny module importing the shared state and invariant;
+four capture adequacy candidates; two capture traces. Design obligations compose both kernels: `posted` is a
+variable, `CoreCapture` an atomic action, `INV1` the composition invariant checked under interleaving, `P4`
+(Post terminal), `PostedExact`, coverage for captures and captures under contention. Rings 2–3: capture route,
+`capture.posted` event, monitor capture semantics with negative cases, lifecycle and boundary coverage, UI
+contract `btn-capture`/`posted`, workflow W6. ARCHITECTURE.md records what composition turned out to mean.
+Release digest `df0b0b2eb69ebde3e2bdbd89fec5c679df28d74cb6e458ee371a3aa3ec35ec89`.
+
 ## v0.4.1 — 2026-10-12
 Published as **Pith** (formerly core-seed). Also: `bootstrap.sh` fails on a bad toolchain download instead of
 printing ok; CI workflow fixes (monitor generated before its suite, pipeline exit codes no longer masked, Chromium

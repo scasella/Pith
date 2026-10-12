@@ -39,7 +39,7 @@ jobs:
       - name: judge the examples with the pristine gate
         run: |
           set -o pipefail   # a failing judge must fail the step, not be hidden by tail
-          for ex in build-a build-b agent-build-hold-desk; do
+          for ex in build-a build-b; do   # examples/archive is not judged (conforms to an earlier release)
             validation/judge_example.sh "examples/$ex" "$RUNNER_TEMP/ev-$ex" | tail -1
           done
       - uses: actions/upload-artifact@v7

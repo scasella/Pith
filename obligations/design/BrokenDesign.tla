@@ -4,7 +4,7 @@
    reject the design they exist to reject, independent of whatever the agent builds.          *)
 EXTENDS CoreActions
 VARIABLES phase, snapshot
-vars == <<status, held, phase, snapshot>>
+vars == <<status, held, posted, phase, snapshot>>
 Init == CoreInit /\ phase = [r \in Reqs |-> "idle"] /\ snapshot = [r \in Reqs |-> 0]
 Begin(r)  == phase[r] = "idle" /\ phase' = [phase EXCEPT ![r] = "inflight"] /\ snapshot' = [snapshot EXCEPT ![r] = Available] /\ UNCHANGED coreVars
 Commit(r) == phase[r] = "inflight" /\ phase' = [phase EXCEPT ![r] = "done"] /\ (CoreDecide(r, snapshot[r]) \/ CoreReplay(r)) /\ UNCHANGED snapshot

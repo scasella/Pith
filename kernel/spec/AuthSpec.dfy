@@ -5,7 +5,7 @@ module AuthSpec {
   type ReqId = nat
 
   datatype Decision = Authorized | Declined
-  datatype Status   = Auth | Decl | Rel
+  datatype Status   = Auth | Decl | Rel | Post      // Post: captured (see PostingSpec.dfy)
   datatype Request  = Request(id: ReqId, amount: nat)
 
   // State of one account. `holds` are live reservations keyed by request.

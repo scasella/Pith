@@ -46,7 +46,7 @@ class Decision_Declined(Decision, NamedTuple('Declined', [])):
 class Status:
     @_dafny.classproperty
     def AllSingletonConstructors(cls):
-        return [Status_Auth(), Status_Decl(), Status_Rel()]
+        return [Status_Auth(), Status_Decl(), Status_Rel(), Status_Post()]
     @classmethod
     def default(cls, ):
         return lambda: Status_Auth()
@@ -61,6 +61,9 @@ class Status:
     @property
     def is_Rel(self) -> bool:
         return isinstance(self, Status_Rel)
+    @property
+    def is_Post(self) -> bool:
+        return isinstance(self, Status_Post)
 
 class Status_Auth(Status, NamedTuple('Auth', [])):
     def __dafnystr__(self) -> str:
@@ -83,6 +86,14 @@ class Status_Rel(Status, NamedTuple('Rel', [])):
         return f'AuthSpec.Status.Rel'
     def __eq__(self, __o: object) -> bool:
         return isinstance(__o, Status_Rel)
+    def __hash__(self) -> int:
+        return super().__hash__()
+
+class Status_Post(Status, NamedTuple('Post', [])):
+    def __dafnystr__(self) -> str:
+        return f'AuthSpec.Status.Post'
+    def __eq__(self, __o: object) -> bool:
+        return isinstance(__o, Status_Post)
     def __hash__(self) -> int:
         return super().__hash__()
 

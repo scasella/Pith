@@ -2,11 +2,12 @@
 // These are trace-review artifacts. Provenance (who approved them as intended, when) is recorded in
 // traces.provenance.yaml; in this seed release that file is UNSIGNED and the traces are illustrative.
 // `dafny test` runs them; `expect` failures are runtime failures, not proof failures.
-include "../core/AuthCore.dfy"
+include "../core/Kernel.dfy"
 
 module Traces {
   import opened AuthSpec
   import opened AuthCore
+  import opened PostingCore
 
   const Fresh := Account(100, 0, map[], map[])
 
@@ -43,6 +44,26 @@ module Traces {
     expect a2.holds == map[] && a2.status == map[1 := Rel];
     var d3, a3 := c.Decide(a2, Request(2, 100));
     expect d3 == Authorized;
+  }
+
+  method {:test} T6_CapturePostsExactly() {
+    var c := new Core(); var p := new Poster();
+    var d1, a1 := c.Decide(Fresh, Request(1, 60));
+    var a2 := p.Capture(a1, 1);
+    expect a2.holds == map[] && a2.posted == 60 && a2.status == map[1 := Post];
+    var d3, a3 := c.Decide(a2, Request(2, 40));        // exactly what remains after posting
+    expect d3 == Authorized;
+    var d4, a4 := c.Decide(a3, Request(3, 1));         // nothing left: posted + reserved == limit
+    expect d4 == Declined;
+  }
+
+  method {:test} T7_PostedIsTerminalAndCannotBeReleased() {
+    var c := new Core(); var p := new Poster();
+    var d1, a1 := c.Decide(Fresh, Request(1, 60));
+    var a2 := p.Capture(a1, 1);
+    var d2, a3 := c.Decide(a2, Request(2, 10));
+    expect a3.status[1] == Post;                       // untouched by a later decision
+    expect 1 !in a3.holds;                             // Release's precondition (id in holds) cannot be met for a posted request
   }
 
   method {:test} T5_DeclinedIsTerminal() {

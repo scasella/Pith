@@ -9,7 +9,7 @@ may differ freely.
 |---|---|---|
 | **Presentation** (unrestricted) | layout, visual design, copy, navigation, device targets | product acceptance (`app/acceptance.py` demonstrates the required workflows) and the human evaluations in `obligations/app/delivery.yaml` |
 | **Supported integration profiles** | persistence backend, concurrency strategy, deployment arrangement, client framework | `profile: custom`; never imported by the judge; must pass `obligations/service/lifecycle.py` and the boundary harness black-box through its service. The shipped `sqlite` profile is the reference; no profile inherits assurance from another |
-| **Behavioural extensions** | new authorization policies (fraud, velocity), capture, expiry, limit changes, multi-currency | a spec change (`INTENT.md` § How a behavioural change is made) with new obligations, adequacy candidates and evidence; never implemented around the core |
+| **Behavioural extensions** | new authorization policies (fraud, velocity), partial capture, refunds, expiry, limit changes, multi-currency | a spec change (`INTENT.md` § How a behavioural change is made) with new obligations, adequacy candidates and evidence; never implemented around the core |
 
 Two consequences worth stating plainly. A fraud rule that declines some affordable requests
 contradicts `P0`; building it in ring 3 while ring 0 still claims `P0` is a mis-statement the lint

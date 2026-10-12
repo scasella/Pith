@@ -11,7 +11,7 @@ obligations/adapter/harness.py). Domain profile (see INTENT.md):
 import sys, pathlib
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "kernel" / "core" / "py" / "authcore-py"))
-import _dafny, module_, AuthSpec, AuthCore   # noqa: E402,F401  (module_ fixes the translator's import order)
+import _dafny, module_, AuthSpec, AuthCore, PostingCore   # noqa: E402,F401  (module_ fixes the translator's import order)
 
 MAX = 2 ** 53
 
@@ -30,10 +30,11 @@ def validate_id(x, name="id"): return _int(x, name, 0)
 
 Account = AuthSpec.Account_Account
 Request = AuthSpec.Request_Request
-Auth, Decl, Rel = AuthSpec.Status_Auth(), AuthSpec.Status_Decl(), AuthSpec.Status_Rel()
-STATUS_NAME = {Auth: "AUTH", Decl: "DECL", Rel: "REL"}       # wire names = constructor names upper-cased (gen/generate.py uses the same rule)
+Auth, Decl, Rel, Post = AuthSpec.Status_Auth(), AuthSpec.Status_Decl(), AuthSpec.Status_Rel(), AuthSpec.Status_Post()
+STATUS_NAME = {Auth: "AUTH", Decl: "DECL", Rel: "REL", Post: "POST"}       # wire names = constructor names upper-cased (gen/generate.py uses the same rule)
 NAME_STATUS = {v: k for k, v in STATUS_NAME.items()}
 Core = AuthCore.Core
+Poster = PostingCore.Poster
 
 def fresh_account(limit): return Account(limit, 0, _dafny.Map({}), _dafny.Map({}))
 def available(a): return int(a.limit) - int(a.posted) - sum(int(v) for _, v in a.holds.items)   # .items: .values is a Set

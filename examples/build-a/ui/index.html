@@ -31,9 +31,10 @@ async function authorize(){const a=+$('aid').value;const r=await api('POST',`/ac
  $('decision').innerHTML=r.error?`<p data-testid="decision" data-decision="ERROR">${r.error}</p>`:`<p data-testid="decision" data-decision="${r.decision}"><span class="dec ${r.decision}">${r.decision}</span> request ${r.request_id}${r.replayed?' (replayed receipt — not a new decision)':''}${r.available_at_decision!==undefined?` · available at decision ${r.available_at_decision}`:''}</p>`;
  $('rid').value=+$('rid').value+1;refresh();}
 async function release(rid){await api('POST',`/accounts/${+$('aid').value}/release`,{request_id:rid});refresh();}
+async function capture(rid){await api('POST',`/accounts/${+$('aid').value}/capture`,{request_id:rid});refresh();}
 async function refresh(){const a=+$('aid').value;const v=await api('GET',`/accounts/${a}`);
  if(v.error){$('acct').textContent=v.error;return;}
- $('acct').innerHTML=`<p>limit <b>${v.limit}</b> · posted <b>${v.posted}</b> · available <b data-testid="available">${v.available}</b></p>`;
- $('holds').tBodies[0].innerHTML=Object.entries(v.holds).map(([r,x])=>`<tr data-testid="hold-row" data-request-id="${r}"><td>${r}</td><td>${x}</td><td><button data-testid="btn-release" onclick="release(${r})">Release</button></td></tr>`).join('')||'<tr><td colspan=3 class="note">no live holds</td></tr>';
+ $('acct').innerHTML=`<p>limit <b>${v.limit}</b> · posted <b data-testid="posted">${v.posted}</b> · available <b data-testid="available">${v.available}</b></p>`;
+ $('holds').tBodies[0].innerHTML=Object.entries(v.holds).map(([r,x])=>`<tr data-testid="hold-row" data-request-id="${r}"><td>${r}</td><td>${x}</td><td><button data-testid="btn-release" onclick="release(${r})">Release</button> <button data-testid="btn-capture" onclick="capture(${r})">Capture</button></td></tr>`).join('')||'<tr><td colspan=3 class="note">no live holds</td></tr>';
  const ev=await api('GET','/events');$('events').textContent=ev.slice(-30).map(e=>JSON.stringify(e)).join('\n');}
 </script></body></html>

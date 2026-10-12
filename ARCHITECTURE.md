@@ -39,6 +39,36 @@ isolation (container, restricted user, network policy) is outside the repository
 - Every event carries an operation id and a hash chain; `op.committed` carries the committed state; the monitor
   tracks operation lifecycles and accepts a watermark, because event atoms alone cannot say an operation finished.
 
+## Two kernels: what composition turned out to mean
+
+v0.5.0 added a second proven kernel (posting: `Capture` moves an authorized hold into `posted`) to test the
+claim that an application is several proven cores composed in the design model. The result, recorded here
+because it narrows the earlier wording:
+
+- **The proofs separate at the module level, not at the state level.** `PostingSpec.dfy` is its own module
+  with its own trait, implementation, adequacy suite and tags, and it is verified in the same run. But it
+  imports the *shared state type* and the *shared invariant* (`Valid`, hence `INV1`) from `AuthSpec.dfy`. Two
+  operations on the same account state cannot have independent invariants; the invariant is defined once and
+  each kernel's proof discharges it for its own transitions. "Two kernels" therefore means two obligation
+  sets over one state, not two states.
+- **The composition invariant lives in ring 1 and only there.** `INV1` (`posted + reserved ≤ limit`) is now
+  something either kernel can break. Each proof shows its own transition preserves it; nothing in Dafny
+  shows that interleavings of Decide, Release and Capture preserve it, because Dafny sees one call at a
+  time. `CoreActions.tla` composes the kernels as atomic actions and TLC checks `INV1` across their
+  interleavings, together with `DecideCorrect` (a decision is made against the availability of the same
+  step, which capture now changes) and coverage obligations requiring the design to actually capture under
+  contention. This is the piece that was asserted in v0.4 and is exercised in v0.5.
+- **Cross-kernel terminality needed stating.** "Post is terminal" is a property of every kernel's frame
+  conditions, not of Capture alone; `PostingSpec.dfy` states it as a predicate with a lemma per operation,
+  and `P4` restates it over the composed model.
+- **Kernels over disjoint state would compose more loosely.** An idempotency-receipt store, for example,
+  would share no invariant with authorization and could be composed through the design model alone. That
+  case is not yet built; it is the next thing to test.
+
+The honest summary: proven cores compose, but the unit of proof is the shared state, and the unit of
+composition is the design model. The project's claim is true in the model and narrower in the proofs than
+v0.4 implied.
+
 ## What this is not
 
 Not a proof of the application. Not a stdlib-only host (the Dafny Python runtime is required to run the core).

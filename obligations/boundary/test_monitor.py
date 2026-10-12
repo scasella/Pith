@@ -28,7 +28,8 @@ def created(a, limit, seq): return [{"type": "account.created", "account_id": a,
 def decided(a, r, amt, avail, dec, seq): return {"type": "auth.decided", "account_id": a, "request_id": r, "amount": amt, "available_at_decision": avail, "decision": dec, "producer": P, "seq": seq}
 def hold(a, r, amt, seq):   return {"type": "reservation.created", "account_id": a, "request_id": r, "amount": amt, "producer": P, "seq": seq}
 def rel(a, r, seq):         return {"type": "reservation.released", "account_id": a, "request_id": r, "producer": P, "seq": seq}
-def done(a, r, op, seq, limit=100, reserved=0): return {"type": "op.committed", "account_id": a, "request_id": r, "op": op, "producer": P, "seq": seq, "state_after": {"limit": limit, "posted": 0, "reserved": reserved}}
+def done(a, r, op, seq, limit=100, reserved=0, posted=0): return {"type": "op.committed", "account_id": a, "request_id": r, "op": op, "producer": P, "seq": seq, "state_after": {"limit": limit, "posted": posted, "reserved": reserved}}
+def cap(a, r, amt, seq):    return {"type": "capture.posted", "account_id": a, "request_id": r, "amount": amt, "producer": P, "seq": seq}
 
 GOOD = chain(created(1, 100, 1) + [decided(1, 1, 60, 100, "AUTHORIZED", 3), hold(1, 1, 60, 4), done(1, 1, "authorize", 5, reserved=60),
         decided(1, 2, 60, 40, "DECLINED", 6), done(1, 2, "authorize", 7, reserved=60), rel(1, 1, 8), done(1, 1, "release", 9, reserved=0),
@@ -60,6 +61,11 @@ CASES = {
                                            decided(1, 1, 60, 100, "AUTHORIZED", 2), hold(1, 1, 60, 3), done(1, 1, "authorize", 4, reserved=60)],
   "OP-after-commit|duplicate-decline-commit": created(1, 100, 1) + [decided(1, 1, 150, 100, "DECLINED", 3), done(1, 1, "authorize", 4), dict(done(1, 1, "authorize", 5), op_id="op2")],
   "OP-composition|release-absorbed": created(1, 100, 1) + [decided(1, 1, 60, 100, "AUTHORIZED", 3), hold(1, 1, 60, 4), rel(1, 1, 5), done(1, 1, "authorize", 6, reserved=0)],
+  "C-obs|capture-without-hold": created(1, 100, 1) + [cap(1, 7, 10, 3), done(1, 7, "capture", 4, posted=10)],
+  "C-amount": created(1, 100, 1) + [decided(1, 1, 60, 100, "AUTHORIZED", 3), hold(1, 1, 60, 4), done(1, 1, "authorize", 5, reserved=60), cap(1, 1, 61, 6), done(1, 1, "capture", 7, posted=61)],
+  "C-obs|double-capture": created(1, 100, 1) + [decided(1, 1, 60, 100, "AUTHORIZED", 3), hold(1, 1, 60, 4), done(1, 1, "authorize", 5, reserved=60), cap(1, 1, 60, 6), done(1, 1, "capture", 7, posted=60), cap(1, 1, 60, 8), done(1, 1, "capture", 9, posted=120)],
+  "R1-unknown|release-after-capture": created(1, 100, 1) + [decided(1, 1, 60, 100, "AUTHORIZED", 3), hold(1, 1, 60, 4), done(1, 1, "authorize", 5, reserved=60), cap(1, 1, 60, 6), done(1, 1, "capture", 7, posted=60), rel(1, 1, 8), done(1, 1, "release", 9, posted=60)],
+  "STATE|capture-not-reflected": created(1, 100, 1) + [decided(1, 1, 60, 100, "AUTHORIZED", 3), hold(1, 1, 60, 4), done(1, 1, "authorize", 5, reserved=60), cap(1, 1, 60, 6), done(1, 1, "capture", 7, posted=0)],
   "OP-interleaved": created(1, 100, 1) + [dict(decided(1, 1, 60, 100, "AUTHORIZED", 3), op_id="opA"), dict(decided(1, 2, 10, 100, "AUTHORIZED", 4), op_id="opB"),
                     dict(hold(1, 1, 60, 5), op_id="opA"), dict(done(1, 1, "authorize", 6, reserved=60), op_id="opA"), dict(hold(1, 2, 10, 7), op_id="opB"), dict(done(1, 2, "authorize", 8, reserved=70), op_id="opB")],
   "PRODUCER": created(1, 100, 1) + [dict(decided(1, 1, 60, 100, "AUTHORIZED", 3), producer="other"), hold(1, 1, 60, 4), done(1, 1, "authorize", 5)],
@@ -87,6 +93,13 @@ def test_truncated_tail_is_not_detected_by_chain_alone():
     assert "COMPLETE-unterminated" in codes(GOOD[:4])
     assert codes(GOOD[:5]) == []                                                   # ends at a commit: silent without a watermark
     assert "INCOMPLETE" in sorted({a["code"] for a in Monitor().run(GOOD[:5], expected_last_seq=GOOD[-1]["seq"])["alerts"]})
+
+GOOD_CAPTURE = chain(created(1, 100, 1) + [decided(1, 1, 60, 100, "AUTHORIZED", 3), hold(1, 1, 60, 4), done(1, 1, "authorize", 5, reserved=60),
+    cap(1, 1, 60, 6), done(1, 1, "capture", 7, posted=60), decided(1, 2, 40, 40, "AUTHORIZED", 8), hold(1, 2, 40, 9), done(1, 2, "authorize", 10, reserved=40, posted=60),
+    decided(1, 3, 1, 0, "DECLINED", 11), done(1, 3, "authorize", 12, reserved=40, posted=60)])
+
+def test_capture_stream_is_silent_and_available_shrinks_by_posted():
+    rep = Monitor().run(GOOD_CAPTURE); assert rep["alerts"] == [], rep["alerts"]
 
 def test_same_request_id_in_two_accounts_is_not_a_duplicate():
     assert "P3-obs" not in codes(GOOD)

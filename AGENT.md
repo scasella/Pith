@@ -45,11 +45,11 @@ missing. Read `kernel/core/claims.json`: `scope.does_not_cover` and
 
 **Ring 1, adapter.**
 - Write `design/Design.tla` extending `CoreActions`: your concurrency, retries, loss, idempotency.
-  Core state changes only via `CoreDecide(r, Available)`, `CoreReplay(r)`, `CoreRelease(r)`. Declare a
+  Core state changes only via `CoreDecide(r, Available)`, `CoreReplay(r)`, `CoreRelease(r)`, `CoreCapture(r)` (two kernels: authorization and posting). Declare a
   `VARIABLE responses` (what each client has seen) and define `Spec`. Do NOT define `Idempotent`,
   `Consistent` or `CovRetry`: the frozen `MC.tla` binds them to your `responses`. The gate checks safety
   (including `DecideCorrect`), then that your model actually reaches retries, contention, declines under
-  load and releases. A model that models too little is refused.
+  load, releases, and captures while another request is undecided. A model that models too little is refused.
 - Use the shipped `sqlite` profile or set `profile: custom` and write your own adapter. A custom adapter is
   never imported by the judge: it is judged only through your running service by
   `obligations/service/lifecycle.py` (duplicate create, idempotent replay and conflicts, SIGKILL after commit
@@ -68,11 +68,11 @@ missing. Read `kernel/core/claims.json`: `scope.does_not_cover` and
   service with its own client, and treats your stdout as application output, never as evidence.
 
 **Ring 3, application.**
-- Copy `obligations/app/SPEC.template.md` to `app/SPEC.md`; name workflows W1–W5 and evaluations E1–E3
+- Copy `obligations/app/SPEC.template.md` to `app/SPEC.md`; name workflows W1–W6 and evaluations E1–E3
   from `obligations/app/delivery.yaml`. Any sentence about authorization behaviour cites its obligation.
 - Build the UI (served at `/`, path in `ui_entry`) to `obligations/app/UI-CONTRACT.md`: the listed
   `data-testid` affordances must exist and behave as described; layout, framework and styling are yours.
-  The gate drives W1–W5 and a replay in a real browser at desktop and mobile widths. The UI talks only to
+  The gate drives W1–W6 and a replay in a real browser at desktop and mobile widths. The UI talks only to
   the API and shows only numbers the API returned.
 - Leave the evaluation table `(pending)`; approval comes only from an operator-signed attestation.
 - Adapter events must be hash-chained and every `op.committed` must carry `state_after` (see the sqlite

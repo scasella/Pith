@@ -2,4 +2,6 @@ CovDecided
 CovContention
 CovDecline
 CovRelease
+CovCapture
+CovCaptureContention
 CovRetry

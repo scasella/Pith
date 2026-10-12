@@ -6,6 +6,7 @@ required_workflows:          # driven in a real browser by obligations/app/brows
   - { id: W3, name: authorize_over_limit, description: an authorization over the limit is submitted and the DECLINED decision is shown, distinctly }
   - { id: W4, name: release,              description: a live hold is released and the available amount recovers }
   - { id: W5, name: view_events,          description: the event stream the monitor reads is visible }
+  - { id: W6, name: capture,              description: a live hold is captured; posted grows by its amount, available does not recover, the row is gone }
 required_evaluations:        # human approvals; status is read from the "Human evaluation record" table in app/SPEC.md
   - { id: E1, name: usability,            description: a payments-ops analyst completes W1–W4 unassisted in under 3 minutes }
   - { id: E2, name: decline_distinction,  description: declined decisions are visually distinct from authorized ones }

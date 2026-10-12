@@ -13,6 +13,7 @@ def validator(schema): return jsonschema.Draft202012Validator({**schema, "compon
 V_CREATE  = validator(OPENAPI["paths"]["/accounts"]["post"]["requestBody"]["content"]["application/json"]["schema"])
 V_AUTH    = validator(S["AuthorizeRequest"])
 V_RELEASE = validator(OPENAPI["paths"]["/accounts/{id}/release"]["post"]["requestBody"]["content"]["application/json"]["schema"])
+V_CAPTURE = validator(OPENAPI["paths"]["/accounts/{id}/capture"]["post"]["requestBody"]["content"]["application/json"]["schema"])
 UI = ROOT / (yaml.safe_load((ROOT / "app.manifest.yaml").read_text()).get("ui_entry") or "ui/index.html")
 
 def make_handler(repo):
@@ -49,6 +50,8 @@ def make_handler(repo):
                     b = self._json(V_AUTH); return self._send(200, repo.authorize(int(parts[1]), b["request_id"], b["amount"]))
                 if len(parts) == 3 and parts[0] == "accounts" and parts[2] == "release":
                     b = self._json(V_RELEASE); return self._send(200, repo.release(int(parts[1]), b["request_id"]))
+                if len(parts) == 3 and parts[0] == "accounts" and parts[2] == "capture":
+                    b = self._json(V_CAPTURE); return self._send(200, repo.capture(int(parts[1]), b["request_id"]))
                 self._send(404, {"error": "not found"})
             except UnknownAccount: self._send(404, {"error": "no such account"})
             except DuplicateAccount: self._send(409, {"error": "account exists"})
