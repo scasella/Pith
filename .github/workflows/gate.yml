@@ -28,7 +28,7 @@ jobs:
           rm -rf gen
       - name: fresh seed refuses at ring 1
         run: |
-          set +e; python3 gate/app_gate.py --out "$RUNNER_TEMP/ev-seed" --expected-release "$(python3 gate/release.py id)" | tee seed.log; code=$?; set -e
+          set +e; python3 gate/app_gate.py --out "$RUNNER_TEMP/ev-seed" --expected-release "$(python3 gate/release.py id)" | tee seed.log; code=${PIPESTATUS[0]}; set -e
           test $code -eq 1 && grep -q "ring1 · design module present" seed.log
       - name: judge the examples with the pristine gate
         run: |
