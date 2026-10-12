@@ -32,6 +32,7 @@ jobs:
           test $code -eq 1 && grep -q "ring1 · design module present" seed.log
       - name: judge the examples with the pristine gate
         run: |
+          set -o pipefail   # a failing judge must fail the step, not be hidden by tail
           for ex in build-a build-b agent-build-hold-desk; do
             validation/judge_example.sh "examples/$ex" "$RUNNER_TEMP/ev-$ex" | tail -1
           done
