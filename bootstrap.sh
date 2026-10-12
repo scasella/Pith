@@ -4,7 +4,7 @@ set -euo pipefail
 OS="$(uname -s)"; ARCH="$(uname -m)"
 mkdir -p .tools && cd .tools
 # fail on HTTP errors and retry transient ones, so a bad download is never mistaken for a tool
-fetch() { curl -fsSL --retry 5 --retry-delay 3 --retry-all-errors -o "$1" "$2"; }
+fetch() { curl -fsSL --retry 6 --retry-all-errors -o "$1" "$2"; }   # backoff 1,2,4,…,32 s
 get_dafny() { fetch dafny.zip "https://github.com/dafny-lang/dafny/releases/download/v4.11.0/$1" && unzip -qo dafny.zip && rm dafny.zip; }  # &&: set -e is off inside a function called from ||
 if [ "$OS" = "Darwin" ]; then
   if command -v dafny >/dev/null; then DAFNY_BIN="$(command -v dafny)"; echo "using $(dafny --version) from PATH (brew install dafny)";

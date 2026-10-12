@@ -6,11 +6,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with: { python-version: "3.12" }
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: "21" }
+      - uses: actions/cache@v6   # Dafny + TLC: fewer downloads from GitHub release hosting, which can fail transiently
+        with: { path: .tools, key: "tools-${{ runner.os }}-${{ hashFiles('bootstrap.sh') }}" }
       - name: toolchain
         run: |
           # Ubuntu 24.04's AppArmor blocks the user namespaces Chromium's sandbox needs; allow them so the
@@ -40,6 +42,6 @@ jobs:
           for ex in build-a build-b agent-build-hold-desk; do
             validation/judge_example.sh "examples/$ex" "$RUNNER_TEMP/ev-$ex" | tail -1
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with: { name: evidence, path: "${{ runner.temp }}/ev-*", retention-days: 14 }
