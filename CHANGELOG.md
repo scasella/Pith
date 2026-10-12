@@ -1,7 +1,9 @@
 # Changelog
 
 ## v0.4.1 — 2026-10-12
-Published as **Pith** (formerly core-seed). Documentation only: no frozen file changed, release digest unchanged.
+Published as **Pith** (formerly core-seed). Also: `bootstrap.sh` fails on a bad toolchain download instead of
+printing ok; CI workflow fixes (monitor generated before its suite, pipeline exit codes no longer masked, Chromium
+sandbox enabled on ubuntu-24.04). No frozen file changed; release digest unchanged.
 
 Portability fixes surfaced by the first unassisted agent build (macOS): OS metadata files ignored by every check
 and digest; paced readers in the lifecycle harness; robust toolchain record; venv-based bootstrap with a macOS
