@@ -1,6 +1,13 @@
-# Pith
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/pith-logo-dark.svg">
+    <img src="docs/assets/pith-logo.svg" alt="Pith logo: a plumb line dropped through a gap in a ring to its centre" width="180">
+  </picture>
+</p>
 
-*A proven core; everything else grows around it.*
+<h1 align="center">Pith</h1>
+
+<p align="center"><em>A proven core; everything else grows around it.</em></p>
 
 **A formally verified application core that a coding agent builds an application around, with a judge that
 says exactly which properties of the result are proved, model-checked, tested, or awaiting human review.**
@@ -94,6 +101,7 @@ they are the most valuable contribution this project can receive.
 
 *Pith* is the centre of a stem, with the rings growing around it; also "the essential part". The proven
 kernel is ring 0 and every other layer is a ring around it (`ARCHITECTURE.md`). Formerly `core-seed`.
+The logo is a plumb line dropped through a gap in the ring to the centre (`docs/assets/`).
 
 ## License
 

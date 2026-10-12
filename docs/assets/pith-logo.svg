@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-400 -400 800 800" width="800" height="800" role="img" aria-labelledby="t">
+  <title id="t">Pith</title>
+  <!-- a plumb line dropped through a gap in the ring, its bob widest at the centre -->
+  <g fill="none" stroke="#000">
+    <path d="M -40 -367.83 A 370 370 0 1 0 40 -367.83" stroke-width="5"/>
+    <path d="M 0 -372.5 V -34.5" stroke-width="3"/>
+  </g>
+  <path fill="#000" d="M -22 -28.5 A 6 6 0 0 1 -16 -34.5 H 16 A 6 6 0 0 1 22 -28.5 V -8.5 L 38 -3.5 V 0.5 L 0 91.5 L -38 0.5 V -3.5 L -22 -8.5 Z"/>
+</svg>
