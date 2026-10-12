@@ -17,7 +17,9 @@ Issues and pull requests are welcome. Please read `ARCHITECTURE.md` first.
 
 ```bash
 bash bootstrap.sh && source .env
+python3 obligations/boundary/generate.py    # the monitor suite tests the generated gen/out/monitor.py
 python3 -m pytest obligations/boundary/test_monitor.py profiles/sqlite/tests/test_profile.py -q
+rm -rf gen                                  # leave a fresh seed behind
 validation/judge_example.sh examples/build-a ../evidence-a
 ```
 

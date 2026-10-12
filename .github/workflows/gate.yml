@@ -21,7 +21,11 @@ jobs:
         run: |
           test "$(python3 gate/release.py id)" = "$(python3 -c 'import json;print(json.load(open("release.seal.json"))["release_digest"])')"
       - name: frozen unit suites
-        run: python3 -m pytest obligations/boundary/test_monitor.py profiles/sqlite/tests/test_profile.py -q -p no:cacheprovider --noconftest -c /dev/null
+        run: |
+          # the monitor suite tests the generated gen/out/monitor.py; generate it, then remove it so the next step sees a fresh seed
+          python3 obligations/boundary/generate.py
+          python3 -m pytest obligations/boundary/test_monitor.py profiles/sqlite/tests/test_profile.py -q -p no:cacheprovider --noconftest -c /dev/null
+          rm -rf gen
       - name: fresh seed refuses at ring 1
         run: |
           set +e; python3 gate/app_gate.py --out "$RUNNER_TEMP/ev-seed" --expected-release "$(python3 gate/release.py id)" | tee seed.log; code=$?; set -e
