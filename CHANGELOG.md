@@ -1,6 +1,8 @@
 # Changelog
 
 ## v0.4.1 — 2026-10-12
+Published as **Pith** (formerly core-seed). Documentation only: no frozen file changed, release digest unchanged.
+
 Portability fixes surfaced by the first unassisted agent build (macOS): OS metadata files ignored by every check
 and digest; paced readers in the lifecycle harness; robust toolchain record; venv-based bootstrap with a macOS
 branch; `--candidate` runs the pristine release's judge against a checkout. Release digest `7c161daa9147f952a3385d275fa134c848890a60bc0a87aa89e2849750d63433`.

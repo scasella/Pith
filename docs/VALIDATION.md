@@ -1,4 +1,4 @@
-# Validation record — core-seed v0.4.1 (release 7c161daa9147f952a3385d275fa134c848890a60bc0a87aa89e2849750d63433; re-run after the public-release cleanup)
+# Validation record — Pith (then core-seed) v0.4.1 (release 7c161daa9147f952a3385d275fa134c848890a60bc0a87aa89e2849750d63433; re-run after the public-release cleanup)
 v4.1 adds portability fixes surfaced by the first unassisted agent build (macOS): OS metadata files ignored everywhere, paced readers
 in the lifecycle harness, robust toolchain record, a venv-based bootstrap with a macOS branch, and --candidate (the pristine release's judge
 run against a checkout). Browser runs here are unsandboxed, so release_ready is false by policy.

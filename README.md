@@ -1,4 +1,6 @@
-# core-seed
+# Pith
+
+*A proven core; everything else grows around it.*
 
 **A formally verified application core that a coding agent builds an application around, with a judge that
 says exactly which properties of the result are proved, model-checked, tested, or awaiting human review.**
@@ -32,7 +34,7 @@ an identity (`gate/release.py id`) that an operator pins from a trusted copy bef
 ## Quick start
 
 ```bash
-git clone https://github.com/scasella/core-seed && cd core-seed
+git clone https://github.com/scasella/Pith && cd Pith
 bash bootstrap.sh && source .env            # Dafny 4.11, TLC, Python venv with Hypothesis/Playwright/jsonschema/cryptography
 python3 gate/app_gate.py --out ../evidence-001
 # -> ring 0 passes (the core is proven); ring 1 refuses with instructions. That refusal is where an agent starts.
@@ -87,6 +89,11 @@ sees only emitted events; a process boundary is not a sandbox. `kernel/tcb.yaml`
 See `CONTRIBUTING.md`. Changes to frozen directories are a new release (`gate/release.py seal`), and every
 release must re-run `docs/VALIDATION.md`'s matrix. Report evaluator bypasses privately per `SECURITY.md`;
 they are the most valuable contribution this project can receive.
+
+## The name
+
+*Pith* is the centre of a stem, with the rings growing around it; also "the essential part". The proven
+kernel is ring 0 and every other layer is a ring around it (`ARCHITECTURE.md`). Formerly `core-seed`.
 
 ## License
 
