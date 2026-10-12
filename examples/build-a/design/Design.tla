@@ -5,14 +5,14 @@
 EXTENDS CoreActions
 MaxTries == 2
 VARIABLES phase, responses, tries
-vars == <<status, held, phase, responses, tries>>
+vars == <<status, held, posted, phase, responses, tries>>
 designVars == <<phase, responses, tries>>
 
 Init == CoreInit /\ phase = [r \in Reqs |-> "idle"] /\ responses = [r \in Reqs |-> << >>] /\ tries = [r \in Reqs |-> 0]
 
 Begin(r) == phase[r] = "idle" /\ tries[r] < MaxTries
             /\ phase' = [phase EXCEPT ![r] = "inflight"] /\ tries' = [tries EXCEPT ![r] = @ + 1]
-            /\ UNCHANGED <<status, held, responses>>
+            /\ UNCHANGED <<status, held, posted, responses>>
 
 Commit(r) ==
   /\ phase[r] = "inflight"
@@ -25,11 +25,12 @@ Commit(r) ==
 \* The client re-sends although a response was delivered (timeout raced the response, or a
 \* duplicate submit). This is the case that gives Idempotent and Consistent teeth.
 Resend(r) == phase[r] = "done" /\ tries[r] < MaxTries /\ phase' = [phase EXCEPT ![r] = "idle"]
-             /\ UNCHANGED <<status, held, responses, tries>>
+             /\ UNCHANGED <<status, held, posted, responses, tries>>
 
 Release(r) == CoreRelease(r) /\ UNCHANGED designVars
+Capture(r) == CoreCapture(r) /\ UNCHANGED designVars        \* the posting kernel, from an operator at any time
 
-Next == \E r \in Reqs : Begin(r) \/ Commit(r) \/ Resend(r) \/ Release(r)
+Next == \E r \in Reqs : Begin(r) \/ Commit(r) \/ Resend(r) \/ Release(r) \/ Capture(r)
 Spec == Init /\ [][Next]_vars
 
 =============================================================================

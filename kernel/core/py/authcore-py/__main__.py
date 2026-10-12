@@ -1,4 +1,4 @@
-# Dafny program AuthCore.dfy compiled into Python
+# Dafny program Kernel.dfy compiled into Python
 import sys
 from typing import Callable, Any, TypeVar, NamedTuple
 from math import floor

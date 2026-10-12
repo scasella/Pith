@@ -45,6 +45,15 @@ def check_decide_post(a, r_id, amount, d, a2):
     else:               ok &= d.is_Declined and h2 == h                                                      # [P1]
     if not ok: raise CorruptCore("Decide result violates its own postconditions")
 
+def check_capture_post(a, r_id, a2):
+    """Every postcondition of Capture on the concrete result (Valid, F, C1, C2, C3)."""
+    h, st = core.holds(a), core.status(a)
+    ok = _valid(a2) and int(a2.limit) == int(a.limit)
+    ok &= core.holds(a2) == {k: v for k, v in h.items() if k != r_id}                                          # [C2]
+    ok &= int(a2.posted) == int(a.posted) + h[r_id]                                                           # [C1]
+    ok &= core.status(a2) == {**st, r_id: "POST"}                                                             # [C3]
+    if not ok: raise CorruptCore("Capture result violates its own postconditions")
+
 def check_release_post(a, r_id, a2):
     """Every postcondition of Release on the concrete result (Valid, F, R1, R2)."""
     h, st = core.holds(a), core.status(a)
@@ -61,7 +70,7 @@ class Repo:
         self.w.execute("CREATE TABLE IF NOT EXISTS accounts(id INTEGER PRIMARY KEY, state TEXT NOT NULL)")
         self.w.execute("CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER, body TEXT NOT NULL)")
         self.r = sqlite3.connect(f"file:{self.path}?mode=ro", uri=True, isolation_level=None, check_same_thread=False)
-        self.core = core.Core()
+        self.core = core.Core(); self.poster = core.Poster()
         self._wlock = threading.Lock(); self._rlock = threading.Lock()
         self._oracle = {}
         self._rebuild_oracle()
@@ -78,6 +87,7 @@ class Repo:
             if t == "account.created":      self._oracle[a] = core.fresh_account(ev["limit"])
             elif t == "auth.decided":       _, self._oracle[a] = self.core.Decide(self._oracle[a], core.Request(ev["request_id"], ev["amount"]))
             elif t == "reservation.released": self._oracle[a] = self.core.Release(self._oracle[a], ev["request_id"])
+            elif t == "capture.posted":       self._oracle[a] = self.poster.Capture(self._oracle[a], ev["request_id"])
 
     def verify_replay(self):
         diffs = []
@@ -166,6 +176,24 @@ class Repo:
             self._committed(acct_id, req_id, "release", a2)
             def upd(): self._oracle[acct_id] = self.core.Release(self._oracle[acct_id], req_id)
             return {"request_id": req_id, "released": True}, upd
+        return self._tx(body)
+
+    def capture(self, acct_id, req_id):
+        """Posting kernel: move an authorized hold into posted, in full. Idempotent: a captured request replays."""
+        acct_id, req_id = core.validate_id(acct_id, "account_id"), core.validate_id(req_id, "request_id")
+        def body():
+            a = self._load(acct_id); st = core.status(a)
+            if req_id not in core.holds(a):
+                if st.get(req_id) == "POST": return {"request_id": req_id, "captured": True, "replayed": True}, None
+                return {"request_id": req_id, "captured": False}, None                  # no live hold: no-op, no event
+            amount = core.holds(a)[req_id]
+            a2 = self.poster.Capture(a, req_id)
+            check_capture_post(a, req_id, a2)
+            self._store(acct_id, a2)
+            self._emit({"type": "capture.posted", "account_id": acct_id, "request_id": req_id, "amount": amount})
+            self._committed(acct_id, req_id, "capture", a2)
+            def upd(): self._oracle[acct_id] = self.poster.Capture(self._oracle[acct_id], req_id)
+            return {"request_id": req_id, "captured": True, "amount": amount, "replayed": False}, upd
         return self._tx(body)
 
     # -- reads (own connection; WAL => never sees an uncommitted write) -------

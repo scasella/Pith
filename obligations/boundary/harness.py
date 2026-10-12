@@ -22,7 +22,7 @@ from hypothesis.stateful import RuleBasedStateMachine, Bundle, rule, invariant, 
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "kernel" / "core" / "py" / "authcore-py")); sys.path.insert(0, str(ROOT / "gen" / "out"))
-import _dafny, module_, AuthSpec, AuthCore  # noqa: F401  (module_ fixes the translator's import order)
+import _dafny, module_, AuthSpec, AuthCore, PostingCore  # noqa: F401  (module_ fixes the translator's import order)
 from monitor import Monitor
 OPENAPI = yaml.safe_load((ROOT / "gen/out/openapi.yaml").read_text())
 EVENTS = json.loads((ROOT / "gen/out/events.schema.json").read_text())
@@ -31,13 +31,14 @@ def schema(name): return {**SCHEMAS[name], "components": {"schemas": SCHEMAS}}
 V_EVENT = jsonschema.Draft202012Validator(EVENTS)
 V_AUTH  = jsonschema.Draft202012Validator(schema("AuthorizeResponse"))
 V_ACCT  = jsonschema.Draft202012Validator(schema("AccountView"))
+V_CAP   = jsonschema.Draft202012Validator(schema("CaptureResponse"))
 ANTECEDENTS = {}
 
 from obligations.service.supervisor import Service
 def start():
     s = Service(ROOT).start(); return s.client, s.stop
 
-Request = AuthSpec.Request_Request; NAME = {AuthSpec.Status_Auth(): "AUTH", AuthSpec.Status_Decl(): "DECL", AuthSpec.Status_Rel(): "REL"}
+Request = AuthSpec.Request_Request; NAME = {AuthSpec.Status_Auth(): "AUTH", AuthSpec.Status_Decl(): "DECL", AuthSpec.Status_Rel(): "REL", AuthSpec.Status_Post(): "POST"}
 def fresh(limit): return AuthSpec.Account_Account(limit, 0, _dafny.Map({}), _dafny.Map({}))
 def holds(a): return {int(k): int(v) for k, v in a.holds.items}
 def status(a): return {int(k): NAME[v] for k, v in a.status.items}
@@ -46,6 +47,7 @@ def ok(code, body, validator):
     assert code == 200, (code, body); validator.validate(body); return body
 def normalize_view(v):  # JSON object keys are strings
     return {"holds": {int(k): x for k, x in v["holds"].items()}, "status": {int(k): x for k, x in v["status"].items()}, "available": v["available"], "limit": v["limit"], "posted": v["posted"]}
+POSTER = PostingCore.Poster()
 
 # ------------------------------------------------------------------ invalid-input attacks on the real service
 @pytest.fixture
@@ -120,11 +122,18 @@ class Boundary(RuleBasedStateMachine):
         h = ok(*self.c.account(acct), V_ACCT)["holds"]
         if h:
             rid = int(sorted(h, key=int)[0]); assert self.c.release(acct, rid)[1]["released"]; self.oracle[acct] = self.core.Release(self.oracle[acct], rid)
+    @rule(acct=accounts)
+    def capture_one(self, acct):
+        h = ok(*self.c.account(acct), V_ACCT)["holds"]
+        if h:
+            rid = int(sorted(h, key=int)[-1]); r = ok(*self.c.capture(acct, rid), V_CAP)
+            assert r["captured"] and r["amount"] == h[str(rid)]; self.oracle[acct] = POSTER.Capture(self.oracle[acct], rid)
+            assert ok(*self.c.capture(acct, rid), V_CAP)["replayed"] is True               # idempotent
     @invariant()
     def equals_oracle(self):
         for aid, o in self.oracle.items():
             v = normalize_view(ok(*self.c.account(aid), V_ACCT))
-            assert v["holds"] == holds(o) and v["status"] == status(o) and v["available"] == available(o)
+            assert v["holds"] == holds(o) and v["status"] == status(o) and v["available"] == available(o) and v["posted"] == int(o.posted)
             assert v["posted"] + sum(v["holds"].values()) <= v["limit"]
 
 TestBoundary = Boundary.TestCase

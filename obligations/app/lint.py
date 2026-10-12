@@ -29,8 +29,8 @@ for line in spec.splitlines():
     elif cur is not None and line.startswith("  ") and line.strip(): items[-1] += " " + line.strip()
     else: cur = None
 if not items: problems.append("SPEC.md has no requirement items (- OC-n ...)")
-core_words = re.compile(r"\b(declin|authoriz|reserv|hold|limit|available)", re.I)
-TAG = r"\[(P0|P1|P2|P2'|P3|INV1|R1|R2|D|F)\]"
+core_words = re.compile(r"\b(declin|authoriz|reserv|hold|limit|available|captur|post)", re.I)
+TAG = r"\[(P0|P1|P2|P2'|P3|P4|INV1|R1|R2|C1|C2|C3|D|F)\]"
 for it in items:
     if core_words.search(it) and not re.search(TAG, it) and "informal:" not in it:
         problems.append(f"SPEC.md: '{it[:70]}...' claims core behaviour without an obligation tag or informal: marker")

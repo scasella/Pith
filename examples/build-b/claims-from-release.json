@@ -1,12 +1,12 @@
 {
   "gate_mode": "authoritative",
-  "policy_source": "/home/claude/repo",
-  "evidence_dir": "/tmp/ex-build-b",
-  "judged_copy": "/tmp/judged-i4z66_q1",
-  "started": "2026-10-12T12:10:37Z",
-  "release_digest": "7c161daa9147f952a3385d275fa134c848890a60bc0a87aa89e2849750d63433",
+  "policy_source": "/home/claude/Pith",
+  "evidence_dir": "/tmp/q-b",
+  "judged_copy": "/tmp/judged-i9fx8n6d",
+  "started": "2026-10-12T14:42:08Z",
+  "release_digest": "df0b0b2eb69ebde3e2bdbd89fec5c679df28d74cb6e458ee371a3aa3ec35ec89",
   "authority": "externally-pinned-release",
-  "artifact_digest": "a965aacf900d49d4faaba884d76d9f5e4314510fb89d93272e80e81b09ddeda5",
+  "artifact_digest": "4a23533859ee83f9f46cbcfb3c1e318b1255614d05c54c6f0f9e814ef050ab2a",
   "release_ready": false,
   "toolchain": {
     "dafny": "4.11.0+fcb2042d6d043a2634f0854338c08feeaaaf4ae2",
@@ -23,19 +23,19 @@
       "area": "policy",
       "check": "frozen files intact",
       "result": "pass",
-      "claim": "52 frozen files intact; nothing added under ['kernel', 'obligations', 'gate', 'profiles'] (OS metadata files ignored)"
+      "claim": "61 frozen files intact; nothing added under ['kernel', 'obligations', 'gate', 'profiles'] (OS metadata files ignored)"
     },
     {
       "area": "policy",
       "check": "release seal",
       "result": "pass",
-      "claim": "platform release 7c161daa9147f952 matches release.seal.json"
+      "claim": "platform release df0b0b2eb69ebde3 matches release.seal.json"
     },
     {
       "area": "policy",
       "check": "external release pin",
       "result": "pass",
-      "claim": "platform matches the externally pinned release 7c161daa9147f952"
+      "claim": "platform matches the externally pinned release df0b0b2eb69ebde3"
     },
     {
       "area": "policy",
@@ -53,7 +53,7 @@
       "area": "policy",
       "check": "artifact",
       "result": "pass",
-      "claim": "deployment artifact copied and digested (a965aacf900d49d4); judged in a fresh copy, never the live checkout"
+      "claim": "deployment artifact copied and digested (4a23533859ee83f9); judged in a fresh copy, never the live checkout"
     },
     {
       "area": "ring0",
@@ -77,7 +77,7 @@
       "area": "ring1",
       "check": "core state only via core actions",
       "result": "pass",
-      "claim": "status/held change only through CoreDecide/CoreReplay/CoreRelease"
+      "claim": "status/held/posted change only through CoreDecide/CoreReplay/CoreRelease/CoreCapture"
     },
     {
       "area": "ring1",
@@ -89,7 +89,7 @@
       "area": "ring1",
       "check": "design model (safety)",
       "result": "pass",
-      "claim": "INV1, P2, P3, DecideCorrect, Idempotent, Consistent hold over the configured model (predicates bound by the frozen MC.tla)"
+      "claim": "INV1 (composition), P2, P3, P4, PostedExact, DecideCorrect, Idempotent, Consistent hold over the configured model with both kernels interleaving (predicates bound by the frozen MC.tla)"
     },
     {
       "area": "ring1",
@@ -114,6 +114,18 @@
       "check": "design coverage (CovRelease)",
       "result": "pass",
       "claim": "the design reaches the behaviour CovRelease guards"
+    },
+    {
+      "area": "ring1",
+      "check": "design coverage (CovCapture)",
+      "result": "pass",
+      "claim": "the design reaches the behaviour CovCapture guards"
+    },
+    {
+      "area": "ring1",
+      "check": "design coverage (CovCaptureContention)",
+      "result": "pass",
+      "claim": "the design reaches the behaviour CovCaptureContention guards"
     },
     {
       "area": "ring1",
@@ -149,7 +161,7 @@
       "area": "ring1",
       "check": "lifecycle harness (black-box)",
       "result": "pass",
-      "claim": "through the running service: duplicate create, idempotent replay and conflicts, crash (SIGKILL) + restart + retry, restart durability, event contract (op_id, chain, state_after, one commit per op), concurrency with readers (6 checks)"
+      "claim": "through the running service: duplicate create, idempotent replay and conflicts, crash (SIGKILL) + restart + retry, restart durability, event contract (op_id, chain, state_after, one commit per op), concurrency with readers (7 checks)"
     },
     {
       "area": "ring2",
@@ -167,7 +179,7 @@
       "area": "ring3",
       "check": "application delivery",
       "result": "pass",
-      "claim": "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5'] + replay display passed at ['desktop', 'mobile'] (sandboxed=False); SPEC structurally complete (lint is structural, not semantic)"
+      "claim": "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile'] (sandboxed=False); SPEC structurally complete (lint is structural, not semantic)"
     },
     {
       "area": "ring3",
@@ -235,6 +247,13 @@
           "mobile: events panel lists decided/released"
         ]
       },
+      "W6": {
+        "ok": true,
+        "evidence": [
+          "desktop: posted='30' available='70'",
+          "mobile: posted='30' available='70'"
+        ]
+      },
       "R": {
         "ok": true,
         "evidence": [
@@ -270,12 +289,12 @@
     "authority": "externally-pinned-release",
     "browser_sandbox": true
   },
-  "finished": "2026-10-12T12:12:08Z",
+  "finished": "2026-10-12T14:44:13Z",
   "policy_sha256": {
-    "kernel": "653dd56b8f063b2e2c048c2a3613ad66afee651752062eb5f6ea8c39ac52ca76",
-    "obligations": "20a9da485528baf1dbb8e62a7c32eb25b07e997f0315440c8f33dc42f7887189",
-    "gate": "dab591fe421b2240a55806811dac401b65c97d996c985cd22c3182fef6374a80",
-    "profiles": "30f354ca7a04e7072121684c57dde5af1c1080d3017fd3f623a25e42c454eb7f"
+    "kernel": "bf55cfcebe61af378ff244b45f9dff457d8ae17890ddc5c5eb989b6fd79977cf",
+    "obligations": "30df734627e3f9cee482333f76e0d88302e66d73c7452e485e43d5f64328bd41",
+    "gate": "c27802021ce6164a4dfcec5266e289c2cd713a4a48b18ed38e0ecf200fc7fa90",
+    "profiles": "3a3d11b6db0547dc656eea1f5026bcb137aa07f5968cd8fe784c6340d40a1012"
   },
-  "artifact_digest_at_end": "a965aacf900d49d4faaba884d76d9f5e4314510fb89d93272e80e81b09ddeda5"
+  "artifact_digest_at_end": "4a23533859ee83f9f46cbcfb3c1e318b1255614d05c54c6f0f9e814ef050ab2a"
 }

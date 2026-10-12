@@ -5,12 +5,12 @@
    operator at any time. Responses can be lost after commit; a lost response leads to a resend. *)
 EXTENDS CoreActions
 VARIABLES queue, responses, sent
-vars == <<status, held, queue, responses, sent>>
+vars == <<status, held, posted, queue, responses, sent>>
 MaxSends == 2
 
 Init == CoreInit /\ queue = << >> /\ responses = [r \in Reqs |-> << >>] /\ sent = [r \in Reqs |-> 0]
 
-Enqueue(r) == sent[r] < MaxSends /\ queue' = Append(queue, r) /\ sent' = [sent EXCEPT ![r] = @ + 1] /\ UNCHANGED <<status, held, responses>>
+Enqueue(r) == sent[r] < MaxSends /\ queue' = Append(queue, r) /\ sent' = [sent EXCEPT ![r] = @ + 1] /\ UNCHANGED <<status, held, posted, responses>>
 
 Work == /\ queue # << >>
         /\ LET r == Head(queue) IN
@@ -22,8 +22,9 @@ Work == /\ queue # << >>
         /\ UNCHANGED sent
 
 Release(r) == CoreRelease(r) /\ UNCHANGED <<queue, responses, sent>>
+Capture(r) == CoreCapture(r) /\ UNCHANGED <<queue, responses, sent>>     \* the posting kernel, operator-driven
 
-Next == \E r \in Reqs : Enqueue(r) \/ Release(r) \/ Work
+Next == \E r \in Reqs : Enqueue(r) \/ Release(r) \/ Capture(r) \/ Work
 Spec == Init /\ [][Next]_vars
 
 =============================================================================

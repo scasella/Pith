@@ -41,10 +41,15 @@ def norm(line):
     return re.sub(r"\s+", " ", line).strip()
 
 
+def spec_files():
+    return [ROOT / MANIFEST["spec"]] + [ROOT / p for p in MANIFEST.get("more_specs", [])]
+
 def spec_tags():
-    """Map normalised contract text -> set of obligation tags, from spec/AuthSpec.dfy."""
+    """Map normalised contract text -> set of obligation tags, from every spec file."""
     tags = {}
-    for raw in (ROOT / MANIFEST["spec"]).read_text().splitlines():
+    lines = []
+    for f in spec_files(): lines += f.read_text().splitlines()
+    for raw in lines:
         found = re.findall(r"\[([A-Z0-9']+)\]", raw)
         if not found:
             continue
@@ -97,11 +102,10 @@ def main():
         pathlib.Path(out).write_text(json.dumps(claims, indent=2))
         print(f"claims written to {out}")
 
-    # 1. integrity
-    actual = sha256(ROOT / MANIFEST["spec"])
-    step("integrity", actual == MANIFEST["spec_sha256"],
-         f"template {MANIFEST['spec']} is unchanged (sha256 {actual[:12]})",
-         {"expected": MANIFEST["spec_sha256"], "actual": actual})
+    # 1. integrity (every spec file)
+    for f, expected in [(MANIFEST["spec"], MANIFEST["spec_sha256"])] + list(MANIFEST.get("more_spec_sha256", {}).items()):
+        actual = sha256(ROOT / f)
+        step(f"integrity:{pathlib.Path(f).name}", actual == expected, f"template {f} is unchanged (sha256 {actual[:12]})", {"expected": expected, "actual": actual})
 
     # 2. audit channel: a verified unsatisfiability proof invalidates the template, not the submission
     for a in sorted((ROOT / "audit").glob("*.dfy")):
@@ -110,13 +114,15 @@ def main():
              f"no accepted proof that the template is unsatisfiable ({a.name} does not verify)",
              {"note": "if this file verifies, the TEMPLATE is rejected; see audit/README.md"})
 
-    # 3. tcb scan
-    text = impl.read_text()
+    # 3. tcb scan over the translation unit and the implementation files it includes
+    impl_files = [impl] + [impl.parent / i for i in re.findall(r'include\s+"([^"]+)"', impl.read_text()) if (impl.parent / i).exists() and (impl.parent / i).suffix == ".dfy"]
+    text = "\n".join(f.read_text() for f in impl_files)
     violations = [b["pattern"] for b in TCB["banned_in_submissions"] if re.search(b["pattern"], text)]
-    includes = re.findall(r'include\s+"([^"]+)"', text)
-    bad_includes = [i for i in includes if pathlib.Path(i).name != pathlib.Path(MANIFEST["spec"]).name]
+    allowed_includes = {pathlib.Path(f).name for f in spec_files()} | {f.name for f in impl_files}
+    includes = [i for f in impl_files for i in re.findall(r'include\s+"([^"]+)"', f.read_text())]
+    bad_includes = [i for i in includes if pathlib.Path(i).name not in allowed_includes]
     step("tcb", not violations and not bad_includes,
-         "submission uses no verification bypasses and includes only the template",
+         f"submission ({', '.join(f.name for f in impl_files)}) uses no verification bypasses and includes only the templates",
          {"banned_found": violations, "foreign_includes": bad_includes})
 
     # 4. verify (warnings are errors by default in Dafny 4: --allow-warnings=false)

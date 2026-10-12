@@ -1,7 +1,7 @@
 # gate/policy.yaml — acceptance policy. FROZEN. The gate reads paths from here, never from the manifest.
 kernel:
   spec: kernel/spec/AuthSpec.dfy
-  impl: kernel/core/AuthCore.dfy
+  impl: kernel/core/Kernel.dfy
   gate: kernel/gate/gate.py
   claims: kernel/core/claims.json
 candidate:

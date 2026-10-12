@@ -21,7 +21,7 @@ def _client():
 def run(out_dir: pathlib.Path) -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
     report = {"kind": "real-browser-workflow-tests", "status": "running", "runs": [], "browser_sandbox": None,
-              "scope": "W1-W5 at desktop and mobile widths through UI-CONTRACT.md affordances; not an accessibility or whole-UI proof"}
+              "scope": "W1-W6 at desktop and mobile widths through UI-CONTRACT.md affordances; not an accessibility or whole-UI proof"}
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
@@ -60,6 +60,10 @@ def run(out_dir: pathlib.Path) -> dict:
                     rows.first.locator('[data-testid="btn-release"]').first.click(timeout=5000); page.wait_for_timeout(300)
                     step("W4", "100" in text("available") and page.locator('[data-testid="hold-row"]').count() == n_before - 1, f"available={text('available')!r} holds {n_before}->{page.locator('[data-testid=\"hold-row\"]').count()}")
                     step("W5", "auth.decided" in text("events") and "reservation.released" in text("events"), "events panel lists decided/released")
+                    fill("req-id", 3); fill("req-amount", 30); click("btn-authorize"); page.wait_for_timeout(300)
+                    rows = page.locator('[data-testid="hold-row"][data-request-id="3"]')
+                    rows.first.locator('[data-testid="btn-capture"]').first.click(timeout=5000); page.wait_for_timeout(300)
+                    step("W6", "30" in text("posted") and "70" in text("available") and rows.count() == 0 and "capture.posted" in text("events"), f"posted={text('posted')!r} available={text('available')!r}")
                     # replay: resubmitting request 1 shows a replay, not a new decision
                     fill("req-id", 1); fill("req-amount", 60); click("btn-authorize"); page.wait_for_timeout(300)
                     step("R", d.get_attribute("data-decision") == "AUTHORIZED" and "replay" in d.inner_text().lower(), f"replay shown: {d.inner_text()!r}")

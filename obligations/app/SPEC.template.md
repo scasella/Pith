@@ -2,8 +2,8 @@
 
 Reviewed by humans. Two rules, checked structurally by `obligations/app/lint.py` (which is a lint, not a
 semantic evaluator): (1) no sentence claims an authorization behavior without citing the obligation that
-owns it: `[P0]` `[P1]` `[P2]` `[P3]` `[INV1]` `[R1]` `[R2]`; (2) everything else is `informal:` with the
-human evaluation named. Required workflow ids (W1–W5) and evaluation ids (E1–E3) come from
+owns it: `[P0]` `[P1]` `[P2]` `[P3]` `[P4]` `[INV1]` `[R1]` `[R2]` `[C1]` `[C2]` `[C3]`; (2) everything else is `informal:` with the
+human evaluation named. Required workflow ids (W1–W6) and evaluation ids (E1–E3) come from
 `obligations/app/delivery.yaml`.
 
 ## Requirements
@@ -13,6 +13,7 @@ human evaluation named. Required workflow ids (W1–W5) and evaluation ids (E1�
   by the service. The decision is the core's [P0] [P1]; the application computes nothing.
 - OC-3 (W4) ... hold removal is [R1] [R2].
 - OC-4 (W5) The application shall show the event stream the monitor reads.
+- OC-8 (W6) When an operator captures a hold ... the posted amount is the core's [C1] [C2] [C3]; the application computes nothing.
 - OC-5 informal: (E1) usable by a payments-ops analyst without training. Evaluation: task completion under 3 minutes.
 - OC-6 informal: (E2) declined decisions are visually distinct. Evaluation: design review.
 - OC-7 informal: (E3) copy uses the glossary's words. Evaluation: copy review against kernel/glossary.yaml.

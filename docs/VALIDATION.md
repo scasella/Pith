@@ -1,4 +1,22 @@
-# Validation record — Pith (then core-seed) v0.4.1 (release 7c161daa9147f952a3385d275fa134c848890a60bc0a87aa89e2849750d63433; re-run after the public-release cleanup)
+# Validation record — Pith v0.5.0 (two kernels)
+
+### v0.5.0: both kernels, judged by the pristine gate under the sealed release
+- kernel gate: 21 verified (authorization + posting, include closure), translation of the two-kernel unit reproduced
+  byte-for-byte (6 files), 9 adequacy candidates rejected by the expected obligations (4 new for Capture), 7 traces executed
+- design obligations: INV1 (composition), P2, P3, P4, PostedExact, DecideCorrect, Idempotent, Consistent hold for both
+  reference designs with both kernels interleaving; coverage reached for decisions, contention, declines, releases, captures,
+  captures under contention, retries; the receipt-time design still violates INV1
+- examples/build-a: behavioral_assurance=passed | application_delivery=passed (W1–W6 at desktop and mobile) | human_approval=pending | artifact 471f74490f2f1a4b | release df0b0b2eb69ebde3
+- examples/build-b: behavioral_assurance=passed | application_delivery=passed (W1–W6 at desktop and mobile) | human_approval=pending | artifact 4a23533859ee83f9 | release df0b0b2eb69ebde3
+- fresh seed: ring 0 passes (both kernels), ring 1 refuses at 'design module present'
+- archived: examples/archive/agent-build-hold-desk-v0.4.1 conforms to v0.4.1 only (predates W6)
+
+### finding
+Two kernels share one state type and one invariant; the proofs separate per module, the composition invariant is
+checked only in the design model. See ARCHITECTURE.md § Two kernels.
+
+# Validation record — core-seed v0.4.1 (previous release; carried forward) (release 7c161daa9147f952a3385d275fa134c848890a60bc0a87aa89e2849750d63433; re-run after the public-release cleanup)
+# Validation record — Pith (then core-seed) v0.4.1 (previous release; carried forward) (release 7c161daa9147f952a3385d275fa134c848890a60bc0a87aa89e2849750d63433; re-run after the public-release cleanup)
 v4.1 adds portability fixes surfaced by the first unassisted agent build (macOS): OS metadata files ignored everywhere, paced readers
 in the lifecycle harness, robust toolchain record, a venv-based bootstrap with a macOS branch, and --candidate (the pristine release's judge
 run against a checkout). Browser runs here are unsandboxed, so release_ready is false by policy.

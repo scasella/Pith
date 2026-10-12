@@ -21,7 +21,21 @@ the limit. Each decision is made against the availability of the same atomic ste
 | Request id is the idempotency key; a replay never calls the core; a replay with a different amount is a conflict | lifecycle harness (black-box) |
 | Amounts are integers in [1, 2^53); zero and negatives are invalid requests, not decisions; ids and limits in [0, 2^53) | `profiles/sqlite/core.py`; adapter and boundary harnesses |
 | One account per `Account` value; one operation per atomic step; concurrency is a ring-1 (design) concern | ring structure |
-| Posting (settlement) is out of scope: `posted` is carried, never changed here | `Posted == 0` in the design obligations |
+| Settlement beyond posting (clearing, refunds, reversals) is out of scope | documented here; a behavioural extension |
+
+## The second kernel: posting (v0.5.0)
+
+Capture moves an authorized hold into `posted`, in full; the request becomes `Post`, which is terminal; a
+posted request cannot be released and a second capture is a replay, not a second posting. Partial capture,
+refunds and reversals are behavioural extensions. `INV1` is now shared: posting counts against the limit
+exactly as a hold did, so available does not recover when a hold is captured.
+
+| Decision | Where |
+|---|---|
+| Full capture only; posted grows by exactly the held amount | `C1`, `C2` in `kernel/spec/PostingSpec.dfy` |
+| Post is terminal across every operation | `PostTerminal` lemmas; `P4` in `obligations/design/CoreActions.tla` |
+| Posting never decreases | `PostedExact` (design obligations) |
+| Capture is idempotent; a no-op when there is no hold and the request is not posted | lifecycle and boundary harnesses |
 
 ## What this core does not decide
 

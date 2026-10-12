@@ -7,6 +7,8 @@ import module_ as module_
 import _dafny as _dafny
 import System_ as System_
 import AuthSpec as AuthSpec
+import PostingSpec as PostingSpec
+import PostingCore as PostingCore
 import AuthCore as AuthCore
 
 # Module: module_

@@ -160,9 +160,9 @@ def judge(candidate, policy_src, out, mode, expected_release, review, reviewer_k
     check("ring1", "design module present", dm.exists(), r1["design_module"], f"{r1['design_module']} not found: write a TLA+ design that EXTENDS CoreActions, declares VARIABLE responses, defines Spec")
     src = dm.read_text()
     check("ring1", "design extends obligations", bool(re.search(r"EXTENDS[^\n]*\bCoreActions\b", src)), "EXTENDS CoreActions", "design must EXTENDS CoreActions")
-    illegal = [l.strip() for l in src.splitlines() if re.search(r"\b(status|held)'\s*=", l)]
-    check("ring1", "core state only via core actions", not illegal, "status/held change only through CoreDecide/CoreReplay/CoreRelease", f"direct assignment: {illegal}")
-    redefined = [n for n in ("Idempotent", "Consistent", "CovRetry", "IdempotentResp", "ConsistentResp", "RetryCov", "DecideCorrect", "INV1", "P2", "P3") if re.search(rf"^\s*{n}\s*==", src, re.M)]
+    illegal = [l.strip() for l in src.splitlines() if re.search(r"\b(status|held|posted)'\s*=", l)]
+    check("ring1", "core state only via core actions", not illegal, "status/held/posted change only through CoreDecide/CoreReplay/CoreRelease/CoreCapture", f"direct assignment: {illegal}")
+    redefined = [n for n in ("Idempotent", "Consistent", "CovRetry", "IdempotentResp", "ConsistentResp", "RetryCov", "DecideCorrect", "INV1", "P2", "P3", "P4", "PostedExact") if re.search(rf"^\s*{n}\s*==", src, re.M)]
     declares = bool(re.search(r"VARIABLES?[^\n=]*\bresponses\b", src))
     check("ring1", "design interface", declares and not redefined, "declares VARIABLE responses; does not redefine any checked predicate (they are bound in the frozen MC.tla)", f"responses declared={declares}; redefined={redefined}")
     od = root / r1["obligations_dir"]; work = pathlib.Path(tempfile.mkdtemp(dir=root / "design"))
@@ -175,7 +175,7 @@ def judge(candidate, policy_src, out, mode, expected_release, review, reviewer_k
             if f.suffix in (".tla", ".cfg", ".list"): shutil.copy(f, work)
         shutil.copy(dm, work / "Design.tla")
         code, o = tlc(r1["required_cfg"], "MC.tla")
-        check("ring1", "design model (safety)", "No error has been found" in o, "INV1, P2, P3, DecideCorrect, Idempotent, Consistent hold over the configured model (predicates bound by the frozen MC.tla)", tlc_why(o))
+        check("ring1", "design model (safety)", "No error has been found" in o, "INV1 (composition), P2, P3, P4, PostedExact, DecideCorrect, Idempotent, Consistent hold over the configured model with both kernels interleaving (predicates bound by the frozen MC.tla)", tlc_why(o))
         base_cfg = (work / r1["required_cfg"]).read_text().split("SPECIFICATION")[0]
         for cov in (work / r1["coverage_list"]).read_text().split():
             (work / f"cov_{cov}.cfg").write_text(base_cfg + f"SPECIFICATION Spec\nINVARIANTS {cov}\n")

@@ -7,7 +7,7 @@ button{background:#333;color:#eee;border:1px solid #555;padding:.2rem .6rem;curs
 <form onsubmit="go('auth');return false">req <input id="r" data-testid="req-id" value="1"> amount <input id="m" data-testid="req-amount" value="60"> <button data-testid="btn-authorize">authorize</button></form>
 <form onsubmit="go('rel');return false">release req <input id="x" value="1"> <button>release</button></form>
 <button onclick="refresh()">refresh</button>
-<div id="dec"></div><p>available: <span data-testid="available" id="avail"></span></p><table id="h"><thead><tr><th>hold</th><th>amount</th><th></th></tr></thead><tbody></tbody></table><pre id="out" data-testid="events"></pre>
+<div id="dec"></div><p>available: <span data-testid="available" id="avail"></span> · posted: <span data-testid="posted" id="posted"></span></p><table id="h"><thead><tr><th>hold</th><th>amount</th><th></th></tr></thead><tbody></tbody></table><pre id="out" data-testid="events"></pre>
 <script>
 const v=id=>+document.getElementById(id).value, api=async(m,p,b)=>{const r=await fetch(p,{method:m,headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});return r.json();};
 async function go(k){const a=v('a');let r;
@@ -16,8 +16,9 @@ async function go(k){const a=v('a');let r;
  if(k==='rel')r=await api('POST',`/accounts/${a}/release`,{request_id:v('x')});
  refresh();return false;}
 async function rel(k){await api('POST',`/accounts/${v('a')}/release`,{request_id:k});refresh();}
+async function cap(k){await api('POST',`/accounts/${v('a')}/capture`,{request_id:k});refresh();}
 async function refresh(){const a=v('a');const s=await api('GET',`/accounts/${a}`);const ev=await api('GET','/events');
- document.getElementById('avail').textContent=s.error?'':s.available;
- document.querySelector('#h tbody').innerHTML=Object.entries(s.holds||{}).map(([k,x])=>`<tr data-testid="hold-row" data-request-id="${k}"><td>${k}</td><td>${x}</td><td><button data-testid="btn-release" onclick="rel(${k})">release</button></td></tr>`).join('');
+ document.getElementById('avail').textContent=s.error?'':s.available; document.getElementById('posted').textContent=s.error?'':s.posted;
+ document.querySelector('#h tbody').innerHTML=Object.entries(s.holds||{}).map(([k,x])=>`<tr data-testid="hold-row" data-request-id="${k}"><td>${k}</td><td>${x}</td><td><button data-testid="btn-release" onclick="rel(${k})">release</button> <button data-testid="btn-capture" onclick="cap(${k})">capture</button></td></tr>`).join('');
  document.getElementById('out').textContent=(s.error?s.error:`limit ${s.limit}  posted ${s.posted}  available ${s.available}\n`)+'\nevents (monitor view):\n'+ev.slice(-20).map(e=>e.type+' '+JSON.stringify(e)).join('\n');}
 </script></body></html>

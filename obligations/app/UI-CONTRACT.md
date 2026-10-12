@@ -16,6 +16,8 @@ exist and behave as described; where and how they are drawn is the application's
 | `decision` | any | shows the last decision verbatim; carries `data-decision="AUTHORIZED|DECLINED"`; the two values must render with different computed colour (E2 is still a human review; this is the mechanical minimum) |
 | `hold-row` | one per live hold | carries `data-request-id`; contains a `btn-release` |
 | `btn-release` | button inside `hold-row` | submits `POST /accounts/{id}/release` for that hold |
+| `btn-capture` | button inside `hold-row` | submits `POST /accounts/{id}/capture` for that hold (posting kernel) |
+| `posted` | any | shows the account's posted amount as returned by the service |
 | `events` | any | contains the event stream text (at least the types of the last events) |
 
 Rules: every protected number shown comes from the API (never computed locally); a retry receipt is shown as a

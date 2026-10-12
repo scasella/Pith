@@ -49,11 +49,22 @@ def test_restart_preserves_state_and_idempotency(svc):
     assert c.authorize(1, 1, 60)[1]["replayed"] is True
     assert c.authorize(1, 3, 40)[1]["decision"] == "AUTHORIZED" and c.authorize(1, 4, 1)[1]["decision"] == "DECLINED"
 
+def test_capture_is_exact_terminal_and_idempotent(svc):
+    c = svc.client; c.create(1, 100); c.authorize(1, 1, 60)
+    r = c.capture(1, 1)[1]; assert r["captured"] is True and r["amount"] == 60 and r["replayed"] is False
+    v = c.account(1)[1]; assert v["posted"] == 60 and v["holds"] == {} and v["status"]["1"] == "POST" and v["available"] == 40
+    assert c.capture(1, 1)[1]["replayed"] is True and c.account(1)[1]["posted"] == 60          # no double posting
+    assert c.release(1, 1)[1]["released"] is False                                                 # posted is terminal
+    assert c.authorize(1, 2, 40)[1]["decision"] == "AUTHORIZED" and c.authorize(1, 3, 1)[1]["decision"] == "DECLINED"
+    svc.kill(); c = svc.start().client
+    assert c.account(1)[1]["posted"] == 60 and c.capture(1, 1)[1]["replayed"] is True             # survives restart
+
 def test_event_contract(svc):
-    c = svc.client; c.create(1, 100); c.authorize(1, 1, 60); c.authorize(1, 2, 60); c.release(1, 1)
+    c = svc.client; c.create(1, 100); c.authorize(1, 1, 60); c.authorize(1, 2, 60); c.release(1, 1); c.authorize(1, 3, 40); c.capture(1, 3)
     _, evs = c.events(); types = [e["type"] for e in evs]
     assert types == ["account.created", "op.committed", "auth.decided", "reservation.created", "op.committed",
-                     "auth.decided", "op.committed", "reservation.released", "op.committed"]
+                     "auth.decided", "op.committed", "reservation.released", "op.committed",
+                     "auth.decided", "reservation.created", "op.committed", "capture.posted", "op.committed"]
     assert [e["seq"] for e in evs] == sorted(e["seq"] for e in evs) and all(e["producer"] == "auth-service" for e in evs)
     prev = "0" * 64
     for e in evs:
@@ -62,8 +73,9 @@ def test_event_contract(svc):
         prev = e["hash"]
     ops = {}
     for e in evs: ops.setdefault(e["op_id"], []).append(e["type"])
-    assert len(ops) == 4 and all(v[-1] == "op.committed" and v.count("op.committed") == 1 for v in ops.values())
-    assert [x["state_after"]["reserved"] for x in evs if x["type"] == "op.committed"] == [0, 60, 60, 0]
+    assert len(ops) == 6 and all(v[-1] == "op.committed" and v.count("op.committed") == 1 for v in ops.values())
+    commits = [x["state_after"] for x in evs if x["type"] == "op.committed"]
+    assert [x["reserved"] for x in commits] == [0, 60, 60, 0, 40, 0] and [x["posted"] for x in commits] == [0, 0, 0, 0, 0, 40]
 
 def test_concurrent_bursts_and_readers(svc):
     c = svc.client; c.create(1, 100); stop = threading.Event(); bad = []

@@ -14,7 +14,7 @@ Writes gen/out/{openapi.yaml, events.schema.json, monitor.py}.
 import re, json, pathlib, yaml
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
-SPEC = (ROOT / "kernel" / "spec" / "AuthSpec.dfy").read_text()
+SPEC = (ROOT / "kernel" / "spec" / "AuthSpec.dfy").read_text() + (ROOT / "kernel" / "spec" / "PostingSpec.dfy").read_text()
 GLOSS = yaml.safe_load((ROOT / "kernel" / "glossary.yaml").read_text())
 OUT = ROOT / "gen" / "out"; OUT.mkdir(parents=True, exist_ok=True)
 
@@ -86,6 +86,10 @@ openapi = {
         "parameters": [{"name": "id", "in": "path", "required": True, "schema": {"type": "integer"}}],
         "requestBody": {"required": True, "content": {"application/json": {"schema": {"type": "object", "required": ["request_id"], "properties": {"request_id": json_type("ReqId")}}}}},
         "responses": {"200": {"description": "released or no-op"}}}},
+    "/accounts/{id}/capture": {"post": {"summary": "Capture(a, request_id): post the held amount in full (posting kernel); idempotent for a captured request",
+        "parameters": [{"name": "id", "in": "path", "required": True, "schema": {"type": "integer"}}],
+        "requestBody": {"required": True, "content": {"application/json": {"schema": {"type": "object", "required": ["request_id"], "additionalProperties": False, "properties": {"request_id": json_type("ReqId")}}}}},
+        "responses": {"200": {"description": "captured, replayed, or no-op", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CaptureResponse"}}}}}}},
     "/events": {"get": {"summary": "Event stream the monitor reads", "parameters": [{"name": "since", "in": "query", "schema": {"type": "integer"}}],
         "responses": {"200": {"description": "events", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Event"}}}}}}}},
   },
@@ -95,6 +99,8 @@ openapi = {
     "AuthorizeResponse": {"type": "object", "required": ["request_id", "decision"], "properties": {
         "request_id": json_type("ReqId"), "decision": {"type": "string", "enum": ["AUTHORIZED", "DECLINED"]},
         "available_at_decision": {"type": "integer"}, "replayed": {"type": "boolean"}}, "additionalProperties": False},
+    "CaptureResponse": {"type": "object", "required": ["request_id", "captured"], "additionalProperties": False, "properties": {
+        "request_id": json_type("ReqId"), "captured": {"type": "boolean"}, "amount": json_type("nat"), "replayed": {"type": "boolean"}}},
     "AccountView": {"type": "object", "required": ["id", "limit", "posted", "available", "holds", "status"], "properties": {
         "id": {"type": "integer"}, "limit": json_type("nat"), "posted": json_type("nat"), "available": {"type": "integer"},
         "holds": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 1}},
@@ -112,19 +118,21 @@ events = {
     {"type": "object", "required": ["type", "account_id", "limit", "producer", "op_id", "prev_hash", "hash"], "properties": {"type": {"const": "account.created"}, "account_id": {"type": "integer", "minimum": 0}, "limit": json_type("nat"), "producer": {"type": "string"}}},
     {"type": "object", "required": ["type", "account_id", "op", "producer", "state_after", "op_id", "prev_hash", "hash"],
      "properties": {"type": {"const": "op.committed"}, "account_id": {"type": "integer", "minimum": 0}, "request_id": {"type": ["integer", "null"], "minimum": 0},
-                    "op": {"type": "string", "enum": ["create_account", "authorize", "release"]}, "producer": {"type": "string"},
+                    "op": {"type": "string", "enum": ["create_account", "authorize", "release", "capture"]}, "producer": {"type": "string"},
                     "state_after": {"type": "object", "required": ["limit", "posted", "reserved"], "properties": {"limit": json_type("nat"), "posted": json_type("nat"), "reserved": json_type("nat")}}}},
     {"type": "object", "required": ["type", "account_id", "request_id", "amount", "available_at_decision", "decision", "producer", "op_id", "prev_hash", "hash"],
      "properties": {"type": {"const": "auth.decided"}, "account_id": {"type": "integer"}, "request_id": json_type("ReqId"), "amount": {"type": "integer", "minimum": 1, "maximum": 2**53 - 1},
                     "available_at_decision": {"type": "integer"}, "decision": {"type": "string", "enum": ["AUTHORIZED", "DECLINED"]}, "producer": {"type": "string"}}},
     {"type": "object", "required": ["type", "account_id", "request_id", "amount", "producer", "op_id", "prev_hash", "hash"],
      "properties": {"type": {"const": "reservation.created"}, "account_id": {"type": "integer"}, "request_id": json_type("ReqId"), "amount": {"type": "integer", "minimum": 1, "maximum": 2**53 - 1}, "producer": {"type": "string"}}},
+    {"type": "object", "required": ["type", "account_id", "request_id", "amount", "producer", "op_id", "prev_hash", "hash"],
+     "properties": {"type": {"const": "capture.posted"}, "account_id": {"type": "integer"}, "request_id": json_type("ReqId"), "amount": {"type": "integer", "minimum": 1, "maximum": 2**53 - 1}, "producer": {"type": "string"}}},
     {"type": "object", "required": ["type", "account_id", "request_id", "producer", "op_id", "prev_hash", "hash"],
      "properties": {"type": {"const": "reservation.released"}, "account_id": {"type": "integer"}, "request_id": json_type("ReqId"), "producer": {"type": "string"}}},
   ],
   "x-observables": observables,
   "x-event-contract": "each write operation emits its events then exactly one op.committed carrying state_after; seq is a total order; (account_id, request_id) identifies a request; every event carries prev_hash and hash (sha256 of the canonical event without hash)",
-  "x-operations": "every event carries op_id; the events of one operation are contiguous and end with exactly one op.committed; required composition: create_account=[account.created], authorize=[auth.decided (+ reservation.created iff AUTHORIZED)], release=[reservation.released]",
+  "x-operations": "every event carries op_id; the events of one operation are contiguous and end with exactly one op.committed; required composition: create_account=[account.created], authorize=[auth.decided (+ reservation.created iff AUTHORIZED)], release=[reservation.released], capture=[capture.posted]",
   "x-chain": {"required": ["prev_hash", "hash"], "canonical": "json.dumps(sort_keys=True, separators=(',', ':')) over the event without 'hash' and without 'seq'"},
 }
 (OUT / "events.schema.json").write_text(json.dumps(events, indent=2))

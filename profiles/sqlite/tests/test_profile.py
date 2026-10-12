@@ -16,8 +16,8 @@ from hypothesis.stateful import RuleBasedStateMachine, Bundle, rule, invariant, 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "kernel" / "core" / "py" / "authcore-py"))
 Repo = importlib.import_module("profiles.sqlite.repo").Repo
-import _dafny, module_, AuthSpec, AuthCore  # noqa: F401
-PURE = AuthCore.Core(); Request = AuthSpec.Request_Request
+import _dafny, module_, AuthSpec, AuthCore, PostingCore  # noqa: F401
+PURE = AuthCore.Core(); POSTER = PostingCore.Poster(); Request = AuthSpec.Request_Request
 def fresh(limit): return AuthSpec.Account_Account(limit, 0, _dafny.Map({}), _dafny.Map({}))
 def oracle_holds(a): return {int(k): int(v) for k, v in a.holds.items}
 
@@ -128,6 +128,17 @@ def test_concurrent_bursts_never_exceed_and_readers_see_only_committed_states():
     v = r.account(1); assert sum(v["holds"].values()) <= 100
     r.close()
 
+# ---------------------------------------------------------------- posting kernel
+def test_capture_posts_exactly_and_is_terminal():
+    r = Repo(); r.create_account(1, 100); r.authorize(1, 1, 60)
+    assert r.capture(1, 1) == {"request_id": 1, "captured": True, "amount": 60, "replayed": False}
+    v = r.account(1); assert v["posted"] == 60 and v["holds"] == {} and v["status"][1] == "POST" and v["available"] == 40
+    assert r.capture(1, 1)["replayed"] is True and r.account(1)["posted"] == 60          # idempotent, no double post
+    assert r.release(1, 1) == {"request_id": 1, "released": False}                        # cannot release a posted request
+    assert r.authorize(1, 2, 40)["decision"] == "AUTHORIZED" and r.authorize(1, 3, 1)["decision"] == "DECLINED"
+    assert r.capture(1, 9) == {"request_id": 9, "captured": False} and r.verify_replay() == []
+    r.close()
+
 # ---------------------------------------------------------------- stateful replay against the proven core
 class Machine(RuleBasedStateMachine):
     accounts = Bundle("accounts")
@@ -151,10 +162,15 @@ class Machine(RuleBasedStateMachine):
         h = self.r.account(acct)["holds"]
         if h:
             rid = min(h); assert self.r.release(acct, rid)["released"]; self.o[acct] = PURE.Release(self.o[acct], rid)
+    @rule(acct=accounts)
+    def capture(self, acct):
+        h = self.r.account(acct)["holds"]
+        if h:
+            rid = max(h); assert self.r.capture(acct, rid)["captured"]; self.o[acct] = POSTER.Capture(self.o[acct], rid)
     @invariant()
     def matches(self):
         for a, o in self.o.items():
-            v = self.r.account(a); assert v["holds"] == oracle_holds(o) and v["posted"] + sum(v["holds"].values()) <= v["limit"]
+            v = self.r.account(a); assert v["holds"] == oracle_holds(o) and v["posted"] == int(o.posted) and v["posted"] + sum(v["holds"].values()) <= v["limit"]
 
 TestMachine = Machine.TestCase
 TestMachine.settings = settings(max_examples=40, stateful_step_count=20, deadline=None, suppress_health_check=[HealthCheck.too_slow])

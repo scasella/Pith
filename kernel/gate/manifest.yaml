@@ -1,21 +1,50 @@
-name: authorization-core/v1
+name: authorization-and-posting-core/v2
 spec: spec/AuthSpec.dfy
-spec_sha256: c5955b0e80f6b086d53db6abd7edb08649cacf67edaa938fa8fbffe9125315d9
-required_traits: [Authorizer, Releaser]
+spec_sha256: 38a29fbf9dd73f76617a06bc9bddfa369c5093a2b9ea6cd58cc1ece161be6f58
+required_traits:
+- Authorizer
+- Releaser
+- Capturer
 traces: adequacy/traces.dfy
 adequacy:
-  - file: adequacy/always_decline.dfy
-    describes: always decline, never reserve
-    rejected_by: [P0]
-  - file: adequacy/decline_at_equality.dfy
-    describes: decline a request exactly at the available limit
-    rejected_by: [P0]
-  - file: adequacy/hold_on_decline.dfy
-    describes: leave a hold in place on a declined request
-    rejected_by: [P2]      # P1 also rejects it; the checker reports the first failing postcondition, Valid(a')
-  - file: adequacy/rewrites_history.dfy
-    describes: rewrite earlier Declined decisions while recording a new one
-    rejected_by: [P3]
-  - file: adequacy/release_leaves_hold.dfy
-    describes: mark released but keep the funds reserved
-    rejected_by: [P2]      # a hold on a Released request; R1 also rejects it
+- file: adequacy/always_decline.dfy
+  describes: always decline, never reserve
+  rejected_by:
+  - P0
+- file: adequacy/decline_at_equality.dfy
+  describes: decline a request exactly at the available limit
+  rejected_by:
+  - P0
+- file: adequacy/hold_on_decline.dfy
+  describes: leave a hold in place on a declined request
+  rejected_by:
+  - P2
+- file: adequacy/rewrites_history.dfy
+  describes: rewrite earlier Declined decisions while recording a new one
+  rejected_by:
+  - P3
+- file: adequacy/release_leaves_hold.dfy
+  describes: mark released but keep the funds reserved
+  rejected_by:
+  - P2
+- file: adequacy/capture_keeps_hold.dfy
+  describes: post the amount but keep the hold (double counting)
+  rejected_by:
+  - INV1
+- file: adequacy/capture_wrong_amount.dfy
+  describes: post one unit more than the hold
+  rejected_by:
+  - C1
+- file: adequacy/capture_marks_released.dfy
+  describes: record a captured request as Released
+  rejected_by:
+  - C3
+- file: adequacy/capture_forgets_posting.dfy
+  describes: remove the hold without posting it
+  rejected_by:
+  - C1
+impl: core/Kernel.dfy
+more_specs:
+- spec/PostingSpec.dfy
+more_spec_sha256:
+  spec/PostingSpec.dfy: dcdd000c7413cd0bcad34a38dfb134aeec62aa3d1a54190092979a29d1c103d9

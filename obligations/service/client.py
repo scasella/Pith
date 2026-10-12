@@ -18,6 +18,7 @@ class Client:
     def account(self, id):                       return self._req("GET", f"/accounts/{id}")
     def authorize(self, id, request_id, amount): return self._req("POST", f"/accounts/{id}/authorize", {"request_id": request_id, "amount": amount})
     def release(self, id, request_id):           return self._req("POST", f"/accounts/{id}/release", {"request_id": request_id})
+    def capture(self, id, request_id):           return self._req("POST", f"/accounts/{id}/capture", {"request_id": request_id})
     def events(self, since=0):                   return self._req("GET", f"/events?since={since}")
     def raw_post(self, path, text):              return self._req("POST", path, raw=text)[0]
     def ui(self):
