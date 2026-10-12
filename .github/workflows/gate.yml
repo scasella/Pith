@@ -1,5 +1,6 @@
 name: gate
 on: [push, pull_request]
+concurrency: { group: "gate-${{ github.ref }}", cancel-in-progress: true }
 jobs:
   judge:
     runs-on: ubuntu-24.04
