@@ -78,7 +78,27 @@ migrations: `skips-declines` (builds receipts only for authorized requests, judg
 passes the ordinary judge) and `stamps-history` (re-seals the event log with a contract label, so history is not
 kept byte for byte).
 
-<!-- BOOKING -->
+### Booking (0.11.0 → 0.12.0, `interval-booking-core/v1` → `interval-booking-core/v2`)
+
+**A turnaround buffer per resource.** Version 1 let a booking start exactly where another ended. A resource now has a
+`buffer` (minutes, 0 to 1440, 0 when absent, fixed at creation): two active bookings on it must be at least that far
+apart, measured from the exclusive end. This is a change to the verified core: `Near(s1, e1, s2, e2, g)` replaces
+`Overlaps` in `Free`, every operation takes the calendar's `g`, and a new lemma `BufferZeroIsHalfOpen` shows that at
+`g = 0` the new rule is exactly the old one, which is what makes the migration's mapping sound. The core re-verifies;
+the Python and JavaScript translations are regenerated; three new known-wrong cores (`ignores_buffer`,
+`buffer_after_only`, `reschedule_ignores_buffer`) and four new traces (T12 to T15). Records: `B0`, `HalfOpen`, `B2`,
+`B5`, `M1`, `BoundaryConformance` 1 → 2; new `Turnaround`, with a new known-wrong application
+(`buffer-ignored-on-move`). Three existing known-wrong applications now also fail buffer tests that see the same
+defect, which their `expected.yaml` entries record.
+
+`MIG1` (`migrations/from-v1.yaml`): every version 1 resource gets buffer 0 and keeps its bookings (active and
+cancelled), request ledger and events exactly; nothing is re-decided, and touching bookings stay valid by the lemma
+above; an old request id with the same operation is replayed, with another is a conflict; the booking in flight at the
+SIGKILL is decided at most once. Rollback forward-only: version 1 cannot represent a resource with a buffer. Both
+shipped profiles ship the migration; the custom-store example ships its own; a frozen dispatcher picks the runtime.
+Known-wrong migrations: `drops-cancelled` (deletes cancelled bookings as dead data), `drops-ledger` (clears the request
+ledger; passes the ordinary judge) and `default-buffer` (applies a new 15-minute default to old resources; passes the
+ordinary judge).
 
 ### Approval (0.11.0 → 0.12.0, `approval-workflow/v1` → `approval-workflow/v2`)
 

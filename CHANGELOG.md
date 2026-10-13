@@ -1,5 +1,51 @@
 # Changelog
 
+## v0.12.0 — 2026-10-13
+What M5 left open and a maintainer can close alone: a contract upgrade with a migration on each of the four main
+packs, the reservation pack's two kernels as a composition contract, and the handoff done once by model agents. RFC:
+`docs/rfc/0006-upgrading-the-main-packs.md`. No format and no evaluator change: `gate/` is v0.11.0's.
+
+- **Reservation 0.12.0** (`authorization-and-posting/v3`): every write answers with its receipt and a retry returns
+  it (`Receipts`); a retried release is no longer answered "not released". `MIG1` turns each acknowledged write of a v2
+  database into its receipt from the event log, history byte for byte (`migrations/from-v2.yaml`,
+  `profiles/sqlite/migrate.py`). New known-wrong application `retry-not-released` and migrations `skips-declines`,
+  `stamps-history`. The proven kernels are unchanged.
+- **Booking 0.12.0** (`interval-booking-core/v2`): a turnaround buffer per resource, in the verified core (`Near`,
+  `BufferZeroIsHalfOpen`); `B0`, `HalfOpen`, `B2`, `B5`, `M1`, `BoundaryConformance` version 2, `Turnaround` and `MIG1`
+  added. Old resources get buffer 0.
+- **Approval 0.12.0** (`approval-workflow/v2`): a quorum per document, 2 to 5, fixed at creation (`A3`,
+  `BoundaryConformance` version 2, `A9` and `MIG1` added; `QuorumFixed` in the model). Old documents get quorum 2 and
+  keep every approval, stale ones included.
+- **Quota 0.2.0** (`sliding-window-quota/v2`): a limit per key and `limit_for` (`Q0`, `Q1`, `Q3`, `Q4`, `Q5`,
+  `Persistence`, `BoundaryConformance` version 2, `KEYLIMIT` and `MIG1` added); migrated dumps continue with version
+  1's decisions. Made by this project's maintainer, now listed as the pack's second maintainer; not reviewed by its
+  author (`packs/quota/AUTHORING-NOTES.md`).
+- Every rollback is `forward-only`, with its reason. Each upgrade has known-wrong migrations, at least one of which
+  passes the ordinary judge and is caught only on populated state.
+- **The upgrade check** (`validation/upgrades.py`, `validation/upgrades.yaml`, CI job `upgrades`): each previous
+  release rebuilt from the commit it was published at, with exactly its catalog digest; old examples accepted under
+  it; the upgrade classified behavioral; the new reference accepted reusing nothing; the old deployment record not
+  covering the new artifact; every example migrated from state its own old artifact produced; every known-wrong
+  migration refused for exactly its defect.
+- **Composition** (`compositions/reservation-kernels`, `validation/compositions.py`): authorization and posting with
+  `INV1` and `CaptureAgrees` shared; three known-wrong integrations; TLC shows the integration and the frozen design
+  obligations have the same behaviours.
+- **Handoff by model agents** (`evolution/handoff`, `validation/handoff.py`): agent A built a tally 2 application from
+  the release alone; agent B planned, made and classified an in-contract change, was judged reusing only what held,
+  and refused the out-of-contract half of its request. The run found gaps in the tally 2 release (§ 6 of the RFC).
+  One run, not a measurement.
+- **Found, not changed** (RFC 0006 § 5): `change.py classify` reports results as holding across a release that the
+  judge will not reuse; `migrate.py --old-evidence` needs evidence whose human approval is signed.
+- **Still needs people** (unchanged from RFC 0005 § 8): independent release reviews (every pack stays `draft`), a
+  second maintainer, external adoption trials, the conditions experiment with real models, external review.
+
+Release digests: reservation `f78d43798f1da2e0ddfe423f02810aabacdc326c619ac10c17d0f5fd20a6e32d`, booking
+`9bf4ebbc9fb4b7cb05ae28feaf54eff6d53afc24e1c3cbe1587945a48bf48f90`, approval
+`c5465e546a9f292a34b2864f4f0dc265bbf43a57496090e64ac4ac01b9054fdd`, quota
+`492425a27b1c24a0c417f1d161bc0fa8f9eb0809db8dcbc085c02e41fd5448ee`; demonstrations unchanged (tally 1.0.0
+`94e8781945f07514f989abc1e3e9b52cb434301dbcd6e98ddb544ae47ee294b4`, tally 2.0.0
+`e7bf373c80b4a359a02e1242f1ffe76aee54f6c3c772c34b865c48d7c7c434b3`).
+
 ## v0.11.0 — 2026-10-13
 M6 of the roadmap: what a community-ready release needs that can be built before the community exists. RFC:
 `docs/rfc/0005-community-release.md`.

@@ -7,69 +7,69 @@ format: pith.catalog/v1
 packs:
   - id: pith.reservation
     path: .
-    version: 0.11.0
+    version: 0.12.0
     status: supported
     stage: draft
-    release_digest: b6a58ad409fd80070f39c35e402dd3fb46e659be8b123c11b73b4f65e083ffa7
+    release_digest: f78d43798f1da2e0ddfe423f02810aabacdc326c619ac10c17d0f5fd20a6e32d
     scope: >
       authorization against a limit with reservations, release and capture (posting), over a proven Dafny core; an
       agent-written TLA+ design, service and browser application around it
     assumptions: kernel/tcb.yaml
     examples: [examples/build-a, examples/build-b, examples/club-desk, examples/office-desk]
-    wrong: [examples/wrong/club-desk, examples/wrong/office-desk]
+    wrong: [examples/wrong/club-desk, examples/wrong/office-desk, examples/wrong/retry-not-released, examples/wrong-migrations/skips-declines, examples/wrong-migrations/stamps-history]
     profiles: [sqlite (shipped), custom (judged black-box)]
     reference_implementations: [examples/build-a, examples/build-b]
     evidence: "CI job judge: every example judged with the pristine release, the known-wrong fixtures, the M2 baseline, the wrong-candidate matrix (docs/VALIDATION.md)"
-    upgrade_policy: "no contract upgrade has shipped; a behavioral change follows INTENT.md and ships a migration (docs/rfc/0004-safe-evolution.md)"
+    upgrade_policy: "0.12.0 upgraded authorization-and-posting-core/v2 to authorization-and-posting/v3 with a forward-only migration (migrations/from-v2.yaml; docs/rfc/0006-upgrading-the-main-packs.md); 0.11.0 stays supported for 90 days so deployments can upgrade through it (GOVERNANCE.md)"
     maintainers: [scasella]
     reviews: []
   - id: pith.booking
     path: packs/booking
-    version: 0.11.0
+    version: 0.12.0
     status: supported
     stage: draft
-    release_digest: 4b2171324020b247ee1675d207f7778e8a30fc1d21143e26c8b0b7a3d65de774
-    scope: interval booking with half-open intervals, cancellation and atomic rescheduling, over a verified Dafny core
+    release_digest: 9bf4ebbc9fb4b7cb05ae28feaf54eff6d53afc24e1c3cbe1587945a48bf48f90
+    scope: interval booking with half-open intervals, a turnaround buffer per resource, cancellation and atomic rescheduling, over a verified Dafny core
     assumptions: spec/tcb.yaml
     examples: [examples/calendar-py, examples/desk-node, examples/custom-py]
-    wrong: [examples/wrong/closed-intervals, examples/wrong/check-then-insert, examples/wrong/move-loses-booking, examples/wrong/receipt-overwritten]
+    wrong: [examples/wrong/closed-intervals, examples/wrong/check-then-insert, examples/wrong/move-loses-booking, examples/wrong/receipt-overwritten, examples/wrong/buffer-ignored-on-move, examples/wrong-migrations/drops-cancelled, examples/wrong-migrations/drops-ledger, examples/wrong-migrations/default-buffer]
     profiles: [python (SQLite), node (journal), custom]
     reference_implementations: [examples/calendar-py, examples/desk-node]
     evidence: "CI job packs: examples, known-wrong applications, generality across packs"
-    upgrade_policy: "no contract upgrade has shipped; a behavioral change ships a migration (docs/rfc/0004-safe-evolution.md)"
+    upgrade_policy: "0.12.0 upgraded interval-booking-core/v1 to interval-booking-core/v2 with a forward-only migration (migrations/from-v1.yaml; docs/rfc/0006-upgrading-the-main-packs.md); 0.11.0 stays supported for 90 days so deployments can upgrade through it (GOVERNANCE.md)"
     maintainers: [scasella]
     reviews: []
   - id: pith.approval
     path: packs/approval
-    version: 0.11.0
+    version: 0.12.0
     status: supported
     stage: draft
-    release_digest: a0c27100b0d0c7838041e6e822238883ebb072e46f0ba813c8b1da89c2f8118f
-    scope: document approval with roles, per-revision separation of duties, revision-bound approvals and a two-approver quorum
+    release_digest: c5465e546a9f292a34b2864f4f0dc265bbf43a57496090e64ac4ac01b9054fdd
+    scope: document approval with roles, per-revision separation of duties, revision-bound approvals and a quorum per document (2 to 5, fixed at creation)
     assumptions: model/assumptions.yaml
     examples: [examples/approvals-py, examples/approvals-node, examples/adopt-handbook]
-    wrong: [examples/wrong/stale-approvals-counted, examples/wrong/self-approval, examples/wrong/unknown-as-refused, examples/wrong/adopt-handbook-stale]
+    wrong: [examples/wrong/stale-approvals-counted, examples/wrong/self-approval, examples/wrong/unknown-as-refused, examples/wrong/adopt-handbook-stale, examples/wrong-migrations/drops-stale-approvals, examples/wrong-migrations/drops-request-ledger, examples/wrong-migrations/creates-not-requalified]
     profiles: [any runtime the pack lists (python, node); the candidate writes the whole service]
     reference_implementations: [examples/approvals-py, examples/approvals-node]
     evidence: "CI job packs: examples, known-wrong applications, the existing-project adoption"
-    upgrade_policy: "no contract upgrade has shipped; a behavioral change ships a migration (docs/rfc/0004-safe-evolution.md)"
+    upgrade_policy: "0.12.0 upgraded approval-workflow/v1 to approval-workflow/v2 with a forward-only migration (migrations/from-v1.yaml; docs/rfc/0006-upgrading-the-main-packs.md); 0.11.0 stays supported for 90 days so deployments can upgrade through it (GOVERNANCE.md)"
     maintainers: [scasella]
     reviews: []
   - id: pith.quota
     path: packs/quota
-    version: 0.1.1
+    version: 0.2.0
     status: demonstration          # its author decides whether it is supported (GOVERNANCE.md: a catalog status change is the pack's maintainers' call)
     stage: draft
-    release_digest: b10e8147eade371f29522ef47d170e39ed1eef40c7e38308e8ee5c3883fea8bc
-    scope: sliding-window quotas per key (half-open windows, exact retry hints, a caller-supplied clock), delivered as a Python or Node.js library
+    release_digest: 492425a27b1c24a0c417f1d161bc0fa8f9eb0809db8dcbc085c02e41fd5448ee
+    scope: sliding-window quotas per key, each key with its own limit or the default (half-open windows, exact retry hints, a caller-supplied clock), delivered as a Python or Node.js library
     assumptions: spec/tcb.yaml
     examples: [examples/sliding-log-py, examples/tally-node]
-    wrong: [examples/wrong/fixed-window, examples/wrong/closed-window, examples/wrong/shared-state, examples/wrong/unlocked, examples/wrong/flat-errors, examples/wrong/never-prunes]
+    wrong: [examples/wrong/fixed-window, examples/wrong/closed-window, examples/wrong/shared-state, examples/wrong/unlocked, examples/wrong/flat-errors, examples/wrong/never-prunes, examples/wrong/retry-default-limit, examples/wrong-migrations/clock-from-log, examples/wrong-migrations/closed-expiry, examples/wrong-migrations/counts-only]
     profiles: [a library on python or node, imported by the pack's driver; no service]
     reference_implementations: [examples/sliding-log-py, examples/tally-node]
     evidence: "CI job packs: examples and known-wrong libraries"
-    upgrade_policy: "no contract upgrade has shipped; a behavioral change ships a migration (docs/rfc/0004-safe-evolution.md)"
-    maintainers: [outside-author]
+    upgrade_policy: "0.2.0 upgraded sliding-window-quota/v1 to sliding-window-quota/v2 with a forward-only migration (migrations/from-v1.yaml; docs/rfc/0006-upgrading-the-main-packs.md); 0.1.1 stays supported for 90 days so deployments can upgrade through it (GOVERNANCE.md)"
+    maintainers: [outside-author, scasella]   # scasella made the 0.2.0 upgrade; the author has not reviewed it (packs/quota/AUTHORING-NOTES.md)
     reviews: []
   - id: demo.tally
     path: evolution/tally-v1
