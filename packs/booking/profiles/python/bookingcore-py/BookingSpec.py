@@ -22,14 +22,18 @@ class default__:
         return ((s1) < (e2)) and ((s2) < (e1))
 
     @staticmethod
-    def Blocks(x, s, e, except_):
-        return (((x).active) and (((x).id_) != (except_))) and (default__.Overlaps((x).start, (x).end, s, e))
+    def Near(s1, e1, s2, e2, g):
+        return default__.Overlaps(s1, (e1) + (g), s2, (e2) + (g))
 
     @staticmethod
-    def Free(c, s, e, except_):
+    def Blocks(x, s, e, except_, g):
+        return (((x).active) and (((x).id_) != (except_))) and (default__.Near((x).start, (x).end, s, e, g))
+
+    @staticmethod
+    def Free(c, s, e, except_, g):
         def lambda0_(forall_var_0_):
             d_0_i_: int = forall_var_0_
-            return not (((0) <= (d_0_i_)) and ((d_0_i_) < (len(c)))) or (not(default__.Blocks((c)[d_0_i_], s, e, except_)))
+            return not (((0) <= (d_0_i_)) and ((d_0_i_) < (len(c)))) or (not(default__.Blocks((c)[d_0_i_], s, e, except_, g)))
 
         return _dafny.quantifier(_dafny.IntegerRange(0, len(c)), True, lambda0_)
 
@@ -123,18 +127,18 @@ class Outcome_NotActive(Outcome, NamedTuple('NotActive', [])):
 
 class Booker:
     pass
-    def Book(self, c, id_, s, e):
+    def Book(self, c, g, id_, s, e):
         pass
 
 
 class Canceller:
     pass
-    def Cancel(self, c, id_):
+    def Cancel(self, c, g, id_):
         pass
 
 
 class Rescheduler:
     pass
-    def Reschedule(self, c, id_, s, e):
+    def Reschedule(self, c, g, id_, s, e):
         pass
 

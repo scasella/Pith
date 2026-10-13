@@ -4,9 +4,9 @@ include "../BookingSpec.dfy"
 module Wrong {
   import opened BookingSpec
   class C extends Canceller {
-    method Cancel(c: Calendar, id: Id) returns (ok: bool, c': Calendar)
-      requires Valid(c)
-      ensures Valid(c')
+    method Cancel(c: Calendar, g: nat, id: Id) returns (ok: bool, c': Calendar)
+      requires Valid(c, g)
+      ensures Valid(c', g)
       ensures ok <==> IsActive(c, id)
       ensures ok ==> |c'| == |c| && forall i :: 0 <= i < |c| ==> c'[i] == (if c[i].id == id then c[i].(active := false) else c[i])
       ensures !ok ==> c' == c
