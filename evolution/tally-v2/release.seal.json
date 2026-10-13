@@ -1,6 +1,6 @@
 {
   "format": 2,
-  "created": "2026-10-13T18:41:21Z",
+  "created": "2026-10-13T19:14:07Z",
   "pack": {
     "id": "demo.tally",
     "version": "2.0.0"
@@ -12,5 +12,5 @@
     "migrations"
   ],
   "files": 38,
-  "release_digest": "ff211e59c159108fab04d9aafef2d270ca6b36d49213bc73205d68d5bfedccba"
+  "release_digest": "22bad60aa7e65e579641aa790bf7f41b1704d63736d86e3ea3ed9de56e2d91fd"
 }

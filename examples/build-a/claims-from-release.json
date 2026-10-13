@@ -2,9 +2,9 @@
   "gate_mode": "authoritative",
   "policy_source": "/home/claude/Pith",
   "evidence_dir": "/tmp/claude-0/-home-claude-Pith/5d846ede-2a0d-5bd1-be73-bc76465c9ae0/scratchpad/base/ev-build-a",
-  "judged_copy": "/tmp/judged-cj049rjj",
-  "started": "2026-10-13T16:26:07Z",
-  "release_digest": "0031cde0de9ec614db5c7e4d1fe220a93f1ba936ad005f31750a8b6d98c7ff0b",
+  "judged_copy": "/tmp/judged-240_v0pa",
+  "started": "2026-10-13T18:13:17Z",
+  "release_digest": "3286ed7e2257e2d6b93728e2fce0dd95e86eec4f1547f44bc6374fcb1d2c6119",
   "authority": "externally-pinned-release",
   "artifact_digest": "92a2dbd2c64634a1efac65ee763faa28c2356517977e50681fbc798aedfc878b",
   "release_ready": false,
@@ -34,13 +34,13 @@
       "area": "policy",
       "check": "release seal",
       "result": "pass",
-      "claim": "platform release 0031cde0de9ec614 matches release.seal.json"
+      "claim": "platform release 3286ed7e2257e2d6 matches release.seal.json"
     },
     {
       "area": "policy",
       "check": "external release pin",
       "result": "pass",
-      "claim": "platform matches the externally pinned release 0031cde0de9ec614"
+      "claim": "platform matches the externally pinned release 3286ed7e2257e2d6"
     },
     {
       "area": "policy",
@@ -416,15 +416,15 @@
     "isolation",
     "browser"
   ],
-  "finished": "2026-10-13T16:27:52Z",
+  "finished": "2026-10-13T18:15:07Z",
   "policy_sha256": {
-    "gate": "95b26a95e2dffee1d02f44b9e0f19a21a18080e9f743b297b171d7a970cdf5c4",
-    "kernel": "74e40fac8415ae8feb400c956b6ed22406aa30f0b97a74e7883d797cc9fd8291",
-    "obligations": "3f777c4bc574be3545d3c2a128b2de2ed434ff1feddb8a4dcd00cdcfaa8e862b",
-    "profiles": "f42dbf15d8c2a5a9c00ccf65d7040e91d7ec77d52779bfb241b8537ee39e18a6",
+    "gate": "dd10e15817a590f79d6c05962aed485a78b09a0be37c20f7c14f09d8deb96c7e",
+    "kernel": "77306778fe8f5885325dc842ae046d3008898a97bdd57ef15b258f8f0e53f427",
+    "obligations": "b238d76e52db3926ae158aa13f6a6c66399f060932a54ebb79e54552405f07cd",
+    "profiles": "8d7576692e8761427a278b319e03fcf4da2f70cc2069ba03cfa2d26bcea379f0",
     "pack.yaml": "f35938c20ac8ffef0fb9b7468e3315848743e0b3d75aabb37897bd68c29204fc"
   },
   "artifact_digest_at_end": "92a2dbd2c64634a1efac65ee763faa28c2356517977e50681fbc798aedfc878b",
   "evidence": "evidence.json",
-  "evidence_digest": "9d2fdf96729fa76529c8640c05f226c976fd26032ce54dd7f6daf58087491d12"
+  "evidence_digest": "15f5454b0926e206fdb7b73634ed50954c908ab64fba30955553ff2d0f84067a"
 }

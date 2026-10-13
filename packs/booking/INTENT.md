@@ -26,7 +26,7 @@ A front desk books rooms (resources) by the minute. Each resource holds at most 
 
 ## What it explicitly does not promise
 
-Recurrence, timezones (times are minutes on one abstract, timezone-free day line), daylight-saving transitions,
+Recurrence, timezones (times are whole minutes on an abstract, timezone-free line, not bounded to one day), daylight-saving transitions,
 external calendar synchronisation, capacity above one, waitlists, holds that expire, and who may book what
 (there is no actor model here; see the approval pack for one). Adding any of these is a behavioural change to the
 pack: it needs new obligations, new wrong cores and a new contract version, not a UI change.

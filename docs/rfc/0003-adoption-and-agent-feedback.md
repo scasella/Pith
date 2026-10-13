@@ -4,7 +4,7 @@
 |---|---|
 | Status | Implemented in v0.9.0 (roadmap milestone M4). § 8 says which M4 exit criteria are met and which are not. |
 | Applies to | `gate/` (the evaluator), every pack's `pack.yaml`, `templates/pack/`, `integrations/`, `validation/` |
-| Builds on | RFC 0001 (packs and evidence), RFC 0002 (three packs, one evaluator). Nothing in their formats is withdrawn. |
+| Builds on | RFC 0001 (packs and evidence), RFC 0002 (four packs, one evaluator). Nothing in their formats is withdrawn. |
 
 ## 1. What M4 asked
 
@@ -162,7 +162,7 @@ CLI, read the packet.
 
 | Criterion | State |
 |---|---|
-| Actionable failures for agents, small ones included: compact packet, six categories | **Met.** Every known-wrong application of all three packs (12) gets the expected category and names the expected contract records (`validation/judge_wrong.py`); one run per category on the reservation pack (`validation/packets.py`); schema-valid packets under 6 KB. |
+| Actionable failures for agents, small ones included: compact packet, six categories | **Met.** Every known-wrong application of the three packs written here (12), and since M3 was merged in the six of the outside author's quota pack, gets the expected category and names the expected contract records (`validation/judge_wrong.py`); one run per category on the reservation pack (`validation/packets.py`); schema-valid packets under 6 KB. |
 | Contract-author scaffold, consistency and adequacy checks, separate release review | **Built.** `pack new`, `pack check`, `review.py sign-pack`; the scaffold is judged in CI. No pack has been through an independent review yet. |
 | Existing-project support, coverage stated | **Built and demonstrated in the repository.** `include`/`subsystem`, `coverage`, `adopt`, the handbook example, `validation/adoption.py`. |
 | Stable CLI and machine-readable protocol; thin wrappers | **Built.** `gate/cli.py`, `integrations/spec-kit/`. |

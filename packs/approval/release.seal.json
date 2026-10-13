@@ -1,6 +1,6 @@
 {
   "format": 2,
-  "created": "2026-10-13T18:41:21Z",
+  "created": "2026-10-13T19:14:07Z",
   "pack": {
     "id": "pith.approval",
     "version": "0.11.0"
@@ -11,6 +11,6 @@
     "harness",
     "delivery"
   ],
-  "files": 54,
-  "release_digest": "3b94e5846842d59b8dd357991034d95bca781c5046bb0ebc4ba19fa3e8678960"
+  "files": 69,
+  "release_digest": "72025d193b9014e0eab925c7567dc6d8a30b52493d13ebcfd665068f8dc5b772"
 }

@@ -86,7 +86,7 @@ plan crosses every factor and rotates the first condition.
 |---|---|
 | Stable compatibility rules | **Written** (`COMPATIBILITY.md`); tested only in the sense that every format now carries its identifier. No external consumer depends on them yet. |
 | Governance: roles, approval, supported versions, key and attestation revocation, unsoundness | **Written, with the mechanical parts enforced** (`pack check --release`, `catalog.py check`, `revocations.yaml`, `deploy.py check --revocations`). **Not practised:** one maintainer holds every role. |
-| A curated catalog of maintained packs | **Built** (`catalog.yaml`: three supported packs, two demonstration releases). All `draft`: no independent release review exists. |
+| A curated catalog of maintained packs | **Built** (`catalog.yaml`: three supported packs; the outside author's quota pack and two demonstration releases as `demonstration`). All `draft`: no independent release review exists. |
 | Reproducible evaluation results | Every validation in this repository runs in CI from a fresh checkout and writes its record. **Not met** for the empirical programme: no real-model runs. |
 | Experiments: three conditions, rotation, repeats, outcomes after change, failures published | **Harness built and dry-run in CI. Not run.** It needs model access, budget, and people to run and publish it. |
 | **Exit gate:** multiple maintainers publish, evaluate, upgrade and retire packs under the documented process | **Not met.** It needs a second maintainer and independent reviewers. |

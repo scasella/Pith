@@ -1,6 +1,6 @@
 {
   "format": 2,
-  "created": "2026-10-13T18:41:21Z",
+  "created": "2026-10-13T19:14:06Z",
   "pack": {
     "id": "pith.reservation",
     "version": "0.11.0"
@@ -12,5 +12,5 @@
     "profiles"
   ],
   "files": 85,
-  "release_digest": "6a20c4ccec8b17b737dfab2a7a48d6a71938d6f4ad77ff17bb4f3b49f20bc064"
+  "release_digest": "d2aa2ad9a5253cb7c0072d16a2573b77f6cd1716a6aa896d93ec909b4485081a"
 }

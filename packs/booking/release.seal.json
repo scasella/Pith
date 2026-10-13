@@ -1,6 +1,6 @@
 {
   "format": 2,
-  "created": "2026-10-13T18:41:21Z",
+  "created": "2026-10-13T19:14:06Z",
   "pack": {
     "id": "pith.booking",
     "version": "0.11.0"
@@ -12,6 +12,6 @@
     "harness",
     "delivery"
   ],
-  "files": 64,
-  "release_digest": "6ac2b05a0672df3cb0a34379f9294c3beaeeca1798d6cdac65552caa1adc0fa5"
+  "files": 66,
+  "release_digest": "faaec446c3db790c6048574f8fd2b6d3e02b1b03d0a9fb9a8bea25907db6ac1a"
 }

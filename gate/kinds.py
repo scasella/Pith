@@ -10,7 +10,7 @@ record. Kinds never import candidate code. The only pack code a kind executes in
                      a known-wrong case the tool must reject); optional `count` regex, `export` of JSON; {item} from `each`
   files_present      every listed file exists
   source_rules       regex obligations on one source file: `require`, `forbid_lines`, `forbid_definitions`
-  tlc                TLC model check of a module + cfg copied into a scratch dir; expect `no_error` or {violated: X}
+  tlc                TLC model check of a module + cfg copied into a scratch dir; expect `no_error` or {violated: X} (an invariant or an action property)
   regenerated        listed generated files equal what the pack's generator produces now (restored afterwards)
   manifest_choice    a manifest key takes one of the pack's allowed values (or its default)
   manifest_commands  commands the manifest lists (supplementary, reported only)
@@ -93,7 +93,9 @@ def k_tlc(c, ctx):
         shutil.rmtree(work, ignore_errors=True)
     exp = c["expect"]
     if exp == "no_error": ok = "No error has been found" in o; why = _tlc_why(o)
-    else: ok = f"Invariant {fmt(exp['violated'], item=item)} is violated" in o; why = fmt(c.get("why"), item=item) if c.get("why") else o[-800:]
+    else:       # an invariant, or an action property ([][A]_v), named X: TLC reports either as "<kind> X is violated"
+        x = fmt(exp["violated"], item=item); ok = f"Invariant {x} is violated" in o or f"Action property {x} is violated" in o
+        why = fmt(c.get("why"), item=item) if c.get("why") and ok else o[-800:]   # on failure, what TLC actually said
     ran = re.search(r"TLC2 Version|Starting\.\.\.", o)         # TLC never started: java or the jar is missing
     return Result(ok, fmt(c["claim"], item=item), why if ran else why + "\n" + o[-400:], category=None if ran else "toolchain_unavailable")
 

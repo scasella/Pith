@@ -319,9 +319,9 @@ checks:
 contracts:
   - { id: B0, version: 1, intent: "Two active bookings on one resource never overlap.", semantics: { dafny: "spec/BookingSpec.dfy Valid [B0]" }, timing: invariant of every committed calendar; per operation in the proof, across concurrent requests by test,
       verified_by: [core.verify, service.lifecycle, service.conformance], assumptions: ["each operation runs atomically against the latest committed calendar (spec/tcb.yaml); established per profile by test"],
-      wrong: [spec/wrong/start_inside_only.dfy, spec/wrong/cancel_toggles.dfy], change: behavioral }
+      wrong: [spec/wrong/start_inside_only.dfy, spec/wrong/cancel_toggles.dfy, spec/wrong/ignores_one_minute_overlap.dfy], change: behavioral }
   - { id: HalfOpen, version: 1, intent: "A booking holds [start, end): touching endpoints do not conflict.", semantics: { dafny: "spec/BookingSpec.dfy Overlaps [HALF-OPEN]" },
-      verified_by: [core.verify, core.traces, service.lifecycle], examples: [spec/traces.dfy T1_TouchingIntervalsAreBothAccepted], wrong: [spec/wrong/closed_intervals.dfy], change: behavioral }
+      verified_by: [core.verify, core.traces, service.lifecycle], examples: [spec/traces.dfy T1_TouchingIntervalsAreBothAccepted, spec/traces.dfy T9_TouchingFromBelowIsAccepted, spec/traces.dfy T10_OneMinuteOverlapConflicts], wrong: [spec/wrong/closed_intervals.dfy, spec/wrong/closed_at_end.dfy, spec/wrong/ignores_one_minute_overlap.dfy], change: behavioral }
   - { id: B1, version: 1, intent: "An empty or reversed interval is invalid and changes nothing.", semantics: { dafny: "spec/BookingSpec.dfy [B1]" }, verified_by: [core.verify, service.lifecycle], change: behavioral }
   - { id: B2, version: 1, intent: "A request is accepted exactly when its interval is valid and free.", semantics: { dafny: "spec/BookingSpec.dfy [B2]" }, timing: "against the calendar of the same atomic step",
       verified_by: [core.verify, service.conformance], wrong: [spec/wrong/closed_intervals.dfy, spec/wrong/start_inside_only.dfy], change: behavioral }

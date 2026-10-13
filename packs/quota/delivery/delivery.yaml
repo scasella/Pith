@@ -1,0 +1,14 @@
+# delivery/delivery.yaml — application delivery criteria for pith.quota. FROZEN.
+# The application is a library; delivery is what a programmer using it gets (delivery/CONSUMER-CONTRACT.md). All
+# obligations are mechanical, so this pack asks for no human evaluation; that is a choice of this pack.
+required_workflows:          # driven by delivery/consumers/ through CONSUMER-CONTRACT.md
+  - { id: LW1, name: quickstart,          description: "the documented examples run as written and give the contract's values" }
+  - { id: LW2, name: backoff_client,      description: "waiting exactly retry_after is enough and never more than needed; the schedule is the verified core's" }
+  - { id: LW3, name: handleable_errors,   description: "one LimiterError handler catches both errors; argument and clock attributes; messages" }
+  - { id: LW4, name: cross_process_state, description: "a dump handed to another process loads and continues with the original's decisions" }
+required_interactions:
+  - { id: LI1, name: silent_import,       description: importing prints nothing }
+  - { id: LI2, name: decisions_are_values, description: an earlier decision keeps its values after later calls }
+  - { id: LI3, name: bounded_state,       description: "after 20 000 spread grants with at most 10 live, dump() is under 2 000 characters" }
+required_evaluations: []     # no human approval in this pack
+consumer_contract: delivery/CONSUMER-CONTRACT.md

@@ -19,6 +19,7 @@ class Doc:
     rev: int = 1
     authors: tuple = ()                     # authors[r - 1] wrote revision r
     approvals: frozenset = field(default_factory=frozenset)    # {(revision, approver)}; old pairs are history
+    last: tuple = ()                        # (command, actor, revision) of the step that made this state: the model's history variable
 
     def votes(self, r): return {a for (q, a) in self.approvals if q == r}
 
@@ -26,7 +27,7 @@ class Doc:
 def create(actor, roles):
     """(reason or None, Doc or None)"""
     if "editor" not in roles.get(actor, ()): return "ROLE", None
-    return None, Doc(authors=(actor,))
+    return None, Doc(authors=(actor,), last=("create", actor, 1))
 
 
 def step(d, op, actor, roles, revision=None, quorum=2, max_rev=None):
@@ -36,20 +37,21 @@ def step(d, op, actor, roles, revision=None, quorum=2, max_rev=None):
     if op == "edit":
         if not has("editor"): return "ROLE", d
         if d.status == "published" or (max_rev is not None and d.rev >= max_rev): return "WRONG_STATE", d
-        return None, replace(d, rev=d.rev + 1, authors=d.authors + (actor,), status="draft")
+        return None, replace(d, rev=d.rev + 1, authors=d.authors + (actor,), status="draft", last=("edit", actor, d.rev + 1))
     need = {"submit": None, "approve": "approver", "reject": "approver", "publish": "publisher"}[op]
     if need and not has(need): return "ROLE", d
     if revision != d.rev: return "STALE_REVISION", d
     if d.status != {"submit": "draft", "approve": "in_review", "reject": "in_review", "publish": "approved"}[op]: return "WRONG_STATE", d
+    done = lambda **kw: (None, replace(d, last=(op, actor, revision), **kw))
     if op == "submit":
-        return (None, replace(d, status="in_review")) if actor == d.authors[d.rev - 1] else ("NOT_AUTHOR", d)
+        return done(status="in_review") if actor == d.authors[d.rev - 1] else ("NOT_AUTHOR", d)
     if op in ("approve", "reject") and actor == d.authors[d.rev - 1]: return "SEPARATION_OF_DUTIES", d
     if op == "approve":
         if (d.rev, actor) in d.approvals: return "ALREADY_APPROVED", d
         ap = d.approvals | {(d.rev, actor)}
-        return None, replace(d, approvals=ap, status="approved" if len({a for (q, a) in ap if q == d.rev}) >= quorum else "in_review")
-    if op == "reject": return None, replace(d, status="rejected")
-    return None, replace(d, status="published")
+        return done(approvals=ap, status="approved" if len({a for (q, a) in ap if q == d.rev}) >= quorum else "in_review")
+    if op == "reject": return done(status="rejected")
+    return done(status="published")
 
 
 def view(d):

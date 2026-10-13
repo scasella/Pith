@@ -96,19 +96,19 @@ checks:
     module: MC.tla
     cfg: MC.cfg
     expect: no_error
-    claim: "Safety (TypeOK, SeparationOfDuties, ApproverRole, BoundToRevision, NoFutureApprovals) and PublishedIsFinal, PublishOnlyApproved, RevisionsGrow hold over model/MC.cfg"
+    claim: "Safety (TypeOK, SeparationOfDuties, ApproverRole, BoundToRevision, NoFutureApprovals, RejectBySeparation, PublishByPublisher, EditByEditor, SubmitByAuthor) and PublishedIsFinal, PublishOnlyApproved, RevisionsGrow, ApprovalsGrow hold over model/MC.cfg"
     status: model_assurance
     method: model-check
     inputs: ["model/**"]
     tools: [tlc, java]
     cacheable: true
-    establishes: [A1, A2, A3, A4, A5, A6, A7]
+    establishes: [A1, A2, A3, A4, A5, A6, A7, A8]
     assumptions: model/assumptions.yaml
 
   - id: model.adequacy.stale
     about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
     area: model
-    name: the model rejects counting stale approvals
+    name: the model rejects counting approvals of superseded revisions
     kind: tlc
     jar: "{TLA2TOOLS}"
     workdir: model
@@ -116,7 +116,7 @@ checks:
     module: MCWrongStaleApprovals.tla
     cfg: MCWrongStaleApprovals.cfg
     expect: { violated: BoundToRevision }
-    claim: a design whose edits keep earlier approvals violates BoundToRevision under the same configuration
+    claim: "model/wrong/WrongStaleApprovals.tla (counting approvals of superseded revisions) violates BoundToRevision under the same configuration"
     why: model/wrong/WrongStaleApprovals.tla no longer violates BoundToRevision
     status: model_assurance
     method: model-check
@@ -135,8 +135,44 @@ checks:
     module: MCWrongSelfApproval.tla
     cfg: MCWrongSelfApproval.cfg
     expect: { violated: SeparationOfDuties }
-    claim: a design that lets an author approve their own revision violates SeparationOfDuties
+    claim: "model/wrong/WrongSelfApproval.tla (self-approval) violates SeparationOfDuties under the same configuration"
     why: model/wrong/WrongSelfApproval.tla no longer violates SeparationOfDuties
+    status: model_assurance
+    method: model-check
+    inputs: ["model/**"]
+    tools: [tlc, java]
+    cacheable: true
+
+  - id: model.adequacy.self-reject
+    area: model
+    name: the model rejects self-rejection
+    kind: tlc
+    jar: "{TLA2TOOLS}"
+    workdir: model
+    copy: { from: model/wrong, suffixes: [.tla, .cfg] }
+    module: MCWrongSelfReject.tla
+    cfg: MCWrongSelfReject.cfg
+    expect: { violated: RejectBySeparation }
+    claim: "model/wrong/WrongSelfReject.tla (self-rejection) violates RejectBySeparation under the same configuration"
+    why: model/wrong/WrongSelfReject.tla no longer violates RejectBySeparation
+    status: model_assurance
+    method: model-check
+    inputs: ["model/**"]
+    tools: [tlc, java]
+    cacheable: true
+
+  - id: model.adequacy.publisher
+    area: model
+    name: the model rejects publishing without the publisher role
+    kind: tlc
+    jar: "{TLA2TOOLS}"
+    workdir: model
+    copy: { from: model/wrong, suffixes: [.tla, .cfg] }
+    module: MCWrongAnyonePublishes.tla
+    cfg: MCWrongAnyonePublishes.cfg
+    expect: { violated: PublishByPublisher }
+    claim: "model/wrong/WrongAnyonePublishes.tla (publishing without the publisher role) violates PublishByPublisher under the same configuration"
+    why: model/wrong/WrongAnyonePublishes.tla no longer violates PublishByPublisher
     status: model_assurance
     method: model-check
     inputs: ["model/**"]
@@ -146,16 +182,70 @@ checks:
   - id: model.adequacy.publish
     about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
     area: model
-    name: the model rejects publishing under review
+    name: the model rejects publishing a document still in review
     kind: tlc
     jar: "{TLA2TOOLS}"
     workdir: model
     copy: { from: model/wrong, suffixes: [.tla, .cfg] }
     module: MCWrongPublishInReview.tla
     cfg: MCWrongPublishInReview.cfg
-    expect: { violated: BoundToRevision }
-    claim: a design that publishes a document still in review violates BoundToRevision
-    why: model/wrong/WrongPublishInReview.tla no longer violates BoundToRevision
+    expect: { violated: PublishOnlyApproved }
+    claim: "model/wrong/WrongPublishInReview.tla (publishing a document still in review) violates PublishOnlyApproved under the same configuration"
+    why: model/wrong/WrongPublishInReview.tla no longer violates PublishOnlyApproved
+    status: model_assurance
+    method: model-check
+    inputs: ["model/**"]
+    tools: [tlc, java]
+    cacheable: true
+
+  - id: model.adequacy.final
+    area: model
+    name: the model rejects editing a published document
+    kind: tlc
+    jar: "{TLA2TOOLS}"
+    workdir: model
+    copy: { from: model/wrong, suffixes: [.tla, .cfg] }
+    module: MCWrongEditAfterPublish.tla
+    cfg: MCWrongEditAfterPublish.cfg
+    expect: { violated: PublishedIsFinal }
+    claim: "model/wrong/WrongEditAfterPublish.tla (editing a published document) violates PublishedIsFinal under the same configuration"
+    why: model/wrong/WrongEditAfterPublish.tla no longer violates PublishedIsFinal
+    status: model_assurance
+    method: model-check
+    inputs: ["model/**"]
+    tools: [tlc, java]
+    cacheable: true
+
+  - id: model.adequacy.history
+    area: model
+    name: the model rejects erasing the approval history
+    kind: tlc
+    jar: "{TLA2TOOLS}"
+    workdir: model
+    copy: { from: model/wrong, suffixes: [.tla, .cfg] }
+    module: MCWrongEditClearsHistory.tla
+    cfg: MCWrongEditClearsHistory.cfg
+    expect: { violated: ApprovalsGrow }
+    claim: "model/wrong/WrongEditClearsHistory.tla (erasing the approval history) violates ApprovalsGrow under the same configuration"
+    why: model/wrong/WrongEditClearsHistory.tla no longer violates ApprovalsGrow
+    status: model_assurance
+    method: model-check
+    inputs: ["model/**"]
+    tools: [tlc, java]
+    cacheable: true
+
+  - id: model.adequacy.authors
+    area: model
+    name: the model rejects rewriting earlier revisions' authors
+    kind: tlc
+    jar: "{TLA2TOOLS}"
+    workdir: model
+    copy: { from: model/wrong, suffixes: [.tla, .cfg] }
+    module: MCWrongEditRewritesAuthors.tla
+    cfg: MCWrongEditRewritesAuthors.cfg
+    expect: { violated: RevisionsGrow }
+    claim: "model/wrong/WrongEditRewritesAuthors.tla (rewriting earlier revisions' authors) violates RevisionsGrow under the same configuration"
+    why: model/wrong/WrongEditRewritesAuthors.tla no longer violates RevisionsGrow
     status: model_assurance
     method: model-check
     inputs: ["model/**"]
@@ -169,7 +259,7 @@ checks:
     kind: command
     command: "TLA2TOOLS={TLA2TOOLS} {python} harness/refines.py"
     count: '"states": (\d+)'
-    claim: "harness/reference.py and model/Approval.tla have the same initial states, the same {count} reachable states and the same labelled transitions over model/MC.cfg (exhaustive)"
+    claim: "harness/reference.py and model/Approval.tla have the same initial states, the same {count} reachable states (each recording who did the last step) and the same labelled transitions over model/MC.cfg (exhaustive)"
     status: model_assurance
     method: model-check
     inputs: ["model/**", "harness/reference.py", "harness/refines.py"]
@@ -184,7 +274,7 @@ checks:
     kind: command
     command: "{python} harness/traces.py"
     count: '"traces": (\d+)'
-    claim: "the {count} accepting and rejecting traces in model/traces.yaml give, step by step, the outcomes and end states the author reviewed"
+    claim: "the {count} accepting and rejecting traces in model/traces.yaml give, step by step, the outcomes and end states written there (reviewed: docs/reviews/m3-trace-review.md)"
     status: model_assurance
     method: test
     inputs: ["model/**", "harness/reference.py", "harness/traces.py"]
@@ -272,16 +362,17 @@ checks:
     establishes: [AW1, AW2, AW3, AW4, AW5, AI1, AI2, AI3]
 
 contracts:
-  - { id: A1, version: 1, intent: "Nobody approves or rejects a revision they wrote.", semantics: { tla: "model/Approval.tla SeparationOfDuties [A1]" },
-      verified_by: [model.safety, service.lifecycle, service.conformance], wrong: [model/wrong/WrongSelfApproval.tla, packs/approval/examples/wrong/self-approval], change: behavioral }
-  - { id: A2, version: 1, intent: "Only approvers' approvals are recorded; each command needs its role.", semantics: { tla: "model/Approval.tla ApproverRole [A2]", markdown: "harness/SERVICE.md § The workflow" },
-      verified_by: [model.safety, service.lifecycle, service.conformance], change: behavioral }
-  - { id: A3, version: 1, intent: "A document is approved only with two approvals of its current revision; stale approvals never count.", semantics: { tla: "model/Approval.tla BoundToRevision [A3]" },
-      verified_by: [model.safety, service.lifecycle, service.conformance], wrong: [model/wrong/WrongStaleApprovals.tla, model/wrong/WrongPublishInReview.tla, packs/approval/examples/wrong/stale-approvals-counted], change: behavioral }
+  - { id: A1, version: 1, intent: "Nobody approves or rejects a revision they wrote.", semantics: { tla: "model/Approval.tla SeparationOfDuties, RejectBySeparation [A1]" },
+      verified_by: [model.safety, service.lifecycle, service.conformance], wrong: [model/wrong/WrongSelfApproval.tla, model/wrong/WrongSelfReject.tla, packs/approval/examples/wrong/self-approval], change: behavioral }
+  - { id: A2, version: 1, intent: "Each command needs its role: editors create and edit, approvers approve and reject, publishers publish.", semantics: { tla: "model/Approval.tla ApproverRole, RejectBySeparation, PublishByPublisher, EditByEditor [A2]", markdown: "harness/SERVICE.md § The workflow" },
+      verified_by: [model.safety, service.lifecycle, service.conformance], wrong: [model/wrong/WrongAnyonePublishes.tla], change: behavioral }
+  - { id: A3, version: 1, intent: "A document is approved only with two approvals of its current revision; stale approvals never count.", semantics: { tla: "model/Approval.tla BoundToRevision, ApprovalsGrow [A3]" },
+      verified_by: [model.safety, service.lifecycle, service.conformance], wrong: [model/wrong/WrongStaleApprovals.tla, model/wrong/WrongEditClearsHistory.tla, packs/approval/examples/wrong/stale-approvals-counted], change: behavioral }
   - { id: A4, version: 1, intent: "No approval names a revision that does not exist yet.", semantics: { tla: "model/Approval.tla NoFutureApprovals [A4]" }, verified_by: [model.safety, service.conformance], change: behavioral }
-  - { id: A5, version: 1, intent: "Published is final.", semantics: { tla: "model/Approval.tla PublishedIsFinal [A5]" }, verified_by: [model.safety, service.lifecycle], change: behavioral }
-  - { id: A6, version: 1, intent: "Only an approved document is published.", semantics: { tla: "model/Approval.tla PublishOnlyApproved [A6]" }, verified_by: [model.safety, service.conformance], change: behavioral }
-  - { id: A7, version: 1, intent: "Revisions only grow and keep their authors.", semantics: { tla: "model/Approval.tla RevisionsGrow [A7]" }, verified_by: [model.safety, service.conformance], change: behavioral }
+  - { id: A5, version: 1, intent: "Published is final.", semantics: { tla: "model/Approval.tla PublishedIsFinal [A5]" }, verified_by: [model.safety, service.lifecycle], wrong: [model/wrong/WrongEditAfterPublish.tla], change: behavioral }
+  - { id: A6, version: 1, intent: "Only an approved document is published.", semantics: { tla: "model/Approval.tla PublishOnlyApproved [A6]" }, verified_by: [model.safety, service.conformance], wrong: [model/wrong/WrongPublishInReview.tla], change: behavioral }
+  - { id: A7, version: 1, intent: "Revisions only grow and keep their authors.", semantics: { tla: "model/Approval.tla RevisionsGrow [A7]" }, verified_by: [model.safety, service.conformance], wrong: [model/wrong/WrongEditRewritesAuthors.tla], change: behavioral }
+  - { id: A8, version: 1, intent: "Only the author of the current revision submits it for review.", semantics: { tla: "model/Approval.tla SubmitByAuthor [A8]" }, verified_by: [model.safety, service.conformance, model.traces], change: behavioral }
   - { id: Atomicity, version: 1, intent: "Each command is decided against the latest committed document, one at a time.", semantics: { python: "harness/lifecycle.py" }, verified_by: [service.lifecycle], change: integration }
   - { id: Durability, version: 1, intent: "An acknowledged command survives a crash and restart.", semantics: { python: "harness/lifecycle.py" }, timing: after acknowledgement, verified_by: [service.lifecycle], change: integration }
   - { id: Idempotency, version: 1, intent: "request_id is the idempotency key of every command; a reuse for something else is refused.", semantics: { markdown: "harness/SERVICE.md" }, verified_by: [service.lifecycle], change: integration }

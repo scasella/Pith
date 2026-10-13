@@ -10,7 +10,7 @@ packs:
     version: 0.11.0
     status: supported
     stage: draft
-    release_digest: 6a20c4ccec8b17b737dfab2a7a48d6a71938d6f4ad77ff17bb4f3b49f20bc064
+    release_digest: d2aa2ad9a5253cb7c0072d16a2573b77f6cd1716a6aa896d93ec909b4485081a
     scope: >
       authorization against a limit with reservations, release and capture (posting), over a proven Dafny core; an
       agent-written TLA+ design, service and browser application around it
@@ -28,7 +28,7 @@ packs:
     version: 0.11.0
     status: supported
     stage: draft
-    release_digest: 6ac2b05a0672df3cb0a34379f9294c3beaeeca1798d6cdac65552caa1adc0fa5
+    release_digest: faaec446c3db790c6048574f8fd2b6d3e02b1b03d0a9fb9a8bea25907db6ac1a
     scope: interval booking with half-open intervals, cancellation and atomic rescheduling, over a verified Dafny core
     assumptions: spec/tcb.yaml
     examples: [examples/calendar-py, examples/desk-node, examples/custom-py]
@@ -44,7 +44,7 @@ packs:
     version: 0.11.0
     status: supported
     stage: draft
-    release_digest: 3b94e5846842d59b8dd357991034d95bca781c5046bb0ebc4ba19fa3e8678960
+    release_digest: 72025d193b9014e0eab925c7567dc6d8a30b52493d13ebcfd665068f8dc5b772
     scope: document approval with roles, per-revision separation of duties, revision-bound approvals and a two-approver quorum
     assumptions: model/assumptions.yaml
     examples: [examples/approvals-py, examples/approvals-node, examples/adopt-handbook]
@@ -55,12 +55,28 @@ packs:
     upgrade_policy: "no contract upgrade has shipped; a behavioral change ships a migration (docs/rfc/0004-safe-evolution.md)"
     maintainers: [scasella]
     reviews: []
+  - id: pith.quota
+    path: packs/quota
+    version: 0.1.1
+    status: demonstration          # its author decides whether it is supported (GOVERNANCE.md: a catalog status change is the pack's maintainers' call)
+    stage: draft
+    release_digest: e1b2fd4d9a28e173a0a22829f9dd34a7b7fe7224e48c426299fd556eb57dcbf5
+    scope: sliding-window quotas per key (half-open windows, exact retry hints, a caller-supplied clock), delivered as a Python or Node.js library
+    assumptions: spec/tcb.yaml
+    examples: [examples/sliding-log-py, examples/tally-node]
+    wrong: [examples/wrong/fixed-window, examples/wrong/closed-window, examples/wrong/shared-state, examples/wrong/unlocked, examples/wrong/flat-errors, examples/wrong/never-prunes]
+    profiles: [a library on python or node, imported by the pack's driver; no service]
+    reference_implementations: [examples/sliding-log-py, examples/tally-node]
+    evidence: "CI job packs: examples and known-wrong libraries"
+    upgrade_policy: "no contract upgrade has shipped; a behavioral change ships a migration (docs/rfc/0004-safe-evolution.md)"
+    maintainers: [outside-author]
+    reviews: []
   - id: demo.tally
     path: evolution/tally-v1
     version: 1.0.0
     status: demonstration
     stage: draft
-    release_digest: 7234ae64b8802540f8b8b8cc024cb2050b6953e8e3666c3ec88deb4ceff3b7e4
+    release_digest: e39d3546623e4cfb987dadc56e5910c6d3d4edb8246df35b301f932812e77840
     scope: "one bounded tally with idempotent requests: the scaffold's example contract, the 'before' of the evolution demonstrations"
     assumptions: harness/SERVICE.md
     examples: [examples/basic]
@@ -76,7 +92,7 @@ packs:
     version: 2.0.0
     status: demonstration
     stage: draft
-    release_digest: ff211e59c159108fab04d9aafef2d270ca6b36d49213bc73205d68d5bfedccba
+    release_digest: 22bad60aa7e65e579641aa790bf7f41b1704d63736d86e3ea3ed9de56e2d91fd
     scope: "a bounded tally per named counter, upgraded from 1.0.0 with its state: the 'after' of the evolution demonstrations"
     assumptions: harness/SERVICE.md
     examples: [examples/basic, examples/journal]

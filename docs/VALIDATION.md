@@ -1,14 +1,16 @@
 # Validation record — Pith v0.11.0 (M6: governance, compatibility, catalog, experiment harness)
 
-Releases: reservation `6a20c4ccec8b17b737dfab2a7a48d6a71938d6f4ad77ff17bb4f3b49f20bc064`, booking
-`6ac2b05a0672df3cb0a34379f9294c3beaeeca1798d6cdac65552caa1adc0fa5`, approval
-`3b94e5846842d59b8dd357991034d95bca781c5046bb0ebc4ba19fa3e8678960`; demonstrations tally 1.0.0
-`7234ae64b8802540f8b8b8cc024cb2050b6953e8e3666c3ec88deb4ceff3b7e4`, tally 2.0.0
-`ff211e59c159108fab04d9aafef2d270ca6b36d49213bc73205d68d5bfedccba`. Local runs (advisory isolation, unsandboxed browser)
+Releases: reservation `d2aa2ad9a5253cb7c0072d16a2573b77f6cd1716a6aa896d93ec909b4485081a`, booking
+`faaec446c3db790c6048574f8fd2b6d3e02b1b03d0a9fb9a8bea25907db6ac1a`, approval
+`72025d193b9014e0eab925c7567dc6d8a30b52493d13ebcfd665068f8dc5b772`, quota
+`e1b2fd4d9a28e173a0a22829f9dd34a7b7fe7224e48c426299fd556eb57dcbf5`; demonstrations tally 1.0.0
+`e39d3546623e4cfb987dadc56e5910c6d3d4edb8246df35b301f932812e77840`, tally 2.0.0
+`22bad60aa7e65e579641aa790bf7f41b1704d63736d86e3ea3ed9de56e2d91fd`. This release also carries M3's final state (the
+trace review and `packs/quota`); the v0.9.0 and v0.10.0 records below were made before it was merged in. Local runs (advisory isolation, unsandboxed browser)
 as before; CI runs the same steps and the enforced `isolated` run.
 
 ### governance mechanics (validation/governance.py)
-- `catalog.yaml` matches all five packs it lists (sealed digests, derived stages, listed files, maintainers): every
+- `catalog.yaml` matches all six packs it lists (sealed digests, derived stages, listed files, maintainers): every
   entry is `draft`, because no pack has an independent release review
 - an entry that claims `released` without one is refused by `gate/catalog.py check`
 - revocation end to end: evidence and a deployment record resting on a release revoked in a scratch revocations file
@@ -23,6 +25,11 @@ as before; CI runs the same steps and the enforced `isolated` run.
   repair cycle, and success everywhere for the careful scripted agent. These numbers measure the harness; **no
   experiment with real models has been run**
 - the plan crosses every model, task, condition and repeat, and rotates which condition runs first
+
+### the quota pack on this evaluator
+- sliding-log-py and tally-node accepted; the six known-wrong libraries refused (four at `library.lifecycle` by exactly
+  their tests, two failing delivery on exactly LW3 and LI3), each task packet with category `violation` naming the
+  expected record; `pack check` stage `draft`; `domain_free.py`: gate/ is free of 6 packs' 149 terms and ids
 
 ### unchanged results from v0.10.0
 - MATRIX_M6
@@ -105,18 +112,20 @@ Releases: reservation `117f339033b4c2b38c036ce9d277fd487f128c30435a002b4e01fd6cb
   refused at their intended check, the same checks as v0.8.0 (the over-limit SPEC claim passes with a reviewer flag,
   exit 0)
 
-# Validation record — Pith v0.8.0 (M3: three packs, one evaluator)
+# Validation record — Pith v0.8.0 (M3: four packs, one evaluator)
 
-Releases: reservation `0031cde0de9ec614db5c7e4d1fe220a93f1ba936ad005f31750a8b6d98c7ff0b`, booking
-`5c46b4c19b3d629b780458f8ac473a3e5c65a71c0b303f50631478bfe0113a49`, approval
-`7fb94ff09874a3aeafed8aea0fb2de8c4fa03b3e09a93f91369534a0eb456d72`. Local runs (advisory isolation, unsandboxed
+Releases: reservation `3286ed7e2257e2d6b93728e2fce0dd95e86eec4f1547f44bc6374fcb1d2c6119`, booking
+`a90e315748315501532551968263d46bb67019cec66bcadf140b7fdd0923331c`, approval
+`14d4b7a14b79144851fe7256ef33b3a63848b36ee48434bc75cc212eec61ab6c`, quota
+`3e7b2cb3817a228c70d70c7b300c791c3b9dd3e24332c3119c6314bd839e7e9e`. Local runs (advisory isolation, unsandboxed
 browser) as for v0.7.0; CI runs the same steps (jobs `judge` and `packs`) and the enforced `isolated` run.
 
-### one evaluator, three packs (validation/generality.py)
-- 9 runs, 3 packs, one evaluator digest (`a084c3d6ae5993ff`) in every run's evidence.json
+### one evaluator, four packs (validation/generality.py)
+- 11 runs, 4 packs, one evaluator digest (`425c61dc6ab0fb76`) in every run's evidence.json
 - reservation: build-a, build-b (custom profile), club-desk, office-desk; booking: calendar-py (Python profile, 27
   checks), desk-node (Node.js profile on the JavaScript translation, 27), custom-py (own store, 26); approval:
-  approvals-py (Python + SQLite, 19), approvals-node (Node.js + journal, 19). Every mechanical status passed;
+  approvals-py (Python + SQLite, 19), approvals-node (Node.js + journal, 19); quota: sliding-log-py (Python library), tally-node (Node.js library).
+  Every mechanical status passed;
   human approval pending where the pack asks for it (the approval pack does not)
 
 ### the reservation pack keeps the M2 baseline (validation/compare_m1.py)
@@ -130,17 +139,25 @@ browser) as for v0.7.0; CI runs the same steps (jobs `judge` and `packs`) and th
   as `may_also_fail`); receipt-overwritten passes assurance and fails delivery on exactly BI1, BI2
 - approval: stale-approvals-counted and self-approval refused at `service.lifecycle` by exactly their tests;
   unknown-as-refused passes assurance and fails delivery on exactly AI1, AI2
-- pack adequacy, on every run: the six wrong booking cores fail to verify (`core.adequacy`); the three wrong
-  approval designs violate the invariant named for each (`model.adequacy.*`); `harness/refines.py` finds the
-  reference and the spec equal (1314 states, 1602 transitions) and detects a one-line mutation of the reference;
+- quota: fixed-window, closed-window, shared-state, unlocked refused at `library.lifecycle` by exactly their tests;
+  flat-errors and never-prunes pass assurance and fail delivery on exactly LW3 and LI3
+- pack adequacy, on every run: the eight wrong booking cores fail to verify (`core.adequacy`); the eight wrong
+  approval designs violate the invariant or action property named for each (`model.adequacy.*`); `harness/refines.py` finds the
+  reference and the spec equal (1898 states, 2330 transitions) and detects a one-line mutation of the reference;
   reviewed traces pass (`core.traces`, `model.traces`), and a changed expectation in model/traces.yaml fails `model.traces`
 
 ### the evaluator is domain-free across every pack (validation/domain_free.py)
-- no vocabulary, contract id or check id of any of the three packs occurs in gate/ (the first run of the
+- no vocabulary, contract id or check id of any of the four packs occurs in gate/ (the first run of the
   extended scan found comments added in M3 that used the reservation pack's terms; they were reworded)
 
+### intermittent failures seen while validating (not reproduced)
+- the reservation `boundary` check on club-desk failed once and `model.adequacy.self` on approvals-py failed once,
+  both while other judge runs and the quota author's runs shared the machine; each passed on re-run with nothing
+  changed. Neither record said why (the failing `tlc` check printed its fixed claim, not TLC's output; that is now
+  fixed in `gate/kinds.py`, so a recurrence will show what TLC reported)
+
 ### wrong-candidate matrix (validation/matrix.py, 19 cases)
-- re-run against the v0.8.0 reservation release: all 19 cases refused at their intended check, the same checks as
+- re-run against the final v0.8.0 reservation release: all 19 cases refused at their intended check, the same checks as
   v0.7.0 (the over-limit SPEC claim passes with a reviewer flag, exit 0)
 
 # Validation record — Pith v0.7.0 (M2: contract pack, domain-free evaluator, structured evidence)

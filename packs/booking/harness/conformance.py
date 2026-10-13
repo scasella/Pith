@@ -17,7 +17,9 @@ from harness.supervisor import Service
 from profiles.python import core
 
 IDS = itertools.count(1)
-op = st.tuples(st.sampled_from(["book", "book", "cancel", "move"]), st.integers(0, 5), st.integers(0, 12), st.integers(0, 12))
+# endpoints on a 10-minute grid, each nudged by up to one minute, so one-minute overlaps and gaps are generated too
+op = st.tuples(st.sampled_from(["book", "book", "cancel", "move"]), st.integers(0, 5), st.integers(0, 12), st.integers(0, 12),
+               st.integers(-1, 1), st.integers(-1, 1))
 
 
 @pytest.fixture(scope="module")
@@ -33,8 +35,8 @@ def test_service_agrees_with_the_verified_core(svc, seq):
     """Contract: CoreConformance."""
     c = svc.client; k = core.Core(); rid = 10_000 + next(IDS); assert c.create(rid)[0] == 201
     model, booked = [], []                                  # the core's calendar; booking ids sent so far (accepted or not)
-    for kind, pick, a, b in seq:
-        s, e = a * 10, b * 10; rq = rid * 1000 + next(IDS) % 1000
+    for kind, pick, a, b, da, db in seq:
+        s, e = max(0, a * 10 + da), max(0, b * 10 + db); rq = rid * 1000 + next(IDS) % 1000
         if kind == "book":
             code, r = c.book(rid, rq, s, e); o, cal = k.Book(core.calendar(model), rq, s, e); booked.append(rq)
             assert code == 200 and (r["outcome"], r["conflicts_with"]) == core.outcome(o), f"book [{s},{e}) on {core.rows(core.calendar(model))}: service {r}, core {core.outcome(o)}"

@@ -7,7 +7,9 @@ harness/refines.py — the reference model IS the TLA+ spec, within the model's 
 Runs TLC on model/MC.tla with `-dump dot,actionlabels` to get the complete reachable state graph of the spec, builds
 the reachable graph of harness/reference.py from the same configuration (actors, roles, quorum, MaxRev from
 model/MC.tla and model/MC.cfg), and compares: the same initial states, the same reachable states, and for every
-state the same set of (action, successor) pairs. Exit 0 iff identical. This turns "the service is tested against a
+state the same set of (action, successor) pairs. Every state includes the model's history variable `last` (who did
+the step that produced it), so two models that reach the same document by different actors are told apart: a
+reference that lets the wrong actor reject, publish, submit or edit fails here. Exit 0 iff identical. This turns "the service is tested against a
 Python model" into "the service is tested against the spec, exhaustively equivalent within these bounds"; outside
 the bounds (more revisions, more actors) the equivalence is by construction of the same rules, not checked.
 """
@@ -58,7 +60,7 @@ def tlc_graph(jar):
         st = {}
         for part in label.split("/\\")[1:]:
             k, v = part.split("=", 1); st[k.strip()] = tla_value(v.strip())[0]
-        key = (st["status"], st["rev"], tuple(a for a in st["author"] if a != "none"), frozenset(st["approvals"]))
+        key = (st["status"], st["rev"], tuple(a for a in st["author"] if a != "none"), frozenset(st["approvals"]), tuple(st["last"]))
         nodes[m.group(1)] = key
         if m.group(3): init.add(key)
     for m in re.finditer(r'^(-?\d+) -> (-?\d+) \[label="(\w+)"', dot, re.M):
@@ -76,7 +78,7 @@ def mc_config():
 
 def reference_graph():
     actors, roles, quorum, max_rev = mc_config()
-    key = lambda d: (d.status, d.rev, d.authors, d.approvals)
+    key = lambda d: (d.status, d.rev, d.authors, d.approvals, d.last)       # last: who did the step, so actors are compared too
     init = {key(R.create(a, roles)[1]) for a in actors if R.create(a, roles)[0] is None}
     seen, edges, todo = set(init), set(), [R.create(a, roles)[1] for a in actors if R.create(a, roles)[0] is None]
     label = {"edit": "Edit", "submit": "Submit", "approve": "Approve", "reject": "Reject", "publish": "Publish"}
