@@ -33,3 +33,11 @@ packs:
                        Persistence: "version 1 -> 2", BoundaryConformance: "version 1 -> 2", KEYLIMIT: added, MIG1: added}
     holds: [candidate runtime]       # the runtime preflight: same manifest key and value, same check, no contract record
     wrong_migrations: packs/quota/examples/wrong-migrations
+  booking:
+    pack: packs/booking
+    old_release: 4b2171324020b247ee1675d207f7778e8a30fc1d21143e26c8b0b7a3d65de774
+    applications: [{new: packs/booking/examples/calendar-py}, {new: packs/booking/examples/desk-node}, {new: packs/booking/examples/custom-py}]
+    contract_changes: {B0: "version 1 -> 2", HalfOpen: "version 1 -> 2", B2: "version 1 -> 2", B5: "version 1 -> 2", M1: "version 1 -> 2",
+                       BoundaryConformance: "version 1 -> 2", Turnaround: added, MIG1: added}
+    holds: [candidate runtime, integration profile]     # the two manifest_choice preflights: they read only app.manifest.yaml runtime/profile and establish no record
+    wrong_migrations: packs/booking/examples/wrong-migrations

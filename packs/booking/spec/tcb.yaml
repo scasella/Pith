@@ -11,7 +11,7 @@ assumptions:
   - Dafny 4.11 verifier and Boogie/Z3 are sound for the constructs used
   - the Dafny-to-Python and Dafny-to-JavaScript translators preserve the verified semantics (the translations are reproduced, not trusted blindly; their behaviour is then tested in the profile tests and through the service)
   - spec/BookingSpec.dfy captures the intended contract (validated by spec/traces.dfy, the known-wrong cores in spec/wrong/ and human review of INTENT.md, not by the verifier)
-  - each call to Book, Cancel or Reschedule is executed atomically against the latest committed calendar of its resource (established per profile by test: profiles/*/tests, harness/lifecycle.py bursts)
+  - each call to Book, Cancel or Reschedule is executed atomically against the latest committed calendar of its resource, with that resource's buffer as fixed at its creation (established per profile by test: profiles/*/tests, harness/lifecycle.py bursts and buffer tests)
   - the cross-module trait declarations ({:termination false}) are harmless because no obligation is recursive through a trait
 not_covered:
   - persistence, serialization, the network, frameworks, and the mapping from wire values to Calendar values (the profiles' validate functions bound the domain; harness/boundary.py tests it)

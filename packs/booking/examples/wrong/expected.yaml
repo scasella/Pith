@@ -6,22 +6,30 @@
 closed-intervals:
   source: custom-py with closed-interval overlap (s1 <= e2 and s2 <= e1), the service-level twin of spec/wrong/closed_intervals.dfy
   refused_at: service.lifecycle
-  failing_tests: [test_half_open_intervals_conflicts_and_independent_resources, test_reschedule_is_atomic]
-  may_also_fail: [test_concurrent_overlapping_bursts_keep_calendars_conflict_free]   # when a touching interval wins the race, the loser's conflict names it
+  failing_tests: [test_half_open_intervals_conflicts_and_independent_resources, test_reschedule_is_atomic,
+                  test_the_buffer_separates_bookings_on_its_resource, test_moves_and_cancels_respect_the_buffer, test_the_buffer_is_fixed_at_creation_and_survives_restart]   # 0.12.0: the same defect at the buffered end refuses a booking exactly the buffer away
+  may_also_fail: [test_concurrent_overlapping_bursts_keep_calendars_conflict_free, test_concurrent_bursts_keep_the_buffer]   # when a touching (or exactly-the-buffer) interval wins the race, the loser's conflict names it
   category: violation
   contracts: [HalfOpen]
 check-then-insert:
   source: custom-py whose availability check and insert are separate critical sections
   refused_at: service.lifecycle
   failing_tests: [test_concurrent_requests_for_one_interval_accept_exactly_one_per_resource, test_concurrent_overlapping_bursts_keep_calendars_conflict_free]
+  may_also_fail: [test_concurrent_bursts_keep_the_buffer]          # 0.12.0: the same race in a burst on a resource with a buffer
   category: violation
   contracts: [Atomicity, B0]
 move-loses-booking:
   source: custom-py whose move is cancel-then-book, the service-level twin of spec/wrong/reschedule_cancel_then_book.dfy
   refused_at: service.lifecycle
-  failing_tests: [test_reschedule_is_atomic]
+  failing_tests: [test_reschedule_is_atomic, test_moves_and_cancels_respect_the_buffer]   # 0.12.0: the buffer test's refused move also loses the booking
   category: violation
   contracts: [M3]
+buffer-ignored-on-move:
+  source: custom-py whose move checks plain overlap (the buffer is kept for new bookings only), the service-level twin of spec/wrong/reschedule_ignores_buffer.dfy (new in 0.12.0)
+  refused_at: service.lifecycle
+  failing_tests: [test_moves_and_cancels_respect_the_buffer]
+  category: violation
+  contracts: [M1, Turnaround]
 receipt-overwritten:
   source: custom-py whose page overwrites the receipt when a refresh fails and reports a lost response as a failure
   must_fail: [BI1, BI2]
