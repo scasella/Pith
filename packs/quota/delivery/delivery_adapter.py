@@ -13,8 +13,8 @@ import yaml
 CONSUMER = {"python": [sys.executable, "-I", "delivery/consumers/consumer.py"], "node": ["node", "delivery/consumers/consumer.mjs"]}
 
 BACKOFF = {"limit": 4, "window": 20, "arrivals": [["api", 0, 1]] * 7 + [["api", 25, 2]] * 3 + [["api", 30, 5], ["api", 31, 4], ["web", 31, 3], ["api", 90, 1]]}
-PERSIST = {"limit": 3, "window": 10, "before": [["a", 0, 1], ["a", 2, 2], ["b", 3, 3], ["a", 4, 1]],
-           "after": [["a", 3, 1], ["a", 9, 1], ["a", 10, 1], ["a", 12, 1], ["b", 12, 1], ["b", 13, 1], ["a", 12, 3]]}
+PERSIST = {"limit": 3, "window": 10, "limits": {"b": 5}, "before": [["a", 0, 1], ["a", 2, 2], ["b", 3, 3], ["a", 4, 1]],
+           "after": [["a", 3, 1], ["a", 9, 1], ["a", 10, 1], ["a", 12, 1], ["b", 12, 1], ["b", 12, 1], ["b", 12, 1], ["b", 13, 1], ["a", 12, 3]]}
 
 
 def run(ctx):
@@ -35,8 +35,8 @@ def run(ctx):
         if code != 0: raise AssertionError(f"consumer exited {code}: {(err or out)[-300:]}")
         return json.loads(out.strip().splitlines()[-1])
 
-    def oracle_decisions(limit, window, steps):
-        ref = O.Ref(limit, window); out = []
+    def oracle_decisions(limit, window, limits, steps):
+        ref = O.Ref(limit, window, limits); out = []
         for key, now, cost in steps:
             r = ref.acquire(key, now, cost)
             out.append(r["error"] if "error" in r else [r["ok"]["granted"], r["ok"]["remaining"], r["ok"]["retry_after"]])
@@ -55,7 +55,8 @@ def run(ctx):
     # LW1 the documented examples
     def lw1():
         got = json_of(*consumer("quickstart"))
-        want = [[True, 2, None], [True, 0, None], [False, 0, 59], 0, 3, [True, 0, None], 0]   # harness/LIBRARY.md § The API, worked by hand
+        want = [[True, 2, None], [True, 0, None], [False, 0, 59], 0, 3, [True, 0, None], 0,   # harness/LIBRARY.md § The API, worked by hand
+                10, 3, [True, 5, None], [False, 3, None]]                                       # "vip" has 10; "alice" the default 3, and 5 > 3 never fits
         record("LW1", got == want, f"quickstart gave {got}; the contract gives {want}")
     attempt("LW1", lw1)
 
@@ -76,7 +77,7 @@ def run(ctx):
     # LW3 errors a caller can handle
     def lw3():
         got = json_of(*consumer("errors")); bad = []
-        for arg in ("limit", "window", "key", "cost", "now", "text"):
+        for arg in ("limit", "window", "limits", "key", "cost", "now", "text"):
             g = got.get(arg, {})
             if not (g.get("base") and g.get("invalid") and g.get("value_error") and g.get("argument") == arg and g.get("message")):
                 bad.append(f"{arg}: {g}")
@@ -89,7 +90,7 @@ def run(ctx):
     def lw4():
         a = json_of(*consumer("persist-a", json.dumps(PERSIST)))
         b = json_of(*consumer("persist-b", a["dump"], json.dumps(PERSIST)))
-        want = oracle_decisions(PERSIST["limit"], PERSIST["window"], PERSIST["before"] + PERSIST["after"])
+        want = oracle_decisions(PERSIST["limit"], PERSIST["window"], PERSIST["limits"], PERSIST["before"] + PERSIST["after"])
         got = a["decisions"] + b["decisions"]
         record("LW4", got == want, f"decisions before and after the hand-over {got}; the verified core gives {want}")
     attempt("LW4", lw4)

@@ -24,13 +24,35 @@ def same(steps):
     return got
 
 
-def new(limit=2, window=10, id="A"): return {"op": "new", "id": id, "limit": limit, "window": window}
+def new(limit=2, window=10, id="A", **limits): return {"op": "new", "id": id, "limit": limit, "window": window, **limits}
 def acq(key, now, cost=1, id="A"): return {"op": "acquire", "id": id, "key": key, "now": now, "cost": cost}
 
 
 @pytest.mark.parametrize("v", [0, -1, U31 + 1] + NOT_WHOLE, ids=repr)
 def test_configuration_is_refused_outside_its_domain(v):
     same([new(limit=v), new(window=v, id="B"), new(limit=1, window=1, id="C"), acq("k", 0, id="C")])
+
+
+BAD_LIMITS = [[], "vip", 3, None, True, [["vip", 2]],                                    # not a mapping
+              {"": 2}, {"a b": 2}, {"x" * 65: 2}, {"é": 2}, {"ok": 2, "a/b": 2}] + \
+             [{"vip": v} for v in [0, -1, U31 + 1] + NOT_WHOLE] + [{"ok": 2, "vip": 0}]        # a limit that is not one
+
+
+@pytest.mark.parametrize("limits", BAD_LIMITS, ids=repr)
+def test_malformed_per_key_limits_are_refused(limits):
+    """`limits` maps keys to whole numbers in [1, 2^31 - 1]; anything else refuses the whole configuration."""
+    same([new(limits=limits), new(limit=1, window=3, id="C", limits={"ok": 2}), acq("ok", 0, 2, id="C"), acq("vip", 0, 2, id="C")])
+
+
+@pytest.mark.parametrize("limits", [{}, {"vip": 1}, {"vip": U31}, {"x" * 64: 3, "a.b:c_d-E9": 1}], ids=repr)
+def test_per_key_limits_at_the_edges_of_their_domain(limits):
+    k = next(iter(limits), "vip")
+    same([new(limits=limits), {"op": "limit_for", "id": "A", "key": k}, acq(k, 0), acq(k, 0, 2), {"op": "limit_for", "id": "A", "key": "other"}])
+
+
+@pytest.mark.parametrize("key", ["", "x" * 65, "a b", "é", 3, None], ids=repr)
+def test_limit_for_refuses_malformed_keys(key):
+    same([new(limits={"vip": 4}), {"op": "limit_for", "id": "A", "key": key}, acq("vip", 0, 4)])
 
 
 @pytest.mark.parametrize("key", ["", "x" * 65, "a b", "é", "a/b", "a\n", 3, None, ["a"]], ids=repr)

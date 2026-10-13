@@ -28,9 +28,9 @@ def acq(key, now, cost=1, id="A"): return {"op": "acquire", "id": id, "key": key
 @pytest.mark.parametrize("trace", T.traces(), ids=lambda t: t[0])
 def test_reviewed_traces(trace):
     """The reviewed traces, step by step, through the library (the same data the Dafny checks run against the core)."""
-    name, limit, window, steps = trace
-    got = R.run(T.program(limit, window, steps), ROOT)
-    assert got[0] == {"ok": None}, f"{name}: Limiter(limit={limit}, window={window}) failed: {got[0]}"
+    name, limit, window, own, steps = trace
+    got = R.run(T.program(limit, window, own, steps), ROOT)
+    assert got[0] == {"ok": None}, f"{name}: Limiter(limit={limit}, window={window}, limits={own}) failed: {got[0]}"
     for i, ((k, c, n, want), g) in enumerate(zip(steps, got[1:])):
         assert O.comparable(g) == O.comparable(want), f"{name} step {i + 1} acquire({k!r}, now={n}, cost={c}): library gave {g}, the reviewed trace requires {want}"
 
@@ -51,6 +51,46 @@ def test_no_window_ever_holds_more_than_the_limit():
     grants = [(t, 1 + t % 3) for t, g in zip(range(60), got[1:]) if g["ok"]["granted"]]
     for end in range(60 + window):
         assert sum(c for t, c in grants if end - window < t <= end) <= limit, f"window ending at {end} holds more than {limit}"
+
+
+def test_no_window_ever_holds_more_than_the_keys_own_limit():
+    """The same greedy client on three keys: one with a limit of its own above the default, one below, one with the
+    default. In every window, each key's grants stay within that key's limit, and the oracle agrees call by call."""
+    limit, window, own = 3, 7, {"vip": 6, "free": 1}
+    steps = [{"op": "new", "id": "A", "limit": limit, "window": window, "limits": own}] + \
+            [acq(k, t, 1 + (t + i) % 3) for t in range(40) for i, k in enumerate(("vip", "free", "k"))]
+    got = same(steps)
+    for k in ("vip", "free", "k"):
+        grants = [(st["now"], st["cost"]) for st, g in zip(steps[1:], got[1:]) if st["key"] == k and g["ok"]["granted"]]
+        for end in range(40 + window):
+            assert sum(c for t, c in grants if end - window < t <= end) <= own.get(k, limit), f"key {k}: the window ending at {end} holds more than {own.get(k, limit)}"
+    assert any(g["ok"]["granted"] and st["key"] == "vip" and st["now"] == 0 for st, g in zip(steps[1:], got[1:]))
+
+
+def test_limit_for_reports_each_keys_limit():
+    """limit_for(key) is the key's own limit when the limiter names one and the default otherwise; it reads nothing
+    else, so it neither needs nor moves the clock; a loaded limiter reports the same limits."""
+    steps = [{"op": "new", "id": "A", "limit": 3, "window": 10, "limits": {"vip": 10, "free": 1}},
+             {"op": "limit_for", "id": "A", "key": "vip"}, {"op": "limit_for", "id": "A", "key": "free"}, {"op": "limit_for", "id": "A", "key": "anyone"},
+             acq("vip", 5), {"op": "limit_for", "id": "A", "key": "vip"}, acq("vip", 5), {"op": "peek", "id": "A", "key": "free", "now": 5},
+             {"op": "dump", "id": "A"}, {"op": "load", "id": "B", "from": "A"},
+             {"op": "limit_for", "id": "B", "key": "vip"}, {"op": "limit_for", "id": "B", "key": "free"}, {"op": "limit_for", "id": "B", "key": "anyone"},
+             {"op": "new", "id": "C", "limit": 4, "window": 2}, {"op": "limit_for", "id": "C", "key": "vip"}]
+    got = same(steps)
+    assert [got[i]["ok"] for i in (1, 2, 3, 10, 11, 12, 14)] == [10, 1, 3, 10, 1, 3, 4]
+
+
+def test_dump_and_load_carry_the_per_key_limits():
+    """A loaded limiter holds every key to the same limit as the original: a key with its own limit is still granted
+    past the default, and the others are still held to it."""
+    steps = [{"op": "new", "id": "A", "limit": 2, "window": 10, "limits": {"vip": 5, "free": 1}},
+             acq("vip", 0, 3), acq("free", 1), acq("k", 2, 2),
+             {"op": "dump", "id": "A"}, {"op": "load", "id": "B", "from": "A"},
+             acq("vip", 3, 2, id="B"), acq("vip", 3, id="B"), acq("free", 4, id="B"), acq("k", 4, id="B"), acq("other", 4, 2, id="B"),
+             acq("other", 4, id="B"), acq("free", 11, id="B"), acq("vip", 10, 5, id="B"), {"op": "peek", "id": "B", "key": "vip", "now": 13},
+             acq("vip", 3, 2, id="A")]                                     # the original still has its own state
+    got = same(steps)
+    assert got[6]["ok"]["granted"] is True, "the loaded limiter forgot vip's own limit"
 
 
 def test_limiters_are_independent():

@@ -5,4 +5,12 @@
 # records the classification must name. Known-wrong migrations are overlays on a base application
 # (<wrong_migrations>/<name>/ holds only what differs), listed in <wrong_migrations>/expected.yaml.
 from_commit: 8e63d7b45cc3f104097c54b0686f19b177c366b3
-packs: {}
+packs:
+  quota:
+    pack: packs/quota
+    old_release: b10e8147eade371f29522ef47d170e39ed1eef40c7e38308e8ee5c3883fea8bc
+    applications: [{new: packs/quota/examples/sliding-log-py}, {new: packs/quota/examples/tally-node}]
+    contract_changes: {Q0: "version 1 -> 2", Q1: "version 1 -> 2", Q3: "version 1 -> 2", Q4: "version 1 -> 2", Q5: "version 1 -> 2",
+                       Persistence: "version 1 -> 2", BoundaryConformance: "version 1 -> 2", KEYLIMIT: added, MIG1: added}
+    holds: [candidate runtime]       # the runtime preflight: same manifest key and value, same check, no contract record
+    wrong_migrations: packs/quota/examples/wrong-migrations

@@ -4,9 +4,10 @@ library, and it runs in the candidate's process, never the judge's.
 
     python3 -I harness/driver.py '<json program>'       prints one JSON line: {"results": [...]}
 
-Steps (harness/LIBRARY.md § How the pack drives it): {"op": "new", "id", "limit", "window"} | {"op": "acquire", "id",
-"key", "now", "cost"?} | {"op": "peek", "id", "key", "now"} | {"op": "dump", "id"} | {"op": "load", "id", "from" | "text", "truncate"?}
-| {"op": "burst", "id", "key", "now", "cost", "threads", "calls", "keys"?} | {"op": "sleep", "ms"}. A missing "cost" is not passed.
+Steps (harness/LIBRARY.md § How the pack drives it): {"op": "new", "id", "limit", "window", "limits"?} | {"op": "acquire",
+"id", "key", "now", "cost"?} | {"op": "peek", "id", "key", "now"} | {"op": "limit_for", "id", "key"} | {"op": "dump", "id"}
+| {"op": "load", "id", "from" | "text", "truncate"?} | {"op": "burst", "id", "key", "now", "cost", "threads", "calls", "keys"?}
+| {"op": "sleep", "ms"}. A missing "cost" or "limits" is not passed.
 """
 import json, pathlib, sys, threading, time        # everything the driver needs, imported before lib/ is on sys.path
 
@@ -36,11 +37,14 @@ def main():
     for s in prog["steps"]:
         try:
             op = s["op"]
-            if op == "new": lims[s["id"]] = L.Limiter(limit=s["limit"], window=s["window"]); r = {"ok": None}
+            if op == "new":
+                kw = {"limits": s["limits"]} if "limits" in s else {}
+                lims[s["id"]] = L.Limiter(limit=s["limit"], window=s["window"], **kw); r = {"ok": None}
             elif op == "acquire":
                 kw = {"now": s["now"]} if "cost" not in s else {"now": s["now"], "cost": s["cost"]}
                 r = {"ok": decision(lims[s["id"]].acquire(s["key"], **kw))}
             elif op == "peek": r = {"ok": lims[s["id"]].peek(s["key"], now=s["now"])}
+            elif op == "limit_for": r = {"ok": lims[s["id"]].limit_for(s["key"])}
             elif op == "dump":
                 t = lims[s["id"]].dump(); dumps[s["id"]] = t; r = {"ok": {"type": type(t).__name__, "text": t if isinstance(t, str) else None}}
             elif op == "load":

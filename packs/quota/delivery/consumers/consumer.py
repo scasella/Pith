@@ -32,6 +32,8 @@ elif cmd == "quickstart":                                      # harness/LIBRARY
     text = lim.dump()
     lim2 = Limiter.load(text)
     r += [lim2.peek("alice", now=70), dec(lim2.acquire("alice", now=70, cost=3)), lim.peek("alice", now=69)]
+    plans = Limiter(limit=3, window=60, limits={"vip": 10})
+    r += [plans.limit_for("vip"), plans.limit_for("alice"), dec(plans.acquire("vip", now=10, cost=5)), dec(plans.acquire("alice", now=10, cost=5))]
     print(json.dumps(r))
 elif cmd == "backoff":
     w = json.loads(sys.argv[2]); lim = Limiter(limit=w["limit"], window=w["window"]); t = 0; out = []
@@ -48,7 +50,8 @@ elif cmd == "errors":
     lim = Limiter(limit=2, window=10); lim.acquire("k", now=50); out = {}
     tries = {"limit": lambda: Limiter(limit=0, window=10), "window": lambda: Limiter(limit=1, window=-3),
              "key": lambda: lim.acquire("no spaces", now=60), "cost": lambda: lim.acquire("k", now=60, cost=0),
-             "now": lambda: lim.acquire("k", now=-1), "text": lambda: Limiter.load("not a dump"), "regression": lambda: lim.acquire("k", now=49)}
+             "now": lambda: lim.acquire("k", now=-1), "text": lambda: Limiter.load("not a dump"), "regression": lambda: lim.acquire("k", now=49),
+             "limits": lambda: Limiter(limit=1, window=10, limits={"vip": 0})}
     for name, f in tries.items():
         try: f(); out[name] = {"raised": None}
         except LimiterError as e:
@@ -59,7 +62,7 @@ elif cmd == "errors":
             out[name] = {"raised": type(e).__name__, "base": False}
     print(json.dumps(out))
 elif cmd == "persist-a":
-    w = json.loads(sys.argv[2]); lim = Limiter(limit=w["limit"], window=w["window"])
+    w = json.loads(sys.argv[2]); lim = Limiter(limit=w["limit"], window=w["window"], limits=w["limits"])
     r = calls(lim, w["before"]); print(json.dumps({"decisions": r, "dump": lim.dump()}))
 elif cmd == "persist-b":
     w = json.loads(sys.argv[3]); lim = Limiter.load(sys.argv[2])
