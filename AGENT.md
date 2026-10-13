@@ -20,13 +20,19 @@ with `--policy-from <pristine release> --expected-release <pinned digest>` by th
 additionally needs a signed human review (`gate/review.py`) that you cannot produce. Nothing else counts,
 including your own assessment of the code.
 
+Each run also writes `evidence.json`: one record per check, with the files it read. After an edit,
+`python3 gate/evidence.py impact --evidence <previous evidence dir>` tells you which results still hold and which
+your edit invalidated, and `python3 gate/app_gate.py --out <fresh dir> --reuse <previous evidence dir>` skips the
+proof and model checks whose inputs did not change (everything that starts your service always runs again).
+
 ## What is here and who may change it
 
 ```
 kernel/        proven core, adequacy suite, traces, audit channel, TCB, glossary          FROZEN
 obligations/   what rings 1–3 must satisfy: TLA+ core actions + invariants + coverage,
                adapter harness, boundary harness + generator + monitor suite, lint, delivery  FROZEN
-gate/          policy.yaml, app_gate.py, frozen.sha256                                      FROZEN
+pack.yaml      the contract pack: checks, statuses, contract records                       FROZEN
+gate/          the evaluator (domain-free), frozen.sha256, isolation profile                FROZEN
 profiles/      shipped integration profile (sqlite); use it, or supply your own and pass the harness
 app.manifest.yaml  only the allowlisted keys (name, profile, adapter_module, extra_tests, ui_entry)   YOURS
 design/ service/ gen/out/ app/ ui/ (adapter/ if custom)   — the deployment artifact, digested whole   YOURS

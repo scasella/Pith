@@ -1,0 +1,1222 @@
+{
+ "ev-build-a": {
+  "checks": [
+   [
+    "policy",
+    "frozen files intact",
+    "pass",
+    null
+   ],
+   [
+    "policy",
+    "release seal",
+    "pass",
+    "platform release <hex> matches release.seal.json"
+   ],
+   [
+    "policy",
+    "external release pin",
+    "pass",
+    "platform matches the externally pinned release <hex>"
+   ],
+   [
+    "policy",
+    "manifest allowlisted",
+    "pass",
+    "manifest keys within ['name', 'profile', 'extra_tests', 'ui_entry']"
+   ],
+   [
+    "policy",
+    "integration profile",
+    "pass",
+    "profile = sqlite (shipped; in-process tests apply)"
+   ],
+   [
+    "policy",
+    "artifact",
+    "pass",
+    "deployment artifact copied and digested (<hex>); judged in a fresh copy, never the live checkout"
+   ],
+   [
+    "policy",
+    "isolation",
+    "pass",
+    null
+   ],
+   [
+    "ring0",
+    "kernel gate",
+    "pass",
+    "proven core: include closure verified, translation reproduced fail-closed, TCB scan, adequacy, traces"
+   ],
+   [
+    "ring1",
+    "design module present",
+    "pass",
+    "design/Design.tla"
+   ],
+   [
+    "ring1",
+    "design extends obligations",
+    "pass",
+    "EXTENDS CoreActions"
+   ],
+   [
+    "ring1",
+    "core state only via core actions",
+    "pass",
+    "status/held/posted change only through CoreDecide/CoreReplay/CoreRelease/CoreCapture"
+   ],
+   [
+    "ring1",
+    "design interface",
+    "pass",
+    "declares VARIABLE responses; does not redefine any checked predicate (they are bound in the frozen MC.tla)"
+   ],
+   [
+    "ring1",
+    "design model (safety)",
+    "pass",
+    "INV1 (composition), P2, P3, P4, PostedExact, DecideCorrect, Idempotent, Consistent hold over the configured model with both kernels interleaving (predicates bound by the frozen MC.tla)"
+   ],
+   [
+    "ring1",
+    "design coverage (CovDecided)",
+    "pass",
+    "the design reaches the behaviour CovDecided guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovContention)",
+    "pass",
+    "the design reaches the behaviour CovContention guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovDecline)",
+    "pass",
+    "the design reaches the behaviour CovDecline guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovRelease)",
+    "pass",
+    "the design reaches the behaviour CovRelease guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovCapture)",
+    "pass",
+    "the design reaches the behaviour CovCapture guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovCaptureContention)",
+    "pass",
+    "the design reaches the behaviour CovCaptureContention guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovRetry)",
+    "pass",
+    "the design reaches the behaviour CovRetry guards"
+   ],
+   [
+    "ring1",
+    "obligations reject the known-bad design",
+    "pass",
+    "receipt-time design violates INV1 under the same obligations"
+   ],
+   [
+    "ring2",
+    "generated artifacts present",
+    "pass",
+    "gen/out present"
+   ],
+   [
+    "ring2",
+    "generated artifacts current",
+    "pass",
+    "openapi, event schema and monitor equal the generator's output"
+   ],
+   [
+    "ring1",
+    "service entrypoint",
+    "pass",
+    "service/run.py present (the supervisor starts it as a separate process)"
+   ],
+   [
+    "ring1",
+    "shipped profile tests",
+    "pass",
+    "sqlite profile (frozen) in-process tests pass (23)"
+   ],
+   [
+    "ring1",
+    "lifecycle harness (black-box)",
+    "pass",
+    "through the running service: duplicate create, idempotent replay and conflicts, crash (SIGKILL) + restart + retry, restart durability, event contract (op_id, chain, state_after, one commit per op), concurrency with readers (7 checks)"
+   ],
+   [
+    "ring2",
+    "monitor negative suite",
+    "pass",
+    "generated monitor detects each named violation (rehashed mutants), op lifecycle, watermark; silent on the good stream"
+   ],
+   [
+    "ring2",
+    "boundary harness (black-box)",
+    "pass",
+    "API not falsified: JSON-Schema-valid requests/responses/events; invalid and malformed inputs rejected without effect; conflicts rejected; agrees with the proven core under bursts; idempotent; monitor silent; both branches exercised (20 checks)"
+   ],
+   [
+    "ring3",
+    "application delivery",
+    "pass",
+    "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile']; interaction obligations ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] passed under injected response faults (sandboxed=False, browser user=judge); SPEC structurally complete (lint is structural, not semantic)"
+   ],
+   [
+    "ring3",
+    "human approval",
+    "pass",
+    "pending (no attestation supplied)"
+   ],
+   [
+    "policy",
+    "judged copy unchanged",
+    "pass",
+    "the artifact copy that was judged is byte-identical at the end (an observation at two points, not a monitor)"
+   ]
+  ],
+  "statuses": {
+   "behavioral_assurance": "passed; scoped: ring0 proven under kernel/tcb.yaml; ring1 design model-checked within configured bounds and service not falsified by the frozen black-box lifecycle harness; ring2 not falsified by the frozen boundary harness; conformance of the implementation to the design model is by test only",
+   "application_delivery": "passed",
+   "human_approval": "pending"
+  },
+  "failing_delivery": [],
+  "release_ready": false,
+  "release_ready_missing": [
+   "human_approval",
+   "isolation",
+   "browser"
+  ]
+ },
+ "ev-build-b": {
+  "checks": [
+   [
+    "policy",
+    "frozen files intact",
+    "pass",
+    null
+   ],
+   [
+    "policy",
+    "release seal",
+    "pass",
+    "platform release <hex> matches release.seal.json"
+   ],
+   [
+    "policy",
+    "external release pin",
+    "pass",
+    "platform matches the externally pinned release <hex>"
+   ],
+   [
+    "policy",
+    "manifest allowlisted",
+    "pass",
+    "manifest keys within ['name', 'profile', 'extra_tests', 'ui_entry']"
+   ],
+   [
+    "policy",
+    "integration profile",
+    "pass",
+    "profile = custom (custom; judged only through the service)"
+   ],
+   [
+    "policy",
+    "artifact",
+    "pass",
+    "deployment artifact copied and digested (<hex>); judged in a fresh copy, never the live checkout"
+   ],
+   [
+    "policy",
+    "isolation",
+    "pass",
+    null
+   ],
+   [
+    "ring0",
+    "kernel gate",
+    "pass",
+    "proven core: include closure verified, translation reproduced fail-closed, TCB scan, adequacy, traces"
+   ],
+   [
+    "ring1",
+    "design module present",
+    "pass",
+    "design/Design.tla"
+   ],
+   [
+    "ring1",
+    "design extends obligations",
+    "pass",
+    "EXTENDS CoreActions"
+   ],
+   [
+    "ring1",
+    "core state only via core actions",
+    "pass",
+    "status/held/posted change only through CoreDecide/CoreReplay/CoreRelease/CoreCapture"
+   ],
+   [
+    "ring1",
+    "design interface",
+    "pass",
+    "declares VARIABLE responses; does not redefine any checked predicate (they are bound in the frozen MC.tla)"
+   ],
+   [
+    "ring1",
+    "design model (safety)",
+    "pass",
+    "INV1 (composition), P2, P3, P4, PostedExact, DecideCorrect, Idempotent, Consistent hold over the configured model with both kernels interleaving (predicates bound by the frozen MC.tla)"
+   ],
+   [
+    "ring1",
+    "design coverage (CovDecided)",
+    "pass",
+    "the design reaches the behaviour CovDecided guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovContention)",
+    "pass",
+    "the design reaches the behaviour CovContention guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovDecline)",
+    "pass",
+    "the design reaches the behaviour CovDecline guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovRelease)",
+    "pass",
+    "the design reaches the behaviour CovRelease guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovCapture)",
+    "pass",
+    "the design reaches the behaviour CovCapture guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovCaptureContention)",
+    "pass",
+    "the design reaches the behaviour CovCaptureContention guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovRetry)",
+    "pass",
+    "the design reaches the behaviour CovRetry guards"
+   ],
+   [
+    "ring1",
+    "obligations reject the known-bad design",
+    "pass",
+    "receipt-time design violates INV1 under the same obligations"
+   ],
+   [
+    "ring2",
+    "generated artifacts present",
+    "pass",
+    "gen/out present"
+   ],
+   [
+    "ring2",
+    "generated artifacts current",
+    "pass",
+    "openapi, event schema and monitor equal the generator's output"
+   ],
+   [
+    "ring1",
+    "service entrypoint",
+    "pass",
+    "service/run.py present (the supervisor starts it as a separate process)"
+   ],
+   [
+    "ring1",
+    "lifecycle harness (black-box)",
+    "pass",
+    "through the running service: duplicate create, idempotent replay and conflicts, crash (SIGKILL) + restart + retry, restart durability, event contract (op_id, chain, state_after, one commit per op), concurrency with readers (7 checks)"
+   ],
+   [
+    "ring2",
+    "monitor negative suite",
+    "pass",
+    "generated monitor detects each named violation (rehashed mutants), op lifecycle, watermark; silent on the good stream"
+   ],
+   [
+    "ring2",
+    "boundary harness (black-box)",
+    "pass",
+    "API not falsified: JSON-Schema-valid requests/responses/events; invalid and malformed inputs rejected without effect; conflicts rejected; agrees with the proven core under bursts; idempotent; monitor silent; both branches exercised (20 checks)"
+   ],
+   [
+    "ring3",
+    "application delivery",
+    "pass",
+    "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile']; interaction obligations ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] passed under injected response faults (sandboxed=False, browser user=judge); SPEC structurally complete (lint is structural, not semantic)"
+   ],
+   [
+    "ring3",
+    "human approval",
+    "pass",
+    "pending (no attestation supplied)"
+   ],
+   [
+    "policy",
+    "judged copy unchanged",
+    "pass",
+    "the artifact copy that was judged is byte-identical at the end (an observation at two points, not a monitor)"
+   ]
+  ],
+  "statuses": {
+   "behavioral_assurance": "passed; scoped: ring0 proven under kernel/tcb.yaml; ring1 design model-checked within configured bounds and service not falsified by the frozen black-box lifecycle harness; ring2 not falsified by the frozen boundary harness; conformance of the implementation to the design model is by test only",
+   "application_delivery": "passed",
+   "human_approval": "pending"
+  },
+  "failing_delivery": [],
+  "release_ready": false,
+  "release_ready_missing": [
+   "human_approval",
+   "isolation",
+   "browser"
+  ]
+ },
+ "ev-club-desk": {
+  "checks": [
+   [
+    "policy",
+    "frozen files intact",
+    "pass",
+    null
+   ],
+   [
+    "policy",
+    "release seal",
+    "pass",
+    "platform release <hex> matches release.seal.json"
+   ],
+   [
+    "policy",
+    "external release pin",
+    "pass",
+    "platform matches the externally pinned release <hex>"
+   ],
+   [
+    "policy",
+    "manifest allowlisted",
+    "pass",
+    "manifest keys within ['name', 'profile', 'extra_tests', 'ui_entry']"
+   ],
+   [
+    "policy",
+    "integration profile",
+    "pass",
+    "profile = sqlite (shipped; in-process tests apply)"
+   ],
+   [
+    "policy",
+    "artifact",
+    "pass",
+    "deployment artifact copied and digested (<hex>); judged in a fresh copy, never the live checkout"
+   ],
+   [
+    "policy",
+    "isolation",
+    "pass",
+    null
+   ],
+   [
+    "ring0",
+    "kernel gate",
+    "pass",
+    "proven core: include closure verified, translation reproduced fail-closed, TCB scan, adequacy, traces"
+   ],
+   [
+    "ring1",
+    "design module present",
+    "pass",
+    "design/Design.tla"
+   ],
+   [
+    "ring1",
+    "design extends obligations",
+    "pass",
+    "EXTENDS CoreActions"
+   ],
+   [
+    "ring1",
+    "core state only via core actions",
+    "pass",
+    "status/held/posted change only through CoreDecide/CoreReplay/CoreRelease/CoreCapture"
+   ],
+   [
+    "ring1",
+    "design interface",
+    "pass",
+    "declares VARIABLE responses; does not redefine any checked predicate (they are bound in the frozen MC.tla)"
+   ],
+   [
+    "ring1",
+    "design model (safety)",
+    "pass",
+    "INV1 (composition), P2, P3, P4, PostedExact, DecideCorrect, Idempotent, Consistent hold over the configured model with both kernels interleaving (predicates bound by the frozen MC.tla)"
+   ],
+   [
+    "ring1",
+    "design coverage (CovDecided)",
+    "pass",
+    "the design reaches the behaviour CovDecided guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovContention)",
+    "pass",
+    "the design reaches the behaviour CovContention guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovDecline)",
+    "pass",
+    "the design reaches the behaviour CovDecline guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovRelease)",
+    "pass",
+    "the design reaches the behaviour CovRelease guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovCapture)",
+    "pass",
+    "the design reaches the behaviour CovCapture guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovCaptureContention)",
+    "pass",
+    "the design reaches the behaviour CovCaptureContention guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovRetry)",
+    "pass",
+    "the design reaches the behaviour CovRetry guards"
+   ],
+   [
+    "ring1",
+    "obligations reject the known-bad design",
+    "pass",
+    "receipt-time design violates INV1 under the same obligations"
+   ],
+   [
+    "ring2",
+    "generated artifacts present",
+    "pass",
+    "gen/out present"
+   ],
+   [
+    "ring2",
+    "generated artifacts current",
+    "pass",
+    "openapi, event schema and monitor equal the generator's output"
+   ],
+   [
+    "ring1",
+    "service entrypoint",
+    "pass",
+    "service/run.py present (the supervisor starts it as a separate process)"
+   ],
+   [
+    "ring1",
+    "shipped profile tests",
+    "pass",
+    "sqlite profile (frozen) in-process tests pass (23)"
+   ],
+   [
+    "ring1",
+    "lifecycle harness (black-box)",
+    "pass",
+    "through the running service: duplicate create, idempotent replay and conflicts, crash (SIGKILL) + restart + retry, restart durability, event contract (op_id, chain, state_after, one commit per op), concurrency with readers (7 checks)"
+   ],
+   [
+    "ring2",
+    "monitor negative suite",
+    "pass",
+    "generated monitor detects each named violation (rehashed mutants), op lifecycle, watermark; silent on the good stream"
+   ],
+   [
+    "ring2",
+    "boundary harness (black-box)",
+    "pass",
+    "API not falsified: JSON-Schema-valid requests/responses/events; invalid and malformed inputs rejected without effect; conflicts rejected; agrees with the proven core under bursts; idempotent; monitor silent; both branches exercised (20 checks)"
+   ],
+   [
+    "ring3",
+    "application delivery",
+    "pass",
+    "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile']; interaction obligations ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] passed under injected response faults (sandboxed=False, browser user=judge); SPEC structurally complete (lint is structural, not semantic)"
+   ],
+   [
+    "ring3",
+    "human approval",
+    "pass",
+    "pending (no attestation supplied)"
+   ],
+   [
+    "policy",
+    "judged copy unchanged",
+    "pass",
+    "the artifact copy that was judged is byte-identical at the end (an observation at two points, not a monitor)"
+   ]
+  ],
+  "statuses": {
+   "behavioral_assurance": "passed; scoped: ring0 proven under kernel/tcb.yaml; ring1 design model-checked within configured bounds and service not falsified by the frozen black-box lifecycle harness; ring2 not falsified by the frozen boundary harness; conformance of the implementation to the design model is by test only",
+   "application_delivery": "passed",
+   "human_approval": "pending"
+  },
+  "failing_delivery": [],
+  "release_ready": false,
+  "release_ready_missing": [
+   "human_approval",
+   "isolation",
+   "browser"
+  ]
+ },
+ "ev-office-desk": {
+  "checks": [
+   [
+    "policy",
+    "frozen files intact",
+    "pass",
+    null
+   ],
+   [
+    "policy",
+    "release seal",
+    "pass",
+    "platform release <hex> matches release.seal.json"
+   ],
+   [
+    "policy",
+    "external release pin",
+    "pass",
+    "platform matches the externally pinned release <hex>"
+   ],
+   [
+    "policy",
+    "manifest allowlisted",
+    "pass",
+    "manifest keys within ['name', 'profile', 'extra_tests', 'ui_entry']"
+   ],
+   [
+    "policy",
+    "integration profile",
+    "pass",
+    "profile = sqlite (shipped; in-process tests apply)"
+   ],
+   [
+    "policy",
+    "artifact",
+    "pass",
+    "deployment artifact copied and digested (<hex>); judged in a fresh copy, never the live checkout"
+   ],
+   [
+    "policy",
+    "isolation",
+    "pass",
+    null
+   ],
+   [
+    "ring0",
+    "kernel gate",
+    "pass",
+    "proven core: include closure verified, translation reproduced fail-closed, TCB scan, adequacy, traces"
+   ],
+   [
+    "ring1",
+    "design module present",
+    "pass",
+    "design/Design.tla"
+   ],
+   [
+    "ring1",
+    "design extends obligations",
+    "pass",
+    "EXTENDS CoreActions"
+   ],
+   [
+    "ring1",
+    "core state only via core actions",
+    "pass",
+    "status/held/posted change only through CoreDecide/CoreReplay/CoreRelease/CoreCapture"
+   ],
+   [
+    "ring1",
+    "design interface",
+    "pass",
+    "declares VARIABLE responses; does not redefine any checked predicate (they are bound in the frozen MC.tla)"
+   ],
+   [
+    "ring1",
+    "design model (safety)",
+    "pass",
+    "INV1 (composition), P2, P3, P4, PostedExact, DecideCorrect, Idempotent, Consistent hold over the configured model with both kernels interleaving (predicates bound by the frozen MC.tla)"
+   ],
+   [
+    "ring1",
+    "design coverage (CovDecided)",
+    "pass",
+    "the design reaches the behaviour CovDecided guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovContention)",
+    "pass",
+    "the design reaches the behaviour CovContention guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovDecline)",
+    "pass",
+    "the design reaches the behaviour CovDecline guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovRelease)",
+    "pass",
+    "the design reaches the behaviour CovRelease guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovCapture)",
+    "pass",
+    "the design reaches the behaviour CovCapture guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovCaptureContention)",
+    "pass",
+    "the design reaches the behaviour CovCaptureContention guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovRetry)",
+    "pass",
+    "the design reaches the behaviour CovRetry guards"
+   ],
+   [
+    "ring1",
+    "obligations reject the known-bad design",
+    "pass",
+    "receipt-time design violates INV1 under the same obligations"
+   ],
+   [
+    "ring2",
+    "generated artifacts present",
+    "pass",
+    "gen/out present"
+   ],
+   [
+    "ring2",
+    "generated artifacts current",
+    "pass",
+    "openapi, event schema and monitor equal the generator's output"
+   ],
+   [
+    "ring1",
+    "service entrypoint",
+    "pass",
+    "service/run.py present (the supervisor starts it as a separate process)"
+   ],
+   [
+    "ring1",
+    "shipped profile tests",
+    "pass",
+    "sqlite profile (frozen) in-process tests pass (23)"
+   ],
+   [
+    "ring1",
+    "lifecycle harness (black-box)",
+    "pass",
+    "through the running service: duplicate create, idempotent replay and conflicts, crash (SIGKILL) + restart + retry, restart durability, event contract (op_id, chain, state_after, one commit per op), concurrency with readers (7 checks)"
+   ],
+   [
+    "ring2",
+    "monitor negative suite",
+    "pass",
+    "generated monitor detects each named violation (rehashed mutants), op lifecycle, watermark; silent on the good stream"
+   ],
+   [
+    "ring2",
+    "boundary harness (black-box)",
+    "pass",
+    "API not falsified: JSON-Schema-valid requests/responses/events; invalid and malformed inputs rejected without effect; conflicts rejected; agrees with the proven core under bursts; idempotent; monitor silent; both branches exercised (20 checks)"
+   ],
+   [
+    "ring3",
+    "application delivery",
+    "pass",
+    "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile']; interaction obligations ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] passed under injected response faults (sandboxed=False, browser user=judge); SPEC structurally complete (lint is structural, not semantic)"
+   ],
+   [
+    "ring3",
+    "human approval",
+    "pass",
+    "pending (no attestation supplied)"
+   ],
+   [
+    "policy",
+    "judged copy unchanged",
+    "pass",
+    "the artifact copy that was judged is byte-identical at the end (an observation at two points, not a monitor)"
+   ]
+  ],
+  "statuses": {
+   "behavioral_assurance": "passed; scoped: ring0 proven under kernel/tcb.yaml; ring1 design model-checked within configured bounds and service not falsified by the frozen black-box lifecycle harness; ring2 not falsified by the frozen boundary harness; conformance of the implementation to the design model is by test only",
+   "application_delivery": "passed",
+   "human_approval": "pending"
+  },
+  "failing_delivery": [],
+  "release_ready": false,
+  "release_ready_missing": [
+   "human_approval",
+   "isolation",
+   "browser"
+  ]
+ },
+ "wrong-club-desk": {
+  "checks": [
+   [
+    "policy",
+    "frozen files intact",
+    "pass",
+    null
+   ],
+   [
+    "policy",
+    "release seal",
+    "pass",
+    "platform release <hex> matches release.seal.json"
+   ],
+   [
+    "policy",
+    "external release pin",
+    "pass",
+    "platform matches the externally pinned release <hex>"
+   ],
+   [
+    "policy",
+    "manifest allowlisted",
+    "pass",
+    "manifest keys within ['name', 'profile', 'extra_tests', 'ui_entry']"
+   ],
+   [
+    "policy",
+    "integration profile",
+    "pass",
+    "profile = sqlite (shipped; in-process tests apply)"
+   ],
+   [
+    "policy",
+    "artifact",
+    "pass",
+    "deployment artifact copied and digested (<hex>); judged in a fresh copy, never the live checkout"
+   ],
+   [
+    "policy",
+    "isolation",
+    "pass",
+    null
+   ],
+   [
+    "ring0",
+    "kernel gate",
+    "pass",
+    "proven core: include closure verified, translation reproduced fail-closed, TCB scan, adequacy, traces"
+   ],
+   [
+    "ring1",
+    "design module present",
+    "pass",
+    "design/Design.tla"
+   ],
+   [
+    "ring1",
+    "design extends obligations",
+    "pass",
+    "EXTENDS CoreActions"
+   ],
+   [
+    "ring1",
+    "core state only via core actions",
+    "pass",
+    "status/held/posted change only through CoreDecide/CoreReplay/CoreRelease/CoreCapture"
+   ],
+   [
+    "ring1",
+    "design interface",
+    "pass",
+    "declares VARIABLE responses; does not redefine any checked predicate (they are bound in the frozen MC.tla)"
+   ],
+   [
+    "ring1",
+    "design model (safety)",
+    "pass",
+    "INV1 (composition), P2, P3, P4, PostedExact, DecideCorrect, Idempotent, Consistent hold over the configured model with both kernels interleaving (predicates bound by the frozen MC.tla)"
+   ],
+   [
+    "ring1",
+    "design coverage (CovDecided)",
+    "pass",
+    "the design reaches the behaviour CovDecided guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovContention)",
+    "pass",
+    "the design reaches the behaviour CovContention guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovDecline)",
+    "pass",
+    "the design reaches the behaviour CovDecline guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovRelease)",
+    "pass",
+    "the design reaches the behaviour CovRelease guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovCapture)",
+    "pass",
+    "the design reaches the behaviour CovCapture guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovCaptureContention)",
+    "pass",
+    "the design reaches the behaviour CovCaptureContention guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovRetry)",
+    "pass",
+    "the design reaches the behaviour CovRetry guards"
+   ],
+   [
+    "ring1",
+    "obligations reject the known-bad design",
+    "pass",
+    "receipt-time design violates INV1 under the same obligations"
+   ],
+   [
+    "ring2",
+    "generated artifacts present",
+    "pass",
+    "gen/out present"
+   ],
+   [
+    "ring2",
+    "generated artifacts current",
+    "pass",
+    "openapi, event schema and monitor equal the generator's output"
+   ],
+   [
+    "ring1",
+    "service entrypoint",
+    "pass",
+    "service/run.py present (the supervisor starts it as a separate process)"
+   ],
+   [
+    "ring1",
+    "shipped profile tests",
+    "pass",
+    "sqlite profile (frozen) in-process tests pass (23)"
+   ],
+   [
+    "ring1",
+    "lifecycle harness (black-box)",
+    "pass",
+    "through the running service: duplicate create, idempotent replay and conflicts, crash (SIGKILL) + restart + retry, restart durability, event contract (op_id, chain, state_after, one commit per op), concurrency with readers (7 checks)"
+   ],
+   [
+    "ring2",
+    "monitor negative suite",
+    "pass",
+    "generated monitor detects each named violation (rehashed mutants), op lifecycle, watermark; silent on the good stream"
+   ],
+   [
+    "ring2",
+    "boundary harness (black-box)",
+    "pass",
+    "API not falsified: JSON-Schema-valid requests/responses/events; invalid and malformed inputs rejected without effect; conflicts rejected; agrees with the proven core under bursts; idempotent; monitor silent; both branches exercised (20 checks)"
+   ],
+   [
+    "ring3",
+    "application delivery",
+    "fail",
+    "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile']; interaction obligations ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] passed under injected response faults (sandboxed=False, browser user=judge); SPEC structurally complete (lint is structural, not semantic)"
+   ],
+   [
+    "ring3",
+    "human approval",
+    "pass",
+    "pending (no attestation supplied)"
+   ],
+   [
+    "policy",
+    "judged copy unchanged",
+    "pass",
+    "the artifact copy that was judged is byte-identical at the end (an observation at two points, not a monitor)"
+   ]
+  ],
+  "statuses": {
+   "behavioral_assurance": "passed; scoped: ring0 proven under kernel/tcb.yaml; ring1 design model-checked within configured bounds and service not falsified by the frozen black-box lifecycle harness; ring2 not falsified by the frozen boundary harness; conformance of the implementation to the design model is by test only",
+   "application_delivery": "failed",
+   "human_approval": "pending"
+  },
+  "failing_delivery": [
+   "I2",
+   "I4",
+   "I5",
+   "I6"
+  ],
+  "release_ready": false,
+  "release_ready_missing": [
+   "application_delivery",
+   "human_approval",
+   "isolation",
+   "browser"
+  ]
+ },
+ "wrong-office-desk": {
+  "checks": [
+   [
+    "policy",
+    "frozen files intact",
+    "pass",
+    null
+   ],
+   [
+    "policy",
+    "release seal",
+    "pass",
+    "platform release <hex> matches release.seal.json"
+   ],
+   [
+    "policy",
+    "external release pin",
+    "pass",
+    "platform matches the externally pinned release <hex>"
+   ],
+   [
+    "policy",
+    "manifest allowlisted",
+    "pass",
+    "manifest keys within ['name', 'profile', 'extra_tests', 'ui_entry']"
+   ],
+   [
+    "policy",
+    "integration profile",
+    "pass",
+    "profile = sqlite (shipped; in-process tests apply)"
+   ],
+   [
+    "policy",
+    "artifact",
+    "pass",
+    "deployment artifact copied and digested (<hex>); judged in a fresh copy, never the live checkout"
+   ],
+   [
+    "policy",
+    "isolation",
+    "pass",
+    null
+   ],
+   [
+    "ring0",
+    "kernel gate",
+    "pass",
+    "proven core: include closure verified, translation reproduced fail-closed, TCB scan, adequacy, traces"
+   ],
+   [
+    "ring1",
+    "design module present",
+    "pass",
+    "design/Design.tla"
+   ],
+   [
+    "ring1",
+    "design extends obligations",
+    "pass",
+    "EXTENDS CoreActions"
+   ],
+   [
+    "ring1",
+    "core state only via core actions",
+    "pass",
+    "status/held/posted change only through CoreDecide/CoreReplay/CoreRelease/CoreCapture"
+   ],
+   [
+    "ring1",
+    "design interface",
+    "pass",
+    "declares VARIABLE responses; does not redefine any checked predicate (they are bound in the frozen MC.tla)"
+   ],
+   [
+    "ring1",
+    "design model (safety)",
+    "pass",
+    "INV1 (composition), P2, P3, P4, PostedExact, DecideCorrect, Idempotent, Consistent hold over the configured model with both kernels interleaving (predicates bound by the frozen MC.tla)"
+   ],
+   [
+    "ring1",
+    "design coverage (CovDecided)",
+    "pass",
+    "the design reaches the behaviour CovDecided guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovContention)",
+    "pass",
+    "the design reaches the behaviour CovContention guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovDecline)",
+    "pass",
+    "the design reaches the behaviour CovDecline guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovRelease)",
+    "pass",
+    "the design reaches the behaviour CovRelease guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovCapture)",
+    "pass",
+    "the design reaches the behaviour CovCapture guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovCaptureContention)",
+    "pass",
+    "the design reaches the behaviour CovCaptureContention guards"
+   ],
+   [
+    "ring1",
+    "design coverage (CovRetry)",
+    "pass",
+    "the design reaches the behaviour CovRetry guards"
+   ],
+   [
+    "ring1",
+    "obligations reject the known-bad design",
+    "pass",
+    "receipt-time design violates INV1 under the same obligations"
+   ],
+   [
+    "ring2",
+    "generated artifacts present",
+    "pass",
+    "gen/out present"
+   ],
+   [
+    "ring2",
+    "generated artifacts current",
+    "pass",
+    "openapi, event schema and monitor equal the generator's output"
+   ],
+   [
+    "ring1",
+    "service entrypoint",
+    "pass",
+    "service/run.py present (the supervisor starts it as a separate process)"
+   ],
+   [
+    "ring1",
+    "shipped profile tests",
+    "pass",
+    "sqlite profile (frozen) in-process tests pass (23)"
+   ],
+   [
+    "ring1",
+    "lifecycle harness (black-box)",
+    "pass",
+    "through the running service: duplicate create, idempotent replay and conflicts, crash (SIGKILL) + restart + retry, restart durability, event contract (op_id, chain, state_after, one commit per op), concurrency with readers (7 checks)"
+   ],
+   [
+    "ring2",
+    "monitor negative suite",
+    "pass",
+    "generated monitor detects each named violation (rehashed mutants), op lifecycle, watermark; silent on the good stream"
+   ],
+   [
+    "ring2",
+    "boundary harness (black-box)",
+    "pass",
+    "API not falsified: JSON-Schema-valid requests/responses/events; invalid and malformed inputs rejected without effect; conflicts rejected; agrees with the proven core under bursts; idempotent; monitor silent; both branches exercised (20 checks)"
+   ],
+   [
+    "ring3",
+    "application delivery",
+    "fail",
+    "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile']; interaction obligations ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] passed under injected response faults (sandboxed=False, browser user=judge); SPEC structurally complete (lint is structural, not semantic)"
+   ],
+   [
+    "ring3",
+    "human approval",
+    "pass",
+    "pending (no attestation supplied)"
+   ],
+   [
+    "policy",
+    "judged copy unchanged",
+    "pass",
+    "the artifact copy that was judged is byte-identical at the end (an observation at two points, not a monitor)"
+   ]
+  ],
+  "statuses": {
+   "behavioral_assurance": "passed; scoped: ring0 proven under kernel/tcb.yaml; ring1 design model-checked within configured bounds and service not falsified by the frozen black-box lifecycle harness; ring2 not falsified by the frozen boundary harness; conformance of the implementation to the design model is by test only",
+   "application_delivery": "failed",
+   "human_approval": "pending"
+  },
+  "failing_delivery": [
+   "I1",
+   "I2",
+   "I3",
+   "I4",
+   "I5",
+   "I6"
+  ],
+  "release_ready": false,
+  "release_ready_missing": [
+   "application_delivery",
+   "human_approval",
+   "isolation",
+   "browser"
+  ]
+ }
+}

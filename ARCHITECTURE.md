@@ -31,10 +31,34 @@ process, so the candidate controlled the evidence. The current judge therefore:
   candidate code and reports what it can reach; release-readiness needs that probe to find nothing.
 
 A process boundary is not a sandbox. Until v0.5.0 a hostile `service/run.py` ran as the judge's user and
-operational isolation was left to the operator. v0.6.0 ships one supported profile (`obligations/isolation/`):
+operational isolation was left to the operator. v0.6.0 ships one supported profile (`gate/isolation/` since v0.7.0):
 a pinned container with no network, read-only policy and candidate mounts, the candidate's service and the
 browser as two separate unprivileged users, and resource limits. Outside it the judge still runs, labelled
 advisory, and reports what the candidate could reach.
+
+## The evaluator and the pack
+
+From v0.7.0 a release is a domain-free evaluator plus one contract pack (`docs/rfc/0001-contract-packs-and-evidence.md`).
+
+```text
+gate/        evaluator: judge, check kinds (command, tlc, source_rules, adapter, attestation, ...), evidence,
+             workspace and digests, candidate identity and limits, isolation profile, release seal, review
+pack.yaml    the reservation pack: policy and agent-owned dirs, toolchain, ordered checks, statuses,
+             35 contract records; kernel/, obligations/, profiles/ are its policy dirs
+```
+
+The evaluator knows packages, artifacts, tools, checks, evidence, statuses and policies. Every path, pattern,
+invariant name, command and sentence about reservations comes from `pack.yaml`; CI checks that none of the pack's
+vocabulary, contract ids or check ids occurs in `gate/` (`validation/domain_free.py`). Delivery is a pack adapter
+(`obligations/app/delivery_adapter.py`): a browser is this pack's way of delivering, not the method's.
+
+Each check writes an evidence record keyed by the digests of its declared inputs, its toolchain, the evaluator's
+code and the keys of the records it rests on (`evidence.json`, with an in-toto statement binding them to the
+artifact). A change therefore invalidates exactly the records whose inputs, or whose supports, changed:
+`gate/evidence.py impact` lists them, and `--reuse` re-runs only those plus everything that is not cacheable. Only
+the proof and the model checks are cacheable; a check that starts the candidate's service always runs.
+
+The rings below are this pack's structure (`area` in `pack.yaml`), not the evaluator's.
 
 ## The interface is a layer too
 

@@ -26,7 +26,7 @@ case("altered evaluator configuration (manifest adds kernel.gate)", A, "manifest
      lambda d: (d / "app.manifest.yaml").write_text((d / "app.manifest.yaml").read_text() + "kernel:\n  gate: ./pass.py\n"))
 case("frozen harness weakened", A, "frozen files intact",
      lambda d: sed(d, "obligations/boundary/harness.py", 'rep = Monitor().run(evs); assert rep["alerts"] == [], rep["alerts"]', 'rep = Monitor().run(evs)'))
-case("frozen policy.yaml edited", A, "frozen files intact", lambda d: sed(d, "gate/policy.yaml", "lifecycle: obligations/service/lifecycle.py", "lifecycle: obligations/service/nothing.py"))
+case("frozen pack.yaml edited", A, "frozen files intact", lambda d: sed(d, "pack.yaml", 'command: "{pytest} obligations/service/lifecycle.py"', 'command: "{pytest} obligations/service/nothing.py"'))
 case("design hands the core a constant availability of 0", A, "design model (safety)", lambda d: shutil.copy(d / "obligations/design/WrongZeroAvail.tla", d / "design/Design.tla") and sed(d, "design/Design.tla", "MODULE WrongZeroAvail", "MODULE Design"))
 case("design that stutters forever", A, "design coverage (CovDecided)", lambda d: shutil.copy(d / "obligations/design/WrongStutter.tla", d / "design/Design.tla") and sed(d, "design/Design.tla", "MODULE WrongStutter", "MODULE Design"))
 case("design without retries (idempotency vacuous)", A, "design coverage (CovRetry)", lambda d: sed(d, "design/Design.tla", "Begin(r) \\/ Commit(r) \\/ Resend(r) \\/ Release(r)", "Begin(r) \\/ Commit(r) \\/ Release(r)"))

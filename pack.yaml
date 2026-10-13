@@ -1,0 +1,496 @@
+# pack.yaml — the reservation contract pack. FROZEN (covered by gate/frozen.sha256 and the release digest).
+#
+# A contract pack is everything the evaluator in gate/ needs to judge an application against one behavioural
+# contract: which files are policy, which the agent owns, which checks to run in which order with which tools,
+# what each check establishes and what it rests on, how checks roll up into statuses, and the contract records
+# themselves. The evaluator knows packages, artifacts, tools, evidence and statuses; it does not know what an
+# account, a hold or an authorization is. Everything below that mentions them is this pack's business.
+# Format: docs/rfc/0001-contract-packs-and-evidence.md. The pack names files in their native languages (Dafny,
+# TLA+, Python, Markdown); it introduces no specification language of its own.
+
+format: pith.pack/v1
+pack:
+  id: pith.reservation
+  version: 0.7.0
+  title: Reservation and capture (authorization holds, release, posting) with a browser-delivered application
+  contract_version: authorization-and-posting-core/v2          # = kernel/gate/manifest.yaml:name
+  intent: INTENT.md                                              # reviewed prose; not an oracle
+  maintainers: [scasella]
+
+policy_dirs: [kernel, obligations, profiles]                     # frozen pack content; the evaluator adds gate/ and this file
+
+candidate:
+  owned_dirs: [design, service, app, ui, adapter, gen]           # plus app.manifest.yaml: together the deployment artifact
+  manifest_allowlist: [name, profile, extra_tests, ui_entry]
+
+tools:                                                           # substituted into commands as {NAME}; read from the environment
+  DAFNY: { env: DAFNY, default: dafny }
+  TLA2TOOLS: { env: TLA2TOOLS, default: tla2tools.jar }
+
+toolchain:                                                       # recorded in every evidence record that names it in `tools`
+  dafny: { command: "{DAFNY} --version" }
+  hypothesis: { python_package: hypothesis }
+  jsonschema: { python_package: jsonschema }
+  playwright: { python_package: playwright }
+  cryptography: { python_package: cryptography }
+  tlc: { command: "java -cp {TLA2TOOLS} tlc2.TLC -h; java -version", regex: 'TLC2 Version [^\n]*|TLC - [^\n]*Version [^\n]*' }
+  java: { command: "java -version", regex: 'version "([^"]+)"', group: 1 }
+
+pytest: "{python} -m pytest -q -p no:cacheprovider --noconftest -c /dev/null --rootdir={root}"
+
+# ---------------------------------------------------------------------------------------------------------------
+# Statuses. A status is the roll-up a reader acts on; release_ready needs each at its `ready` value (plus the
+# evaluator's own requirements: authoritative pinned run, enforced isolation, unchanged judged copy).
+statuses:
+  behavioral_assurance:
+    rule: all_pass                                               # every check in this status passed
+    passed: >-
+      passed; scoped: ring0 proven under kernel/tcb.yaml; ring1 design model-checked within configured bounds and service
+      not falsified by the frozen black-box lifecycle harness; ring2 not falsified by the frozen boundary harness;
+      conformance of the implementation to the design model is by test only
+    ready: { startswith: passed }
+  application_delivery:
+    rule: from_check                                             # the delivery adapter reports passed | failed | incomplete
+    check: delivery
+    ready: { equals: passed }
+  human_approval:
+    rule: from_check
+    check: approval
+    ready: { equals: approved }
+refusal_status: behavioral_assurance                             # set to "refused" when a blocking check fails
+completion_status: application_delivery                          # exit 0 iff it passed; 2 if not; 1 on refusal
+
+# ---------------------------------------------------------------------------------------------------------------
+# Checks, in order. Fields: id, area, name, kind, status, blocking (default true), method, inputs (globs over the
+# judged workspace; they key the evidence and drive invalidation), depends_on (evidence this claim rests on),
+# establishes (contract records below), tools (toolchain entries the result depends on), cacheable (its evidence
+# may be reused for identical inputs), claim/why (report text; {placeholders} come from the kind).
+preflight:
+  - id: profile
+    area: policy
+    name: integration profile
+    kind: manifest_choice
+    key: profile
+    default: sqlite
+    choices:
+      sqlite: " (shipped; in-process tests apply)"
+      custom: " (custom; judged only through the service)"
+    claim: "profile = {value}{note}"
+    why: profile must be sqlite or custom
+    status: behavioral_assurance
+    method: policy
+
+checks:
+  - id: kernel
+    area: ring0
+    name: kernel gate
+    kind: command
+    command: "DAFNY={DAFNY} {python} kernel/gate/gate.py kernel/core/Kernel.dfy --out kernel/core/claims.json"
+    export: { ring0_scope: { json: kernel/core/claims.json, key: scope } }
+    claim: "proven core: include closure verified, translation reproduced fail-closed, TCB scan, adequacy, traces"
+    status: behavioral_assurance
+    method: proof
+    inputs: ["kernel/**"]
+    tools: [dafny]
+    cacheable: true
+    establishes: [P0, P1, P2, P3, INV1, R1, R2, C1, C2, C3, P4]
+    assumptions: kernel/tcb.yaml
+
+  - id: design.present
+    area: ring1
+    name: design module present
+    kind: files_present
+    files: [design/Design.tla]
+    claim: design/Design.tla
+    why: "design/Design.tla not found: write a TLA+ design that EXTENDS CoreActions, declares VARIABLE responses, defines Spec"
+    status: behavioral_assurance
+    method: structural
+    inputs: ["design/**"]
+
+  - id: design.extends
+    area: ring1
+    name: design extends obligations
+    kind: source_rules
+    file: design/Design.tla
+    require: ['EXTENDS[^\n]*\bCoreActions\b']
+    claim: EXTENDS CoreActions
+    why: design must EXTENDS CoreActions
+    status: behavioral_assurance
+    method: structural
+    inputs: ["design/**"]
+    depends_on: [design.present]
+
+  - id: design.core-state
+    area: ring1
+    name: core state only via core actions
+    kind: source_rules
+    file: design/Design.tla
+    forbid_lines: ['\b(status|held|posted)''\s*=']
+    claim: status/held/posted change only through CoreDecide/CoreReplay/CoreRelease/CoreCapture
+    why: "direct assignment: {lines}"
+    status: behavioral_assurance
+    method: structural
+    inputs: ["design/**"]
+    depends_on: [design.present]
+
+  - id: design.interface
+    area: ring1
+    name: design interface
+    kind: source_rules
+    file: design/Design.tla
+    require: ['VARIABLES?[^\n=]*\bresponses\b']
+    forbid_definitions: [Idempotent, Consistent, CovRetry, IdempotentResp, ConsistentResp, RetryCov, DecideCorrect, INV1, P2, P3, P4, PostedExact]
+    claim: declares VARIABLE responses; does not redefine any checked predicate (they are bound in the frozen MC.tla)
+    why: "responses declared={required}; redefined={defined}"
+    status: behavioral_assurance
+    method: structural
+    inputs: ["design/**"]
+    depends_on: [design.present]
+
+  - id: design.safety
+    area: ring1
+    name: design model (safety)
+    kind: tlc
+    jar: "{TLA2TOOLS}"
+    workdir: design                                              # TLC runs in a scratch directory created here
+    copy: { from: obligations/design, suffixes: [.tla, .cfg, .list] }
+    module_file: { design/Design.tla: Design.tla }
+    module: MC.tla
+    cfg: required.cfg
+    expect: no_error
+    claim: "INV1 (composition), P2, P3, P4, PostedExact, DecideCorrect, Idempotent, Consistent hold over the configured model with both kernels interleaving (predicates bound by the frozen MC.tla)"
+    status: behavioral_assurance
+    method: model-check
+    inputs: ["design/**", "obligations/design/**"]
+    tools: [tlc, java]
+    cacheable: true
+    depends_on: [design.extends, design.core-state, design.interface]
+    establishes: [INV1, P2, P3, P4, PostedExact, DecideCorrect, Idempotent, Consistent]
+
+  - id: design.coverage
+    area: ring1
+    name: "design coverage ({item})"
+    kind: tlc
+    jar: "{TLA2TOOLS}"
+    workdir: design
+    copy: { from: obligations/design, suffixes: [.tla, .cfg, .list] }
+    module_file: { design/Design.tla: Design.tla }
+    module: MC.tla
+    each: { list: coverage.list }                                # one check per name in the list
+    cfg_from: { base: required.cfg, cut_at: SPECIFICATION, append: "SPECIFICATION Spec\nINVARIANTS {item}\n" }
+    expect: { violated: "{item}" }
+    claim: "the design reaches the behaviour {item} guards"
+    why: "{item} never reached: the design does not model this behaviour"
+    status: behavioral_assurance
+    method: model-check
+    inputs: ["design/**", "obligations/design/**"]
+    tools: [tlc, java]
+    cacheable: true
+    depends_on: [design.safety]
+
+  - id: design.adequacy
+    area: ring1
+    name: obligations reject the known-bad design
+    kind: tlc
+    jar: "{TLA2TOOLS}"
+    workdir: design
+    copy: { from: obligations/design, suffixes: [.tla, .cfg, .list] }
+    module_file: { design/Design.tla: Design.tla }
+    module: MCBroken.tla
+    cfg: broken.cfg
+    expect: { violated: INV1 }
+    claim: receipt-time design violates INV1 under the same obligations
+    status: behavioral_assurance
+    method: model-check
+    inputs: ["design/**", "obligations/design/**"]
+    tools: [tlc, java]
+    cacheable: true
+
+  - id: gen.present
+    area: ring2
+    name: generated artifacts present
+    kind: files_present
+    files: [gen/out/openapi.yaml, gen/out/events.schema.json, gen/out/monitor.py]
+    claim: gen/out present
+    why: "{missing} missing: run python3 obligations/boundary/generate.py"
+    status: behavioral_assurance
+    method: structural
+    inputs: ["gen/**"]
+
+  - id: gen.current
+    area: ring2
+    name: generated artifacts current
+    kind: regenerated
+    command: "{python} obligations/boundary/generate.py"
+    files: [gen/out/openapi.yaml, gen/out/events.schema.json, gen/out/monitor.py]
+    claim: openapi, event schema and monitor equal the generator's output
+    why: "hand-edited: {drift}"
+    status: behavioral_assurance
+    method: structural
+    inputs: ["gen/**", "obligations/boundary/**", "kernel/spec/**"]
+    depends_on: [gen.present]
+
+  - id: service.entrypoint
+    area: ring1
+    name: service entrypoint
+    kind: files_present
+    files: [service/run.py]
+    claim: service/run.py present (the supervisor starts it as a separate process)
+    why: service/run.py missing
+    status: behavioral_assurance
+    method: structural
+    inputs: ["service/**"]
+
+  - id: profile.tests
+    area: ring1
+    name: shipped profile tests
+    kind: command
+    when: { manifest: { profile: sqlite } }
+    command: "{pytest} profiles/sqlite/tests/test_profile.py"
+    count: '(\d+) passed'
+    claim: "sqlite profile (frozen) in-process tests pass ({count})"
+    status: behavioral_assurance
+    method: test
+    inputs: ["profiles/**", "kernel/core/py/**"]
+    establishes: [Atomicity]
+
+  - id: lifecycle
+    area: ring1
+    name: lifecycle harness (black-box)
+    kind: command
+    command: "{pytest} obligations/service/lifecycle.py"
+    count: '(\d+) passed'
+    claim: "through the running service: duplicate create, idempotent replay and conflicts, crash (SIGKILL) + restart + retry, restart durability, event contract (op_id, chain, state_after, one commit per op), concurrency with readers ({count} checks)"
+    status: behavioral_assurance
+    method: test
+    inputs: ["service/**", "adapter/**", "design/**", "app/**", "ui/**", "gen/**", "app.manifest.yaml", "profiles/**", "kernel/core/py/**", "obligations/service/**"]   # the service may read anything in the artifact
+    depends_on: [kernel, service.entrypoint, gen.current]
+    establishes: [Idempotency, Durability, EventContract]
+
+  - id: extra
+    area: ring1
+    name: "extra test: {item}"
+    kind: manifest_commands
+    key: extra_tests
+    claim: supplementary; reported only
+    blocking: false
+    status: null
+    method: test
+
+  - id: monitor
+    area: ring2
+    name: monitor negative suite
+    kind: command
+    command: "{pytest} obligations/boundary/test_monitor.py"
+    claim: "generated monitor detects each named violation (rehashed mutants), op lifecycle, watermark; silent on the good stream"
+    status: behavioral_assurance
+    method: test
+    inputs: ["gen/**", "obligations/boundary/**"]
+    depends_on: [gen.current]
+
+  - id: boundary
+    area: ring2
+    name: boundary harness (black-box)
+    kind: command
+    command: "{pytest} obligations/boundary/harness.py"
+    count: '(\d+) passed'
+    claim: "API not falsified: JSON-Schema-valid requests/responses/events; invalid and malformed inputs rejected without effect; conflicts rejected; agrees with the proven core under bursts; idempotent; monitor silent; both branches exercised ({count} checks)"
+    status: behavioral_assurance
+    method: test
+    inputs: ["service/**", "adapter/**", "design/**", "app/**", "ui/**", "gen/**", "app.manifest.yaml", "profiles/**", "kernel/core/py/**", "obligations/service/**", "obligations/boundary/**"]
+    depends_on: [kernel, gen.current, monitor, lifecycle]
+    establishes: [BoundaryConformance]
+
+  - id: delivery
+    area: ring3
+    name: application delivery
+    kind: adapter
+    adapter: obligations/app/delivery_adapter.py                 # pack code: lint + real-browser workflows + interaction obligations
+    claims_key: delivery_detail
+    blocking: false
+    status: application_delivery
+    method: browser
+    inputs: ["service/**", "adapter/**", "design/**", "app/**", "ui/**", "gen/**", "app.manifest.yaml", "profiles/**", "kernel/core/py/**", "obligations/app/**", "obligations/service/**"]
+    tools: [playwright]
+    depends_on: [lifecycle, boundary]
+    establishes: [W1, W2, W3, W4, W5, W6, I1, I2, I3, I4, I5, I6]
+
+  - id: approval
+    area: ring3
+    name: human approval
+    kind: attestation
+    required_from: { yaml: obligations/app/delivery.yaml, list: required_evaluations, field: id }
+    reviewer_context_from: delivery
+    claims_key: human_approval_detail
+    blocking: false
+    status: human_approval
+    method: review
+    depends_on: [delivery]
+    establishes: [E1, E2, E3]
+
+# ---------------------------------------------------------------------------------------------------------------
+# Contract records (docs/rfc/0001 § Contract record). One per protected requirement. `semantics` points at the
+# native statement; `verified_by` names checks above; `examples` are satisfying cases and `wrong` the violating
+# cases the pack must keep rejecting; `change` says which route (presentation | integration | behavioral) a
+# change to the requirement takes (CUSTOMIZATION.md).
+contracts:
+  - id: P0
+    version: 2
+    intent: A request within the available amount, equality included, is authorized and reserves exactly its amount.
+    excludes: [eligibility beyond the limit (fraud, velocity, merchant rules), currency, expiry]
+    semantics: { dafny: "kernel/spec/AuthSpec.dfy [P0]" }
+    timing: at the atomic Decide step, against the availability of that step
+    verified_by: [kernel]
+    assumptions: [kernel/tcb.yaml#assumptions]
+    examples: [kernel/adequacy/traces.dfy]
+    wrong: [kernel/adequacy/always_decline.dfy, kernel/adequacy/decline_at_equality.dfy]
+    change: behavioral
+  - id: P1
+    version: 2
+    intent: A request over the available amount is declined and reserves nothing.
+    semantics: { dafny: "kernel/spec/AuthSpec.dfy [P1]" }
+    timing: at the atomic Decide step
+    verified_by: [kernel]
+    examples: [kernel/adequacy/traces.dfy]
+    wrong: [kernel/adequacy/hold_on_decline.dfy]
+    change: behavioral
+  - id: P2
+    version: 2
+    intent: A hold exists exactly while its request is authorized.
+    semantics: { dafny: "kernel/spec/AuthSpec.dfy [P2] [P2']", tla: "obligations/design/CoreActions.tla P2" }
+    timing: invariant of every reachable state
+    verified_by: [kernel, design.safety]
+    wrong: [kernel/adequacy/hold_on_decline.dfy, kernel/adequacy/release_leaves_hold.dfy]
+    change: behavioral
+  - id: P3
+    version: 2
+    intent: Earlier decisions are terminal; Declined never changes.
+    semantics: { dafny: "kernel/spec/AuthSpec.dfy [P3]", tla: "obligations/design/CoreActions.tla P3" }
+    timing: across every step
+    verified_by: [kernel, design.safety]
+    wrong: [kernel/adequacy/rewrites_history.dfy]
+    change: behavioral
+  - id: INV1
+    version: 2
+    intent: Posted plus reserved never exceeds the limit, under every interleaving of decide, release and capture.
+    semantics: { dafny: "kernel/spec/AuthSpec.dfy Valid [INV1]", tla: "obligations/design/CoreActions.tla INV1" }
+    timing: invariant of every reachable state; per-transition in the proofs, across interleavings in the design model
+    verified_by: [kernel, design.safety, design.adequacy]
+    assumptions: ["each core call executes atomically (kernel/tcb.yaml); established for the deployment by design.safety and the profile tests, by test only"]
+    wrong: [kernel/adequacy/capture_keeps_hold.dfy, obligations/design/BrokenDesign.tla]
+    change: behavioral
+  - id: R1
+    version: 2
+    intent: Releasing a hold removes it.
+    semantics: { dafny: "kernel/spec/AuthSpec.dfy [R1]" }
+    verified_by: [kernel]
+    wrong: [kernel/adequacy/release_leaves_hold.dfy]
+    change: behavioral
+  - id: R2
+    version: 2
+    intent: A released request is Released and nothing else changes.
+    semantics: { dafny: "kernel/spec/AuthSpec.dfy [R2]" }
+    verified_by: [kernel]
+    change: behavioral
+  - id: C1
+    version: 2
+    intent: Capture posts exactly the held amount.
+    semantics: { dafny: "kernel/spec/PostingSpec.dfy [C1]" }
+    verified_by: [kernel]
+    wrong: [kernel/adequacy/capture_wrong_amount.dfy, kernel/adequacy/capture_forgets_posting.dfy]
+    change: behavioral
+  - id: C2
+    version: 2
+    intent: Capture removes the hold.
+    semantics: { dafny: "kernel/spec/PostingSpec.dfy [C2]" }
+    verified_by: [kernel]
+    change: behavioral
+  - id: C3
+    version: 2
+    intent: A captured request is Post and nothing else changes.
+    semantics: { dafny: "kernel/spec/PostingSpec.dfy [C3]" }
+    verified_by: [kernel]
+    wrong: [kernel/adequacy/capture_marks_released.dfy]
+    change: behavioral
+  - id: P4
+    version: 2
+    intent: Post is terminal across every operation.
+    semantics: { dafny: "kernel/spec/PostingSpec.dfy PostTerminal [P4]", tla: "obligations/design/CoreActions.tla P4" }
+    verified_by: [kernel, design.safety]
+    change: behavioral
+  - id: PostedExact
+    version: 2
+    intent: Posting never decreases.
+    semantics: { tla: "obligations/design/CoreActions.tla PostedExact" }
+    verified_by: [design.safety]
+    change: behavioral
+  - id: DecideCorrect
+    version: 2
+    intent: Each decision is made against the availability of the same atomic step, never a snapshot read earlier.
+    semantics: { tla: "obligations/design/CoreActions.tla DecideCorrect" }
+    timing: at the decision step, not at request receipt
+    verified_by: [design.safety, design.adequacy]
+    wrong: [obligations/design/BrokenDesign.tla, obligations/design/WrongZeroAvail.tla]
+    change: behavioral
+  - id: Idempotent
+    version: 2
+    intent: Every response to the same request id is the same.
+    semantics: { tla: "obligations/design/CoreActions.tla IdempotentResp (bound in MC.tla)" }
+    verified_by: [design.safety, lifecycle, boundary]
+    change: behavioral
+  - id: Consistent
+    version: 2
+    intent: The first response to a request reports the decision the core recorded.
+    semantics: { tla: "obligations/design/CoreActions.tla ConsistentResp (bound in MC.tla)" }
+    verified_by: [design.safety]
+    change: behavioral
+  - id: Atomicity
+    version: 2
+    intent: The shipped profile executes each core call atomically and reads availability in the decision transaction.
+    semantics: { python: "profiles/sqlite/tests/test_profile.py" }
+    verified_by: [profile.tests]
+    change: integration
+  - id: Idempotency
+    version: 2
+    intent: The request id is the idempotency key; a replay never calls the core; a replay with a different amount is a conflict.
+    semantics: { python: "obligations/service/lifecycle.py" }
+    timing: after acknowledgement, including across a crash and restart
+    verified_by: [lifecycle]
+    change: integration
+  - id: Durability
+    version: 2
+    intent: A decision acknowledged to the client survives a crash and restart.
+    semantics: { python: "obligations/service/lifecycle.py" }
+    timing: after acknowledgement
+    verified_by: [lifecycle]
+    change: integration
+  - id: EventContract
+    version: 2
+    intent: Every operation emits events with an op id, a hash chain and the committed state, one commit per operation.
+    semantics: { python: "obligations/service/lifecycle.py", generated: "obligations/boundary/generate.py" }
+    verified_by: [lifecycle, monitor]
+    change: integration
+  - id: BoundaryConformance
+    version: 2
+    intent: The API accepts only schema-valid input, rejects invalid input without effect, and agrees with the proven core.
+    semantics: { python: "obligations/boundary/harness.py", generated: "gen/out/openapi.yaml" }
+    verified_by: [boundary]
+    change: integration
+  - { id: W1, version: 2, intent: "An operator creates an account with a limit.", semantics: { yaml: "obligations/app/delivery.yaml W1" }, verified_by: [delivery], change: presentation }
+  - { id: W2, version: 2, intent: "An authorization within the limit shows AUTHORIZED.", semantics: { yaml: "obligations/app/delivery.yaml W2" }, verified_by: [delivery], change: presentation }
+  - { id: W3, version: 2, intent: "An authorization over the limit shows DECLINED, distinctly.", semantics: { yaml: "obligations/app/delivery.yaml W3" }, verified_by: [delivery], change: presentation }
+  - { id: W4, version: 2, intent: "A live hold is released and availability recovers.", semantics: { yaml: "obligations/app/delivery.yaml W4" }, verified_by: [delivery], change: presentation }
+  - { id: W5, version: 2, intent: "The event stream the monitor reads is visible.", semantics: { yaml: "obligations/app/delivery.yaml W5" }, verified_by: [delivery], change: presentation }
+  - { id: W6, version: 2, intent: "A live hold is captured; posted grows, available does not recover.", semantics: { yaml: "obligations/app/delivery.yaml W6" }, verified_by: [delivery], change: presentation }
+  - { id: I1, version: 1, intent: "An action on a displayed hold targets that hold's account, not an edited-but-unloaded field.", semantics: { markdown: "obligations/app/UI-CONTRACT.md I1" }, verified_by: [delivery], wrong: [examples/wrong/office-desk], change: presentation }
+  - { id: I2, version: 1, intent: "After a failed load of another account, no action reaches that account.", semantics: { markdown: "obligations/app/UI-CONTRACT.md I2" }, verified_by: [delivery], wrong: [examples/wrong/club-desk, examples/wrong/office-desk], change: presentation }
+  - { id: I3, version: 1, intent: "A late response for a superseded selection never overwrites the newer view.", semantics: { markdown: "obligations/app/UI-CONTRACT.md I3" }, verified_by: [delivery], wrong: [examples/wrong/office-desk], change: presentation }
+  - { id: I4, version: 1, intent: "A received decision survives a failed refresh.", semantics: { markdown: "obligations/app/UI-CONTRACT.md I4" }, timing: after the receipt is shown, "across later refresh failures", verified_by: [delivery], wrong: [examples/wrong/club-desk, examples/wrong/office-desk], change: presentation }
+  - { id: I5, version: 1, intent: "Outcome unknown, operation rejected and a decision are distinct states.", semantics: { markdown: "obligations/app/UI-CONTRACT.md I5" }, verified_by: [delivery], wrong: [examples/wrong/club-desk, examples/wrong/office-desk], change: presentation }
+  - { id: I6, version: 1, intent: "A receipt keeps its originating account across a context switch.", semantics: { markdown: "obligations/app/UI-CONTRACT.md I6" }, verified_by: [delivery], wrong: [examples/wrong/club-desk, examples/wrong/office-desk], change: presentation }
+  - { id: E1, version: 2, intent: "A payments-ops analyst completes W1-W4 unassisted in under 3 minutes.", semantics: { yaml: "obligations/app/delivery.yaml E1" }, verified_by: [approval], change: presentation }
+  - { id: E2, version: 2, intent: "Declined decisions are visually distinct from authorized ones.", semantics: { yaml: "obligations/app/delivery.yaml E2" }, verified_by: [approval], change: presentation }
+  - { id: E3, version: 2, intent: "User-facing copy uses the glossary's terms and no synonyms.", semantics: { yaml: "obligations/app/delivery.yaml E3" }, verified_by: [approval], change: presentation }
+
+# Words that belong to this pack and must never appear in the evaluator (validation/domain_free.py, CI).
+domain_vocabulary: [account, authoriz, reservation, Capture, posting, posted, declin, ledger, CoreActions, INV1, Design.tla, sqlite, service/run.py, kernel/, obligations/, profiles/, browser_workflows, delivery.yaml, openapi]

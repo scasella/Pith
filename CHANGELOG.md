@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.7.0 — 2026-10-13
+M2 of the roadmap: a reusable foundation. The reservation seed becomes one contract pack judged by a domain-free
+evaluator, with structured, dependency-aware evidence. RFC: `docs/rfc/0001-contract-packs-and-evidence.md`.
+
+- **Contract pack** `pack.yaml` (replaces `gate/policy.yaml`): policy and agent-owned dirs, toolchain, the ordered
+  checks (each of a kind, with inputs, dependencies, method and the contract records it establishes), how checks
+  roll up into the three statuses, and 35 contract records (identity, version, intent, exclusions, native
+  semantics, timing, verification, assumptions, satisfying and violating examples, change route).
+- **Domain-free evaluator** `gate/`: `app_gate.py` (judge), `pack.py` (load, validate, expand), `kinds.py` (command,
+  files_present, source_rules, tlc, regenerated, manifest_choice, manifest_commands, adapter, attestation),
+  `workspace.py`, `sandbox.py` (candidate identity and limits, from the supervisor), `isolation/` (moved from
+  `obligations/isolation/`). Nothing in `gate/` names the pack's domain; `validation/domain_free.py` checks it in CI.
+- **Delivery is an adapter**: `obligations/app/delivery_adapter.py` holds the lint + browser aggregation the judge
+  used to do; the evaluator only sees a status, problems, detail and release conditions.
+- **Structured evidence**: `evidence.json` (one record per check: method, establishes, depends_on, input files and
+  digests, tools, key) and `statement.intoto.json` (in-toto Statement v1, unsigned) in every evidence directory.
+  `gate/evidence.py impact` says which records a change invalidates and why; `app_gate.py --reuse` reuses cacheable
+  records (proof, model checks) with identical keys from the same release and evaluator, and says so.
+- `release.py`: the release is `gate/` + `pack.yaml` + the pack's `policy_dirs`; seal format 2 names the pack;
+  `release.py dirs` lists the release's directories. The isolation probe now also tries every pack policy dir.
+- `app-claims.json` keeps every v0.6.0 key and adds `pack`, `evidence`, `evidence_digest` and a check `id`.
+- Validation: `validation/compare_m1.py` (+ `baselines/m1.json`, recorded with the v0.6.0 judge),
+  `validation/evidence_reuse.py`, `validation/domain_free.py`; the matrix case for an edited policy file now edits
+  `pack.yaml`.
+Release digest `2ba278ed292c44b3e2fb87f26ceafece636eef57f6d2239b1709a00ae11422c0`.
+
 ## v0.6.0 — 2026-10-13
 M1 of the roadmap: the reservation application as an honest end-to-end reference.
 

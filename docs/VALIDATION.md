@@ -1,3 +1,34 @@
+# Validation record — Pith v0.7.0 (M2: contract pack, domain-free evaluator, structured evidence)
+
+Release `2ba278ed292c44b3e2fb87f26ceafece636eef57f6d2239b1709a00ae11422c0`. Local runs (advisory isolation,
+unsandboxed browser) as for v0.6.0; the CI `isolated` job is the enforced run.
+
+### same scoped results as the v0.6.0 judge (validation/compare_m1.py, baseline recorded with the v0.6.0 judge)
+Every example and known-wrong fixture judged through `pack.yaml` and the domain-free evaluator, compared with
+`validation/baselines/m1.json` check by check (area, name, result, claim text with digests masked), status by
+status, failing delivery obligations, `release_ready` and `release_ready_missing`:
+- examples/build-a, build-b, club-desk, office-desk: same (31, 30, 31, 31 checks); assurance and delivery passed,
+  human approval pending, release_ready_missing = human_approval, isolation, browser (advisory local run)
+- examples/wrong/club-desk: same; delivery failed on exactly I2, I4, I5, I6
+- examples/wrong/office-desk: same; delivery failed on exactly I1–I6
+- the two expected claim-text differences: `frozen files intact` names the new release layout (75 files under
+  gate/, kernel/, obligations/, profiles/ + pack.yaml), and `isolation` lists `write policy (profiles/)`, a pack
+  policy dir the v0.6.0 probe did not try, and the README's new path
+
+### the evaluator is domain-free (validation/domain_free.py)
+- no pack vocabulary (pack.yaml:domain_vocabulary), contract record id or check id occurs anywhere in gate/
+
+### evidence is invalidated by exactly what changed (validation/evidence_reuse.py, build-a)
+- presentation edit (comment appended to ui/index.html): proof, all 13 design checks, generator checks, monitor
+  suite and profile tests still hold; lifecycle, boundary, delivery and approval are invalidated
+- design edit (comment appended to design/Design.tla): proof, generator, monitor and profile tests hold; all 13
+  design checks and everything that runs the service are invalidated
+- the presentation edit judged with `--reuse`: exactly the proof and the 9 TLC checks reused, everything else
+  re-run, statuses identical to the base run
+
+### wrong-candidate matrix (validation/matrix.py, 19 cases)
+- re-run against this release: results to be recorded here
+
 # Validation record — Pith v0.6.0 (M1: interaction obligations, desk fixtures, isolation profile)
 
 Release `512e9c778ffd78fad9c8b8822339d74ddd086f3a0eb429cf9cdc5721e65a53ee`. Local runs use an unsandboxed browser and no

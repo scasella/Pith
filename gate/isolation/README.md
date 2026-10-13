@@ -1,21 +1,23 @@
 # Evaluator isolation — the supported profile
 
 A process boundary is not a sandbox. Until v0.5.0 the candidate's service ran as the judge's own user, so a hostile
-`service/run.py` could read the evidence directory, rewrite the judged copy of the gate, or reach the network; the
+candidate entrypoint could read the evidence directory, rewrite the judged copy of the gate, or reach the network; the
 release said so and left operational isolation to the operator. From v0.6.0 the release ships one supported
-isolation profile and the gate **observes** whether it is in force rather than taking it on trust.
+isolation profile (in `gate/isolation/` since v0.7.0: it belongs to the evaluator, not to a pack) and the gate
+**observes** whether it is in force rather than taking it on trust.
 
 ## What the gate does on every run
 
 1. Before any candidate code runs, `probe.py` is executed under the candidate's identity and resource limits. It
-   tries to list and write the evidence directory, write into `kernel/`, `obligations/` and `gate/` of the judged
-   copy, append to `gate/app_gate.py`, read any path in `SEED_PROTECTED_PATHS`, and open connections to
+   tries to list and write the evidence directory, write into `gate/` and every pack policy directory
+   (`pack.yaml:policy_dirs`) of the judged copy, append to `gate/app_gate.py`, read any path in
+   `SEED_PROTECTED_PATHS`, and open connections to
    `1.1.1.1:443` and `github.com:443`.
 2. `app-claims.json` records `isolation.status` (`enforced` only if a separate identity was configured **and** every
    probe was denied), the profile, the identity, the resource limits, and every probe result.
 3. The candidate's service runs as `SEED_CANDIDATE_UID` (no supplementary groups, its own process group, rlimits on
    CPU, address space, file size, open files and processes). It may write only its database directory.
-4. With `SEED_BROWSER_LAUNCHER=obligations/isolation/browser_as.py`, Chromium runs as `SEED_BROWSER_UID`, so the
+4. With `SEED_BROWSER_LAUNCHER=gate/isolation/browser_as.py`, Chromium runs as `SEED_BROWSER_UID`, so the
    candidate's JavaScript cannot read the evidence or the judge's files even if it escapes the renderer.
 5. `release_ready` requires `isolation.status == enforced`, and a contained browser: Chromium's own sandbox, or the
    separate browser user under the enforced profile. `release_ready_missing` lists whatever is absent.
@@ -27,7 +29,7 @@ the report names what the candidate could reach.
 
 ```bash
 RELEASE="$(python3 gate/release.py id)"              # from your trusted copy, before any agent sees a workspace
-obligations/isolation/judge-isolated.sh /path/to/pristine /path/to/candidate ../evidence-007 "$RELEASE"
+gate/isolation/judge-isolated.sh /path/to/pristine /path/to/candidate ../evidence-007 "$RELEASE"
 ```
 
 Linux with docker or podman. The image pins Python, Dafny (by digest), TLC (by digest), the Python packages and

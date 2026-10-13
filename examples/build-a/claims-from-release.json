@@ -1,16 +1,21 @@
 {
   "gate_mode": "authoritative",
   "policy_source": "/home/claude/Pith",
-  "evidence_dir": "/tmp/claude-0/ev/ev-build-a",
-  "judged_copy": "/tmp/judged-9sw4btoj",
-  "started": "2026-10-13T13:37:05Z",
-  "release_digest": "512e9c778ffd78fad9c8b8822339d74ddd086f3a0eb429cf9cdc5721e65a53ee",
+  "evidence_dir": "/tmp/claude-0/new/ev-build-a",
+  "judged_copy": "/tmp/judged-z6kiygwe",
+  "started": "2026-10-13T14:24:38Z",
+  "release_digest": "2ba278ed292c44b3e2fb87f26ceafece636eef57f6d2239b1709a00ae11422c0",
   "authority": "externally-pinned-release",
   "artifact_digest": "92a2dbd2c64634a1efac65ee763faa28c2356517977e50681fbc798aedfc878b",
   "release_ready": false,
+  "pack": {
+    "id": "pith.reservation",
+    "version": "0.7.0",
+    "contract_version": "authorization-and-posting-core/v2"
+  },
   "toolchain": {
-    "dafny": "4.11.0+fcb2042d6d043a2634f0854338c08feeaaaf4ae2",
     "python": "3.13.16",
+    "dafny": "4.11.0+fcb2042d6d043a2634f0854338c08feeaaaf4ae2",
     "hypothesis": "6.169.0",
     "jsonschema": "4.26.0",
     "playwright": "1.63.0",
@@ -23,19 +28,19 @@
       "area": "policy",
       "check": "frozen files intact",
       "result": "pass",
-      "claim": "69 frozen files intact; nothing added under ['kernel', 'obligations', 'gate', 'profiles'] (OS metadata files ignored)"
+      "claim": "75 frozen files intact; nothing added under ['gate', 'kernel', 'obligations', 'profiles'] (OS metadata files ignored)"
     },
     {
       "area": "policy",
       "check": "release seal",
       "result": "pass",
-      "claim": "platform release 512e9c778ffd78fa matches release.seal.json"
+      "claim": "platform release 2ba278ed292c44b3 matches release.seal.json"
     },
     {
       "area": "policy",
       "check": "external release pin",
       "result": "pass",
-      "claim": "platform matches the externally pinned release 512e9c778ffd78fa"
+      "claim": "platform matches the externally pinned release 2ba278ed292c44b3"
     },
     {
       "area": "policy",
@@ -47,7 +52,8 @@
       "area": "policy",
       "check": "integration profile",
       "result": "pass",
-      "claim": "profile = sqlite (shipped; in-process tests apply)"
+      "claim": "profile = sqlite (shipped; in-process tests apply)",
+      "id": "profile"
     },
     {
       "area": "policy",
@@ -59,145 +65,168 @@
       "area": "policy",
       "check": "isolation",
       "result": "pass",
-      "claim": "candidate isolation not enforced: reachable from the candidate: ['connect 1.1.1.1:443', 'connect github.com:443', 'modify gate code', 'read evidence directory', 'runs as root', 'write evidence directory', 'write policy (gate/)', 'write policy (kernel/)', 'write policy (obligations/)'] \u2014 advisory run; release_ready requires an enforced profile (obligations/isolation/README.md)"
+      "claim": "candidate isolation not enforced: reachable from the candidate: ['connect 1.1.1.1:443', 'connect github.com:443', 'modify gate code', 'read evidence directory', 'runs as root', 'write evidence directory', 'write policy (gate/)', 'write policy (kernel/)', 'write policy (obligations/)', 'write policy (profiles/)'] \u2014 advisory run; release_ready requires an enforced profile (gate/isolation/README.md)"
     },
     {
       "area": "ring0",
       "check": "kernel gate",
       "result": "pass",
-      "claim": "proven core: include closure verified, translation reproduced fail-closed, TCB scan, adequacy, traces"
+      "claim": "proven core: include closure verified, translation reproduced fail-closed, TCB scan, adequacy, traces",
+      "id": "kernel"
     },
     {
       "area": "ring1",
       "check": "design module present",
       "result": "pass",
-      "claim": "design/Design.tla"
+      "claim": "design/Design.tla",
+      "id": "design.present"
     },
     {
       "area": "ring1",
       "check": "design extends obligations",
       "result": "pass",
-      "claim": "EXTENDS CoreActions"
+      "claim": "EXTENDS CoreActions",
+      "id": "design.extends"
     },
     {
       "area": "ring1",
       "check": "core state only via core actions",
       "result": "pass",
-      "claim": "status/held/posted change only through CoreDecide/CoreReplay/CoreRelease/CoreCapture"
+      "claim": "status/held/posted change only through CoreDecide/CoreReplay/CoreRelease/CoreCapture",
+      "id": "design.core-state"
     },
     {
       "area": "ring1",
       "check": "design interface",
       "result": "pass",
-      "claim": "declares VARIABLE responses; does not redefine any checked predicate (they are bound in the frozen MC.tla)"
+      "claim": "declares VARIABLE responses; does not redefine any checked predicate (they are bound in the frozen MC.tla)",
+      "id": "design.interface"
     },
     {
       "area": "ring1",
       "check": "design model (safety)",
       "result": "pass",
-      "claim": "INV1 (composition), P2, P3, P4, PostedExact, DecideCorrect, Idempotent, Consistent hold over the configured model with both kernels interleaving (predicates bound by the frozen MC.tla)"
+      "claim": "INV1 (composition), P2, P3, P4, PostedExact, DecideCorrect, Idempotent, Consistent hold over the configured model with both kernels interleaving (predicates bound by the frozen MC.tla)",
+      "id": "design.safety"
     },
     {
       "area": "ring1",
       "check": "design coverage (CovDecided)",
       "result": "pass",
-      "claim": "the design reaches the behaviour CovDecided guards"
+      "claim": "the design reaches the behaviour CovDecided guards",
+      "id": "design.coverage/CovDecided"
     },
     {
       "area": "ring1",
       "check": "design coverage (CovContention)",
       "result": "pass",
-      "claim": "the design reaches the behaviour CovContention guards"
+      "claim": "the design reaches the behaviour CovContention guards",
+      "id": "design.coverage/CovContention"
     },
     {
       "area": "ring1",
       "check": "design coverage (CovDecline)",
       "result": "pass",
-      "claim": "the design reaches the behaviour CovDecline guards"
+      "claim": "the design reaches the behaviour CovDecline guards",
+      "id": "design.coverage/CovDecline"
     },
     {
       "area": "ring1",
       "check": "design coverage (CovRelease)",
       "result": "pass",
-      "claim": "the design reaches the behaviour CovRelease guards"
+      "claim": "the design reaches the behaviour CovRelease guards",
+      "id": "design.coverage/CovRelease"
     },
     {
       "area": "ring1",
       "check": "design coverage (CovCapture)",
       "result": "pass",
-      "claim": "the design reaches the behaviour CovCapture guards"
+      "claim": "the design reaches the behaviour CovCapture guards",
+      "id": "design.coverage/CovCapture"
     },
     {
       "area": "ring1",
       "check": "design coverage (CovCaptureContention)",
       "result": "pass",
-      "claim": "the design reaches the behaviour CovCaptureContention guards"
+      "claim": "the design reaches the behaviour CovCaptureContention guards",
+      "id": "design.coverage/CovCaptureContention"
     },
     {
       "area": "ring1",
       "check": "design coverage (CovRetry)",
       "result": "pass",
-      "claim": "the design reaches the behaviour CovRetry guards"
+      "claim": "the design reaches the behaviour CovRetry guards",
+      "id": "design.coverage/CovRetry"
     },
     {
       "area": "ring1",
       "check": "obligations reject the known-bad design",
       "result": "pass",
-      "claim": "receipt-time design violates INV1 under the same obligations"
+      "claim": "receipt-time design violates INV1 under the same obligations",
+      "id": "design.adequacy"
     },
     {
       "area": "ring2",
       "check": "generated artifacts present",
       "result": "pass",
-      "claim": "gen/out present"
+      "claim": "gen/out present",
+      "id": "gen.present"
     },
     {
       "area": "ring2",
       "check": "generated artifacts current",
       "result": "pass",
-      "claim": "openapi, event schema and monitor equal the generator's output"
+      "claim": "openapi, event schema and monitor equal the generator's output",
+      "id": "gen.current"
     },
     {
       "area": "ring1",
       "check": "service entrypoint",
       "result": "pass",
-      "claim": "service/run.py present (the supervisor starts it as a separate process)"
+      "claim": "service/run.py present (the supervisor starts it as a separate process)",
+      "id": "service.entrypoint"
     },
     {
       "area": "ring1",
       "check": "shipped profile tests",
       "result": "pass",
-      "claim": "sqlite profile (frozen) in-process tests pass (23)"
+      "claim": "sqlite profile (frozen) in-process tests pass (23)",
+      "id": "profile.tests"
     },
     {
       "area": "ring1",
       "check": "lifecycle harness (black-box)",
       "result": "pass",
-      "claim": "through the running service: duplicate create, idempotent replay and conflicts, crash (SIGKILL) + restart + retry, restart durability, event contract (op_id, chain, state_after, one commit per op), concurrency with readers (7 checks)"
+      "claim": "through the running service: duplicate create, idempotent replay and conflicts, crash (SIGKILL) + restart + retry, restart durability, event contract (op_id, chain, state_after, one commit per op), concurrency with readers (7 checks)",
+      "id": "lifecycle"
     },
     {
       "area": "ring2",
       "check": "monitor negative suite",
       "result": "pass",
-      "claim": "generated monitor detects each named violation (rehashed mutants), op lifecycle, watermark; silent on the good stream"
+      "claim": "generated monitor detects each named violation (rehashed mutants), op lifecycle, watermark; silent on the good stream",
+      "id": "monitor"
     },
     {
       "area": "ring2",
       "check": "boundary harness (black-box)",
       "result": "pass",
-      "claim": "API not falsified: JSON-Schema-valid requests/responses/events; invalid and malformed inputs rejected without effect; conflicts rejected; agrees with the proven core under bursts; idempotent; monitor silent; both branches exercised (20 checks)"
+      "claim": "API not falsified: JSON-Schema-valid requests/responses/events; invalid and malformed inputs rejected without effect; conflicts rejected; agrees with the proven core under bursts; idempotent; monitor silent; both branches exercised (20 checks)",
+      "id": "boundary"
     },
     {
       "area": "ring3",
       "check": "application delivery",
       "result": "pass",
-      "claim": "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile']; interaction obligations ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] passed under injected response faults (sandboxed=False, browser user=judge); SPEC structurally complete (lint is structural, not semantic)"
+      "claim": "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile']; interaction obligations ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] passed under injected response faults (sandboxed=False, browser user=judge); SPEC structurally complete (lint is structural, not semantic)",
+      "id": "delivery"
     },
     {
       "area": "ring3",
       "check": "human approval",
       "result": "pass",
-      "claim": "pending (no attestation supplied)"
+      "claim": "pending (no attestation supplied)",
+      "id": "approval"
     },
     {
       "area": "policy",
@@ -227,9 +256,10 @@
       "checks": {
         "read evidence directory": "reachable",
         "write evidence directory": "reachable",
+        "write policy (gate/)": "reachable",
         "write policy (kernel/)": "reachable",
         "write policy (obligations/)": "reachable",
-        "write policy (gate/)": "reachable",
+        "write policy (profiles/)": "reachable",
         "modify gate code": "reachable",
         "connect 1.1.1.1:443": "reachable",
         "connect github.com:443": "reachable",
@@ -245,7 +275,8 @@
       "write evidence directory",
       "write policy (gate/)",
       "write policy (kernel/)",
-      "write policy (obligations/)"
+      "write policy (obligations/)",
+      "write policy (profiles/)"
     ],
     "scope": "observed by a frozen probe run under the candidate's identity: evidence dir, policy dirs, gate code, protected paths, outbound network; the candidate has no build or dependency-install step in this release (it runs on the judge's interpreter and packages)"
   },
@@ -385,12 +416,15 @@
     "isolation",
     "browser"
   ],
-  "finished": "2026-10-13T13:38:58Z",
+  "finished": "2026-10-13T14:26:23Z",
   "policy_sha256": {
-    "kernel": "ad5103a1898cc0598ca3da83fe90205137d526994ca3740b56cf078f9f2cde4c",
-    "obligations": "b03e9c9c94ace1310d9fa1ceaadbe0e0750e27d7ea43c2d23f915f15fdf42a9b",
-    "gate": "b35e0f4ee4821476b47c5a9f36dc860ba6c129ee6a5bca5038944f14a48d774c",
-    "profiles": "4a13c23ca9259afdc994d32a285597ccd827dca3908773dc6c7958e502e41c56"
+    "gate": "584e9001df7326a07ab1a1f376669ead079e5d23f6d0434fbe4e8d870dd9c101",
+    "kernel": "c5b97ebac629697bbfcc31d09ff132421f03a392f87b91bc85660f6cd8ff1be0",
+    "obligations": "b76121c8422aceca8e6c455ec3e51ee323d8968c9aec8e7a551217a6b57e5510",
+    "profiles": "9dbdd92a5b48c4aecc7cf14dac74e00a91a853c447032cdf2733b980ca75e6fd",
+    "pack.yaml": "6c674044cffb5d492e4d623e4d81b97b5b27bcf4a49f291561bdc37e96c4ada1"
   },
-  "artifact_digest_at_end": "92a2dbd2c64634a1efac65ee763faa28c2356517977e50681fbc798aedfc878b"
+  "artifact_digest_at_end": "92a2dbd2c64634a1efac65ee763faa28c2356517977e50681fbc798aedfc878b",
+  "evidence": "evidence.json",
+  "evidence_digest": "b94e0fd1f76e192b8ced64dcae463dddfd9593378ae65acabcbebe2b650fc360"
 }

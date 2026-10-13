@@ -10,7 +10,7 @@ Advisories → Report a vulnerability). Include a minimal candidate that demonst
 matrix in `validation/matrix.py` shows the expected shape. Reports are acknowledged within a week; fixes ship as
 a new sealed release with the reproducing candidate added to `docs/VALIDATION.md`.
 
-Scope notes: from v0.6.0 the supported isolation profile (`obligations/isolation/`) runs the candidate's service
+Scope notes: from v0.6.0 the supported isolation profile (`gate/isolation/` since v0.7.0) runs the candidate's service
 and the browser as separate unprivileged users in a network-less container, and the gate observes those
 restrictions with a probe before any candidate code runs. A candidate that can read the evidence directory, write
 the judged policy, reach the network, or cause the probe to report "denied" for something it can in fact reach,

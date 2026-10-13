@@ -10,45 +10,20 @@ which is how crash-window and durability obligations are exercised black-box.
 Candidate contract (service/run.py):  python -I service/run.py --port <int> --db <path>
   serves the generated OpenAPI on 127.0.0.1:<port>, the UI at /, and exits on SIGTERM.
 
-Isolation (obligations/isolation/README.md): when the judge runs as root with SEED_CANDIDATE_UID set, the candidate
-runs as that unprivileged user with no supplementary groups, owns nothing but its database directory, and is held to
-resource limits. Without it the candidate runs as the judge's own user: the report says so (isolation status), and
+Isolation (gate/isolation/README.md, gate/sandbox.py): when the judge runs as root with SEED_CANDIDATE_UID set, the
+candidate runs as that unprivileged user with no supplementary groups, owns nothing but its database directory, and is
+held to resource limits. Without it the candidate runs as the judge's own user: the report says so (isolation status), and
 release-readiness requires an enforced profile. The judge's own code never runs under the candidate's identity except
 the frozen isolation probe, whose output the judge reads as evidence of what that identity can reach.
 """
-import os, pathlib, resource, socket, subprocess, sys, tempfile, time
+import os, pathlib, socket, subprocess, sys, tempfile, time
 from .client import Client
+try:
+    from gate.sandbox import SCRUBBED_ENV_KEYS, candidate_identity, demote as _demote   # the evaluator's identity and limits
+except ImportError:                                  # imported with obligations/ but not the release root on sys.path
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
+    from gate.sandbox import SCRUBBED_ENV_KEYS, candidate_identity, demote as _demote
 
-SCRUBBED_ENV_KEYS = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR")
-LIMITS = {"RLIMIT_CPU": 900, "RLIMIT_AS": 4 << 30, "RLIMIT_FSIZE": 512 << 20, "RLIMIT_NOFILE": 1024, "RLIMIT_NPROC": 256}
-
-
-def candidate_identity():
-    """(uid, gid) the candidate runs as, or None when no separate identity is configured (advisory)."""
-    uid = os.environ.get("SEED_CANDIDATE_UID")
-    if not uid: return None
-    if os.geteuid() != 0: raise RuntimeError("SEED_CANDIDATE_UID is set but the judge is not root, so it cannot drop to that identity")
-    return int(uid), int(os.environ.get("SEED_CANDIDATE_GID") or uid)
-
-
-def _demote(ident):
-    def fn():
-        os.setsid()
-        for name, v in LIMITS.items():
-            if name == "RLIMIT_NPROC" and not ident: continue        # per-user limit: only meaningful for a dedicated user
-            resource.setrlimit(getattr(resource, name), (v, v))
-        if ident:
-            uid, gid = ident; os.setgroups([]); os.setgid(gid); os.setuid(uid)
-            if os.getuid() == 0 or os.geteuid() == 0: raise RuntimeError("privilege drop failed")
-    return fn
-
-
-def run_as_candidate(argv, cwd, timeout=60, env_extra=None):
-    """Run judge-owned code (the isolation probe) under the candidate's identity and limits; returns (code, stdout)."""
-    ident = candidate_identity()
-    env = {k: os.environ[k] for k in SCRUBBED_ENV_KEYS if k in os.environ}; env.update(env_extra or {})
-    r = subprocess.run(argv, cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout, preexec_fn=_demote(ident))
-    return r.returncode, r.stdout
 
 class Service:
     def __init__(self, root: pathlib.Path, db: pathlib.Path | None = None):

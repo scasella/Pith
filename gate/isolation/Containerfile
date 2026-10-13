@@ -1,4 +1,4 @@
-# obligations/isolation/Containerfile — the supported evaluator environment (v0.6.0). FROZEN.
+# gate/isolation/Containerfile — the supported evaluator environment (v0.6.0; moved to gate/ in v0.7.0). FROZEN.
 # Build and run it with judge-isolated.sh, which supplies the runtime restrictions; the image alone isolates nothing.
 # Every tool is pinned by version and, for downloads, by digest. Building needs network; judging never does.
 FROM python:3.12.7-slim-bookworm
@@ -28,6 +28,6 @@ RUN groupadd -g 10001 candidate && useradd -u 10001 -g 10001 -M -s /usr/sbin/nol
 
 ENV HOME=/tmp PATH=/opt/venv/bin:$PATH DAFNY=/opt/tools/dafny/dafny TLA2TOOLS=/opt/tools/tla2tools.jar PLAYWRIGHT_BROWSERS_PATH=/opt/pw \
     DOTNET_CLI_TELEMETRY_OPTOUT=1 SEED_CANDIDATE_UID=10001 SEED_BROWSER_UID=10002 \
-    SEED_ALLOW_UNSANDBOXED_BROWSER=1 SEED_BROWSER_LAUNCHER=/pith/obligations/isolation/browser_as.py \
-    SEED_ISOLATION_PROFILE="container v0.6.0: --network none, read-only root, candidate uid 10001, browser uid 10002, cgroup limits"
+    SEED_ALLOW_UNSANDBOXED_BROWSER=1 SEED_BROWSER_LAUNCHER=/pith/gate/isolation/browser_as.py \
+    SEED_ISOLATION_PROFILE="container v0.7.0: --network none, read-only root, candidate uid 10001, browser uid 10002, cgroup limits"
 WORKDIR /pith
