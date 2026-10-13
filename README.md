@@ -13,12 +13,12 @@
 says exactly which properties of the result are proved, model-checked, tested, or awaiting human review.**
 
 The seed contains two proven kernels (Dafny): authorization-and-reservation, and posting (capture), the obligations every surrounding
-layer must satisfy (TLA+ invariants, black-box harnesses, a UI contract), and an evaluator that runs the
-candidate as a separate process and never trusts its output. An agent clones the repository, reads
+layer must satisfy (TLA+ invariants, black-box harnesses, a UI contract with interaction obligations), and an
+evaluator that runs the candidate as a separate, unprivileged process and never trusts its output. An agent clones the repository, reads
 `AGENT.md`, and builds the design model, service, and user interface. The gate decides when it is done.
 
-> Status: research prototype, v0.5.0. The method and the judge have been through four external reviews and
-> one unassisted agent build (see `docs/VALIDATION.md`). It is not a payment system; no funds move. Read
+> Status: research prototype, v0.6.0. The method and the judge have been through five external reviews, one
+> unassisted agent build and two reference-assisted agent builds (see `docs/VALIDATION.md`). It is not a payment system; no funds move. Read
 > `INTENT.md` for what the core means and `kernel/tcb.yaml` for what a green result rests on.
 
 ## What is in the box
@@ -28,10 +28,11 @@ kernel/        the proven core: Dafny spec + implementation + proof, Python tran
                adequacy suite (wrong implementations the spec must reject), signed-trace record, audit channel, TCB
 obligations/   what the rest of the app must satisfy: TLA+ core actions, invariants and coverage checks for
                agent-written designs; black-box lifecycle and boundary harnesses; generated API/event/monitor
-               artifacts; UI contract and real-browser workflow tests; prose-spec lint
+               artifacts; UI contract, interaction obligations under injected faults, real-browser workflow tests;
+               an optional client-state library; the supported isolation profile (container + probe); prose-spec lint
 profiles/      a shipped, frozen SQLite integration profile (replaceable: a custom profile is judged black-box)
 gate/          the judge: policy, release seal, review attestations, app_gate.py
-examples/      three conforming builds (two reference, one by an unassisted agent): agent-owned files only
+examples/      conforming builds (two reference, two corrected agent builds, one archived) and known-wrong fixtures
 docs/          validation record, research background, the hybrid-spec essay this grew out of
 ```
 
@@ -60,9 +61,17 @@ RELEASE="$(python3 gate/release.py id)"                      # capture from your
 python3 gate/app_gate.py --candidate /path/to/agent-checkout --expected-release "$RELEASE" --out ../evidence-002
 ```
 
+For a run that can count toward release, use the supported isolation profile (Linux, docker or podman), which
+runs the same judge with no network and the candidate and browser as separate unprivileged users:
+
+```bash
+obligations/isolation/judge-isolated.sh /path/to/pristine /path/to/agent-checkout ../evidence-003 "$RELEASE"
+```
+
 `app-claims.json` in the evidence directory carries three separate statuses and a `release_ready` flag that
-needs all of them, an authoritative pinned run, a sandboxed browser, and an Ed25519 review attestation
-(`gate/review.py`) that only an operator can produce.
+needs all of them, an authoritative pinned run, an isolation profile the judge observed to be enforced, a
+contained browser, and an Ed25519 review attestation (`gate/review.py`) that only an operator can produce.
+`release_ready_missing` names whatever is absent.
 
 To see a conforming build without an agent: `validation/judge_example.sh examples/build-a ../evidence-ex-a`.
 
@@ -73,12 +82,16 @@ translation reproduced byte-for-byte); the agent's design model is model-checked
 and provably not vacuous for the behaviours the coverage obligations name; the running service is not
 falsified by the frozen black-box harnesses (domain validation, idempotency, conflicts, crash-and-restart,
 event contract, concurrency, agreement with the proven core under bursts, generated monitor silent).
-`application_delivery=passed` means the required workflows ran in a real browser at two viewports.
+`application_delivery=passed` means the required workflows ran in a real browser at two viewports, and the
+interaction obligations held under delayed, failed and lost responses: actions on a displayed hold target that
+hold's account, a late response never overwrites a newer selection, a received decision survives a failed
+refresh, and "no response", "refused" and "decided" are shown as different outcomes.
 `human_approval` is read only from a signed attestation.
 
 It does not mean the application is correct. Conformance of the implementation to the design model is by
 test; the proof's runtime assumptions are established by validation code, not by the compiler; the monitor
-sees only emitted events; a process boundary is not a sandbox. `kernel/tcb.yaml`, `INTENT.md` and
+sees only emitted events; the interaction obligations are tests of named scenarios, not a proof of the UI;
+isolation is observed by a probe, not proven, and covers the threats in `obligations/isolation/README.md` only. `kernel/tcb.yaml`, `INTENT.md` and
 `CUSTOMIZATION.md` say where the lines are.
 
 ## Documents

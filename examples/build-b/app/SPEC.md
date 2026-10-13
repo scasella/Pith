@@ -19,6 +19,7 @@ no sentence claims an authorization behavior without citing the obligation that 
 - OC-5 informal: (E1) usable by a payments-ops analyst with no training. Evaluation: two analysts complete W1–W4 under 3 minutes.
 - OC-6 informal: (E2) declined decisions are visually distinct from authorized ones. Evaluation: design review.
 - OC-7 informal: (E3) copy uses the glossary's words (authorize, decline, hold, release) and no synonyms. Evaluation: copy review.
+- OC-9 informal: (I1–I6) every hold action acts on the account whose holds are shown, never on an account typed but not loaded; a late answer for an earlier selection never replaces the current one; a received decision stays on screen, with its account and request, when the refresh after it fails, and the figures that could not be refreshed are marked stale; no response, a refusal and a decision are shown as different outcomes. Evaluation: interaction obligations judged in the browser (obligations/app/UI-CONTRACT.md).
 
 ## Human evaluation record
 

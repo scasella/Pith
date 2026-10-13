@@ -26,6 +26,8 @@ jobs:
       - name: release identity matches the seal
         run: |
           test "$(python3 gate/release.py id)" = "$(python3 -c 'import json;print(json.load(open("release.seal.json"))["release_digest"])')"
+      - name: client-state library tests
+        run: node --test obligations/app/lib/test_pith_view.mjs
       - name: frozen unit suites
         run: |
           # the monitor suite tests the generated gen/out/monitor.py; generate it, then remove it so the next step sees a fresh seed
@@ -39,9 +41,53 @@ jobs:
       - name: judge the examples with the pristine gate
         run: |
           set -o pipefail   # a failing judge must fail the step, not be hidden by tail
-          for ex in build-a build-b; do   # examples/archive is not judged (conforms to an earlier release)
+          for ex in build-a build-b club-desk office-desk; do   # examples/archive is not judged (conforms to an earlier release)
             validation/judge_example.sh "examples/$ex" "$RUNNER_TEMP/ev-$ex" | tail -1
           done
+      - name: known-wrong fixtures are refused for exactly their defects
+        run: python3 validation/judge_wrong.py "$RUNNER_TEMP"
       - uses: actions/upload-artifact@v7
         if: always()
         with: { name: evidence, path: "${{ runner.temp }}/ev-*", retention-days: 14 }
+
+  isolated:
+    # the supported isolation profile, end to end: container build, judge as root, candidate and browser as separate
+    # unprivileged users, no network; the run must observe isolation as enforced and pass the reference build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with: { python-version: "3.12" }
+      - name: judge build-a in the isolation profile
+        run: |
+          pip install -q pyyaml
+          CAND="$(mktemp -d)"; for d in kernel obligations gate profiles; do cp -r "$d" "$CAND/$d"; done
+          cp release.seal.json "$CAND/"; cp -r examples/build-a/. "$CAND/"; rm -f "$CAND/claims-from-release.json" "$CAND"/*.example
+          set +e; obligations/isolation/judge-isolated.sh "$PWD" "$CAND" "$RUNNER_TEMP/ev-isolated" "$(python3 gate/release.py id)"; code=$?; set -e
+          sudo chmod -R a+rX "$RUNNER_TEMP/ev-isolated"
+          python3 - "$RUNNER_TEMP/ev-isolated/run/app-claims.json" <<'PY'
+          import json, sys
+          c = json.load(open(sys.argv[1])); i = c["isolation"]
+          print(json.dumps(i["observed"], indent=1)); print("missing for release_ready:", c.get("release_ready_missing"), "failed checks:", [x for x in c["checks"] if x["result"] == "fail"])
+          assert i["status"] == "enforced", i["reachable_from_candidate"]
+          assert c["behavioral_assurance"].startswith("passed") and c["application_delivery"] == "passed", c.get("delivery_detail")
+          assert c["delivery_detail"]["browser"]["browser_user"] == "uid 10002"
+          assert c["release_ready_missing"] == ["human_approval"], c["release_ready_missing"]
+          PY
+          exit $code
+      - name: diagnose the isolation image (on failure)
+        if: failure()
+        run: |
+          TAG="pith-judge:$(sha256sum obligations/isolation/Containerfile | cut -c1-16)"
+          docker run --rm --network none --read-only --tmpfs /tmp:rw,exec,size=4g --memory 6g --cpus 2 --pids-limit 1024 --cap-drop ALL --cap-add CHOWN --cap-add SETUID --cap-add SETGID \
+            --cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add KILL --security-opt no-new-privileges -v "$PWD":/pith:ro "$TAG" sh -c '
+            set -x; id; echo "HOME=$HOME DAFNY=$DAFNY"; ls -la /opt/tools /opt/tools/dafny | head -30
+            "$DAFNY" --version; echo "rc=$?"
+            cd /tmp && printf "lemma L() ensures 1 + 1 == 2 {}\n" > t.dfy && "$DAFNY" verify t.dfy; echo "rc=$?"
+            ulimit -a; nproc; cp -r /pith/kernel /tmp/k && "$DAFNY" verify --verify-included-files /tmp/k/core/Kernel.dfy; echo "rc=$?"
+            cd /tmp && rm -rf ev && mkdir ev && cp -r /pith /tmp/p && cd /tmp/p && DAFNY=$DAFNY python -I kernel/gate/gate.py kernel/core/Kernel.dfy --out /tmp/claims.json; echo "rc=$?"
+            java -version; python -c "import playwright, yaml; print(\"py ok\")"' 2>&1 | tail -60
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with: { name: evidence-isolated, path: "${{ runner.temp }}/ev-isolated", retention-days: 14 }

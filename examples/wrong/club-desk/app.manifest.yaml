@@ -1,0 +1,5 @@
+# Club Desk — simulated club-budget authorization tool.
+name: Club Desk
+profile: sqlite
+extra_tests: []
+ui_entry: ui/index.html

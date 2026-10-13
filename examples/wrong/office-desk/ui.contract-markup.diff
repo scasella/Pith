@@ -1,0 +1,36 @@
+--- submitted/office-desk/ui/index.html
++++ examples/wrong/office-desk/ui/index.html
+@@ -303,7 +303,7 @@
+               </div>
+               <div class="form-actions">
+                 <button class="action" data-testid="btn-create" type="submit">Create account</button>
+-                <button class="action secondary" id="btn-load" type="button">Load account</button>
++                <button class="action secondary" id="btn-load" data-testid="btn-load" type="button">Load account</button>
+               </div>
+             </form>
+             <div class="account-facts" aria-label="Account totals">
+@@ -311,7 +311,7 @@
+               <div class="fact"><span class="fact-label">Posted</span><strong class="fact-value" data-testid="posted" id="posted">—</strong></div>
+               <div class="fact"><span class="fact-label">Available</span><strong class="fact-value" data-testid="available" id="available">—</strong></div>
+             </div>
+-            <p class="account-meta" id="account-meta" aria-live="polite">Create or load an account to begin.</p>
++            <p class="account-meta" id="account-meta" data-testid="loaded-account" aria-live="polite">Create or load an account to begin.</p>
+           </div>
+         </section>
+ 
+@@ -444,6 +444,7 @@
+         byId("posted").textContent = String(account.posted);
+         byId("available").textContent = String(account.available);
+         byId("account-meta").textContent = "Account " + account.id;
++        Object.assign(byId("account-meta").dataset, { accountId: account.id, state: "current" });
+         const holdEntries = Object.entries(account.holds || {});
+         byId("hold-count").textContent = String(holdEntries.length);
+         holdsBody.replaceChildren();
+@@ -461,6 +462,7 @@
+           const row = document.createElement("tr");
+           row.dataset.testid = "hold-row";
+           row.dataset.requestId = requestId;
++          row.dataset.accountId = account.id;
+           row.append(makeCell(requestId, "request-number"));
+           row.append(makeCell(amount, "amount"));
+           const actions = document.createElement("td");

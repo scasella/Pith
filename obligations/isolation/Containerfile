@@ -1,0 +1,33 @@
+# obligations/isolation/Containerfile — the supported evaluator environment (v0.6.0). FROZEN.
+# Build and run it with judge-isolated.sh, which supplies the runtime restrictions; the image alone isolates nothing.
+# Every tool is pinned by version and, for downloads, by digest. Building needs network; judging never does.
+FROM python:3.12.7-slim-bookworm
+
+RUN apt-get update && apt-get install -y --no-install-recommends openjdk-17-jre-headless curl unzip ca-certificates libicu72 \
+ && rm -rf /var/lib/apt/lists/*
+
+ARG DAFNY_ZIP=dafny-4.11.0-x64-ubuntu-22.04.zip
+ARG DAFNY_SHA256=a46a9ff7cdd720f7955854c78e95df13f4cfe6b80691b05f8654fe19e8267179
+ARG TLC_SHA256=936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88
+RUN mkdir -p /opt/tools && cd /opt/tools \
+ && curl -fsSL --retry 6 -o dafny.zip "https://github.com/dafny-lang/dafny/releases/download/v4.11.0/${DAFNY_ZIP}" \
+ && echo "${DAFNY_SHA256}  dafny.zip" | sha256sum -c - && unzip -q dafny.zip && rm dafny.zip \
+ && curl -fsSL --retry 6 -o tla2tools.jar https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar \
+ && echo "${TLC_SHA256}  tla2tools.jar" | sha256sum -c -
+
+RUN python -m venv /opt/venv && /opt/venv/bin/pip install -q --no-cache-dir \
+      DafnyRuntimePython==4.11.0 hypothesis==6.169.0 pytest==9.1.1 PyYAML==6.0.3 jsonschema==4.26.0 \
+      cryptography==50.0.2 playwright==1.63.0 \
+ && PLAYWRIGHT_BROWSERS_PATH=/opt/pw /opt/venv/bin/python -m playwright install --with-deps chromium \
+ && chmod -R a+rX /opt/pw /opt/venv /opt/tools
+
+# Two unprivileged identities with no shell, no home and no groups in common with the judge (root, uid 0):
+# the candidate's service runs as 10001, the browser rendering the candidate's page as 10002.
+RUN groupadd -g 10001 candidate && useradd -u 10001 -g 10001 -M -s /usr/sbin/nologin candidate \
+ && groupadd -g 10002 browser && useradd -u 10002 -g 10002 -M -s /usr/sbin/nologin browser
+
+ENV HOME=/tmp PATH=/opt/venv/bin:$PATH DAFNY=/opt/tools/dafny/dafny TLA2TOOLS=/opt/tools/tla2tools.jar PLAYWRIGHT_BROWSERS_PATH=/opt/pw \
+    DOTNET_CLI_TELEMETRY_OPTOUT=1 SEED_CANDIDATE_UID=10001 SEED_BROWSER_UID=10002 \
+    SEED_ALLOW_UNSANDBOXED_BROWSER=1 SEED_BROWSER_LAUNCHER=/pith/obligations/isolation/browser_as.py \
+    SEED_ISOLATION_PROFILE="container v0.6.0: --network none, read-only root, candidate uid 10001, browser uid 10002, cgroup limits"
+WORKDIR /pith

@@ -35,6 +35,7 @@ def make_handler(repo):
             u = urlparse(self.path); parts = u.path.strip("/").split("/")
             try:
                 if u.path == "/": return self._send(200, UI.read_bytes(), "text/html; charset=utf-8")
+                if u.path == "/lib/pith-view.js": return self._send(200, (ROOT / "obligations/app/lib/pith-view.js").read_bytes(), "text/javascript; charset=utf-8")
                 if parts == ["openapi.yaml"]: return self._send(200, (ROOT / "gen/out/openapi.yaml").read_bytes(), "text/yaml")
                 if parts == ["events"]: return self._send(200, repo.events(int(parse_qs(u.query).get("since", ["0"])[0])))
                 if len(parts) == 2 and parts[0] == "accounts": return self._send(200, repo.account(int(parts[1])))

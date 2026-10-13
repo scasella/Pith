@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#172624">
+  <title>Office Desk</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172624;
+      --muted: #5c6a65;
+      --line: #d9ded5;
+      --paper: #f3f1e9;
+      --card: #fffefa;
+      --green: #1e6958;
+      --green-soft: #e4f2eb;
+      --red: #a63c31;
+      --red-soft: #fae9e4;
+      --gold: #c89942;
+      --shadow: 0 8px 24px rgb(24 41 37 / 6%);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, a:focus-visible {
+      outline: 3px solid #bf7b19;
+      outline-offset: 2px;
+    }
+    .topbar {
+      min-height: 66px;
+      padding: 12px max(20px, calc((100vw - 1180px) / 2));
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      background: var(--ink);
+      color: #f8f4e9;
+      border-bottom: 3px solid var(--gold);
+    }
+    .brand { display: flex; align-items: center; gap: 11px; }
+    .brand-mark {
+      width: 35px;
+      height: 35px;
+      display: grid;
+      place-items: center;
+      border: 1px solid #9caa96;
+      border-radius: 8px;
+      color: #e7c276;
+      font: 700 17px/1 Georgia, serif;
+    }
+    .brand-name { font: 600 19px/1.1 Georgia, "Times New Roman", serif; letter-spacing: .01em; }
+    .brand-subtitle, .desk-state { color: #c2c9bd; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
+    .desk-state { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+    .state-dot { width: 7px; height: 7px; border-radius: 50%; background: #75b993; box-shadow: 0 0 0 3px rgb(117 185 147 / 17%); }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 20px; }
+    .page-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 16px;
+      margin: 2px 0 16px;
+    }
+    .eyebrow { color: var(--green); font-size: 10px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { margin: 2px 0 0; font: 500 clamp(24px, 3vw, 32px)/1.1 Georgia, "Times New Roman", serif; letter-spacing: -.025em; }
+    .page-note { max-width: 370px; margin: 0; color: var(--muted); font-size: 12px; text-align: right; }
+    .workbench { display: grid; grid-template-columns: minmax(300px, .82fr) minmax(0, 1.32fr); gap: 14px; align-items: start; }
+    .stack { display: grid; gap: 14px; }
+    .panel {
+      min-width: 0;
+      overflow: hidden;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+    }
+    .panel-heading {
+      min-height: 43px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border-bottom: 1px solid var(--line);
+    }
+    .panel-heading h2 { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    .panel-kicker { color: var(--muted); font-size: 11px; }
+    .panel-body { padding: 13px 14px 14px; }
+    .form-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: end; }
+    .field { display: grid; gap: 4px; min-width: 0; }
+    label { color: #4d5a54; font-size: 11px; font-weight: 700; }
+    input {
+      width: 100%;
+      min-width: 0;
+      min-height: 39px;
+      padding: 8px 10px;
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid #bac5bb;
+      border-radius: 6px;
+      font-variant-numeric: tabular-nums;
+    }
+    input:hover { border-color: #87978d; }
+    .action {
+      min-height: 39px;
+      padding: 8px 13px;
+      border: 1px solid var(--green);
+      border-radius: 6px;
+      background: var(--green);
+      color: #fff;
+      font-weight: 750;
+      transition: background-color .15s ease, border-color .15s ease, transform .15s ease;
+    }
+    .action:hover { background: #155543; border-color: #155543; }
+    .action:active { transform: translateY(1px); }
+    .action.secondary {
+      color: var(--ink);
+      background: #f8f8f3;
+      border-color: #aeb9ae;
+    }
+    .action.secondary:hover { background: #ecefe7; border-color: #829286; }
+    .action.small { min-height: 31px; padding: 5px 9px; font-size: 12px; }
+    .action.capture { color: #435b63; background: #f5f8f7; border-color: #aab9ba; }
+    .action.capture:hover { background: #e7efed; border-color: #79918e; }
+    .form-actions { display: flex; align-items: center; gap: 8px; }
+    .account-form .form-actions { grid-column: 1 / -1; justify-content: space-between; }
+    .request-form .form-actions { grid-column: 1 / -1; }
+    .request-form .action { flex: 1; }
+    .account-facts {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 7px;
+      margin-top: 12px;
+    }
+    .fact {
+      min-width: 0;
+      padding: 8px 9px;
+      background: #f5f5ef;
+      border: 1px solid #e5e7de;
+      border-radius: 6px;
+    }
+    .fact-label { display: block; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .fact-value { display: block; margin-top: 1px; font: 700 20px/1.15 Georgia, "Times New Roman", serif; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .account-meta { margin: 9px 0 0; min-height: 17px; color: var(--muted); font-size: 11px; }
+    .request-panel { border-top: 3px solid var(--gold); }
+    .decision {
+      min-height: 48px;
+      margin: 11px 0 0;
+      padding: 9px 11px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 7px;
+      color: #58665e;
+      background: #f5f5ef;
+      border: 1px solid #e2e6dc;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+    .decision[data-decision="AUTHORIZED"] { color: var(--green); background: var(--green-soft); border-color: #c2dfd0; }
+    .decision[data-decision="DECLINED"] { color: var(--red); background: var(--red-soft); border-color: #eac7be; }
+    .decision[data-decision="ERROR"] { color: #8b342c; background: #fff1ed; border-color: #edc3b9; }
+    .decision-word { font-size: 12px; font-weight: 900; letter-spacing: .07em; }
+    .replay-tag {
+      padding: 2px 6px;
+      color: #5b4d32;
+      background: #f5e8c9;
+      border-radius: 99px;
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: .08em;
+    }
+    .decision-empty { color: #758078; }
+    .holds-panel { min-height: 0; align-self: start; }
+    .hold-count {
+      min-width: 24px;
+      padding: 2px 7px;
+      text-align: center;
+      background: #eef2eb;
+      border: 1px solid #dfe6db;
+      border-radius: 99px;
+      color: #48564e;
+      font-size: 10px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    thead { background: #f5f5ef; }
+    th {
+      padding: 9px 12px;
+      color: #627067;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-align: left;
+      text-transform: uppercase;
+    }
+    td { padding: 9px 12px; border-top: 1px solid #e9ebe4; vertical-align: middle; }
+    tbody tr:hover { background: #fafaf5; }
+    .request-number, .amount { font-variant-numeric: tabular-nums; }
+    .amount { font-weight: 750; }
+    .hold-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+    .empty-row td { padding: 22px 14px; color: #7b867f; text-align: center; }
+    .error-line { min-height: 17px; margin: 8px 0 0; color: var(--red); font-size: 11px; }
+    .events-panel { margin-top: 14px; }
+    .events-note { color: var(--muted); font-size: 10px; }
+    pre {
+      max-height: 176px;
+      margin: 0;
+      padding: 10px 13px;
+      overflow: auto;
+      background: #f8f8f3;
+      color: #35453e;
+      font: 10px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    @media (max-width: 700px) {
+      .topbar { min-height: 58px; padding: 10px 14px; }
+      .brand-mark { width: 32px; height: 32px; }
+      .brand-name { font-size: 17px; }
+      .brand-subtitle { font-size: 9px; }
+      .desk-state { font-size: 9px; letter-spacing: .08em; }
+      main { padding: 14px; }
+      .page-heading { display: block; margin-bottom: 12px; }
+      h1 { font-size: 27px; }
+      .page-note { margin-top: 6px; max-width: none; text-align: left; }
+      .workbench { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+      .stack { gap: 12px; }
+      .panel { border-radius: 8px; }
+      .panel-body { padding: 11px 12px 12px; }
+      .panel-heading { padding-inline: 12px; }
+      .events-panel { margin-top: 12px; }
+      .fact-value { font-size: 18px; }
+      th, td { padding-right: 8px; padding-left: 8px; }
+    }
+    @media (max-width: 380px) {
+      .topbar { padding-inline: 10px; }
+      main { padding-inline: 10px; }
+      .form-grid { gap: 8px; }
+      .action.small { padding-inline: 7px; }
+      th, td { padding-right: 6px; padding-left: 6px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand" aria-label="Office Desk">
+      <span class="brand-mark" aria-hidden="true">O</span>
+      <div>
+        <div class="brand-name">Office Desk</div>
+        <div class="brand-subtitle">Budget operations</div>
+      </div>
+    </div>
+    <div class="desk-state"><span class="state-dot" aria-hidden="true"></span>Service connected</div>
+  </header>
+  <main>
+    <div class="page-heading">
+      <div>
+        <div class="eyebrow">Authorization desk</div>
+        <h1>Request workspace</h1>
+      </div>
+      <p class="page-note">Create an account, authorize a request, then manage live holds.</p>
+    </div>
+
+    <div class="workbench">
+      <div class="stack">
+        <section class="panel" aria-labelledby="account-heading">
+          <div class="panel-heading">
+            <h2 id="account-heading">Account</h2>
+            <span class="panel-kicker">One account at a time</span>
+          </div>
+          <div class="panel-body">
+            <form id="account-form" class="form-grid account-form">
+              <div class="field">
+                <label for="acct-id">Account ID</label>
+                <input id="acct-id" data-testid="acct-id" name="account_id" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" value="1" required>
+              </div>
+              <div class="field">
+                <label for="acct-limit">Available limit</label>
+                <input id="acct-limit" data-testid="acct-limit" name="limit" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" value="100" required>
+              </div>
+              <div class="form-actions">
+                <button class="action" data-testid="btn-create" type="submit">Create account</button>
+                <button class="action secondary" id="btn-load" data-testid="btn-load" type="button">Load account</button>
+              </div>
+            </form>
+            <div class="account-facts" aria-label="Account totals">
+              <div class="fact"><span class="fact-label">Limit</span><strong class="fact-value" id="account-limit">—</strong></div>
+              <div class="fact"><span class="fact-label">Posted</span><strong class="fact-value" data-testid="posted" id="posted">—</strong></div>
+              <div class="fact"><span class="fact-label">Available</span><strong class="fact-value" data-testid="available" id="available">—</strong></div>
+            </div>
+            <p class="account-meta" id="account-meta" data-testid="loaded-account" aria-live="polite">Create or load an account to begin.</p>
+          </div>
+        </section>
+
+        <section class="panel request-panel" aria-labelledby="request-heading">
+          <div class="panel-heading">
+            <h2 id="request-heading">Authorization request</h2>
+            <span class="panel-kicker">Enter submits</span>
+          </div>
+          <div class="panel-body">
+            <form id="request-form" class="form-grid request-form">
+              <div class="field">
+                <label for="req-id">Request ID</label>
+                <input id="req-id" data-testid="req-id" name="request_id" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" value="1" required>
+              </div>
+              <div class="field">
+                <label for="req-amount">Amount</label>
+                <input id="req-amount" data-testid="req-amount" name="amount" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" value="20" required>
+              </div>
+              <div class="form-actions">
+                <button class="action" data-testid="btn-authorize" id="btn-authorize" type="submit">Authorize</button>
+              </div>
+            </form>
+            <p class="decision" data-testid="decision" id="decision" data-decision="NONE" aria-live="polite" aria-atomic="true"><span class="decision-empty">Decision appears here.</span></p>
+            <p class="error-line" id="form-error" role="alert" aria-live="assertive"></p>
+          </div>
+        </section>
+      </div>
+
+      <section class="panel holds-panel" aria-labelledby="holds-heading">
+        <div class="panel-heading">
+          <h2 id="holds-heading" tabindex="-1">Live holds</h2>
+          <span class="hold-count" id="hold-count" aria-label="Live hold count">0</span>
+        </div>
+        <div class="table-wrap">
+          <table aria-describedby="holds-heading">
+            <caption class="sr-only">Live holds for the selected account with release and capture actions</caption>
+            <thead>
+              <tr><th scope="col">Request ID</th><th scope="col">Hold amount</th><th scope="col">Actions</th></tr>
+            </thead>
+            <tbody id="holds-body"></tbody>
+          </table>
+        </div>
+        <p class="error-line" id="holds-error" role="alert" aria-live="assertive"></p>
+      </section>
+    </div>
+
+    <section class="panel events-panel" aria-labelledby="events-heading">
+      <div class="panel-heading">
+        <h2 id="events-heading">Event stream</h2>
+        <span class="events-note">Latest events for this account</span>
+      </div>
+      <pre id="events" data-testid="events" aria-live="polite">Load an account to see its event stream.</pre>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const byId = (id) => document.getElementById(id);
+      const accountForm = byId("account-form");
+      const requestForm = byId("request-form");
+      const holdsBody = byId("holds-body");
+      const eventLog = byId("events");
+      const acctId = byId("acct-id");
+      const createButton = document.querySelector('[data-testid="btn-create"]');
+      const authorizeButton = document.querySelector('[data-testid="btn-authorize"]');
+      let accountBusy = false;
+      let requestBusy = false;
+
+      const api = async (method, path, body) => {
+        const response = await fetch(path, {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: body === undefined ? undefined : JSON.stringify(body)
+        });
+        let payload;
+        try { payload = await response.json(); }
+        catch (_) { payload = {}; }
+        if (!response.ok) {
+          throw new Error(payload.error || "The request could not be completed.");
+        }
+        return payload;
+      };
+
+      const requestBody = (id, amount) => ({
+        request_id: Number(id),
+        amount: Number(amount)
+      });
+
+      const setError = (id, message) => { byId(id).textContent = message || ""; };
+
+      const makeCell = (value, className) => {
+        const cell = document.createElement("td");
+        if (className) cell.className = className;
+        cell.textContent = String(value);
+        return cell;
+      };
+
+      const showDecision = (result) => {
+        const line = byId("decision");
+        line.replaceChildren();
+        line.dataset.decision = result.decision;
+        const word = document.createElement("strong");
+        word.className = "decision-word";
+        word.textContent = result.decision;
+        line.append(word);
+        const requestText = document.createElement("span");
+        requestText.textContent = "Request " + result.request_id;
+        line.append(requestText);
+        if (result.replayed) {
+          const replay = document.createElement("span");
+          replay.className = "replay-tag";
+          replay.textContent = "REPLAYED RECEIPT";
+          line.append(replay);
+        }
+        if (result.available_at_decision !== undefined) {
+          const seen = document.createElement("span");
+          seen.textContent = "Available at decision " + result.available_at_decision;
+          line.append(seen);
+        }
+      };
+
+      const showErrorDecision = (message) => {
+        const line = byId("decision");
+        line.dataset.decision = "ERROR";
+        line.textContent = message;
+      };
+
+      const renderAccount = (account) => {
+        byId("account-limit").textContent = String(account.limit);
+        byId("posted").textContent = String(account.posted);
+        byId("available").textContent = String(account.available);
+        byId("account-meta").textContent = "Account " + account.id;
+        Object.assign(byId("account-meta").dataset, { accountId: account.id, state: "current" });
+        const holdEntries = Object.entries(account.holds || {});
+        byId("hold-count").textContent = String(holdEntries.length);
+        holdsBody.replaceChildren();
+        if (holdEntries.length === 0) {
+          const row = document.createElement("tr");
+          row.className = "empty-row";
+          const cell = document.createElement("td");
+          cell.colSpan = 3;
+          cell.textContent = "No live holds.";
+          row.append(cell);
+          holdsBody.append(row);
+          return;
+        }
+        for (const [requestId, amount] of holdEntries) {
+          const row = document.createElement("tr");
+          row.dataset.testid = "hold-row";
+          row.dataset.requestId = requestId;
+          row.dataset.accountId = account.id;
+          row.append(makeCell(requestId, "request-number"));
+          row.append(makeCell(amount, "amount"));
+          const actions = document.createElement("td");
+          const group = document.createElement("div");
+          group.className = "hold-actions";
+          const release = document.createElement("button");
+          release.type = "button";
+          release.className = "action secondary small";
+          release.dataset.testid = "btn-release";
+          release.dataset.action = "release";
+          release.textContent = "Release";
+          release.setAttribute("aria-label", "Release hold for request " + requestId);
+          const capture = document.createElement("button");
+          capture.type = "button";
+          capture.className = "action capture small";
+          capture.dataset.testid = "btn-capture";
+          capture.dataset.action = "capture";
+          capture.textContent = "Capture";
+          capture.setAttribute("aria-label", "Capture hold for request " + requestId);
+          group.append(release, capture);
+          actions.append(group);
+          row.append(actions);
+          holdsBody.append(row);
+        }
+      };
+
+      const renderEvents = (events, accountId) => {
+        const selected = events.filter((event) => event.account_id === accountId).slice(-30);
+        eventLog.textContent = selected.length
+          ? selected.map((event) => JSON.stringify(event)).join("\n")
+          : "No events for this account yet.";
+      };
+
+      const refreshAccount = async (accountId) => {
+        const account = await api("GET", "/accounts/" + accountId);
+        renderAccount(account);
+        const events = await api("GET", "/events");
+        renderEvents(events, accountId);
+      };
+
+      const withBusyGuard = async (key, button, errorId, action) => {
+        if (key === "account" ? accountBusy : requestBusy) return;
+        if (key === "account") accountBusy = true;
+        else requestBusy = true;
+        button.disabled = true;
+        setError(errorId, "");
+        try {
+          await action();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "The request could not be completed.";
+          setError(errorId, message);
+          if (key === "request") showErrorDecision(message);
+        } finally {
+          button.disabled = false;
+          if (key === "account") accountBusy = false;
+          else requestBusy = false;
+        }
+      };
+
+      accountForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        withBusyGuard("account", createButton, "form-error", async () => {
+          const accountId = Number(acctId.value);
+          const limit = Number(byId("acct-limit").value);
+          await api("POST", "/accounts", { id: accountId, limit });
+          await refreshAccount(accountId);
+        });
+      });
+
+      byId("btn-load").addEventListener("click", async () => {
+        setError("form-error", "");
+        try {
+          await refreshAccount(Number(acctId.value));
+        } catch (error) {
+          setError("form-error", error instanceof Error ? error.message : "The account could not be loaded.");
+        }
+      });
+
+      requestForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        withBusyGuard("request", authorizeButton, "form-error", async () => {
+          const accountId = Number(acctId.value);
+          const result = await api(
+            "POST",
+            "/accounts/" + accountId + "/authorize",
+            requestBody(byId("req-id").value, byId("req-amount").value)
+          );
+          showDecision(result);
+          await refreshAccount(accountId);
+        });
+      });
+
+      holdsBody.addEventListener("click", async (event) => {
+        const button = event.target.closest("button[data-action]");
+        if (!button) return;
+        const row = button.closest('[data-testid="hold-row"]');
+        if (!row) return;
+        const accountId = Number(acctId.value);
+        const requestId = Number(row.dataset.requestId);
+        const action = button.dataset.action;
+        setError("holds-error", "");
+        button.disabled = true;
+        try {
+          await api("POST", "/accounts/" + accountId + "/" + action, { request_id: requestId });
+          await refreshAccount(accountId);
+          byId("holds-heading").focus({ preventScroll: true });
+        } catch (error) {
+          button.disabled = false;
+          setError("holds-error", error instanceof Error ? error.message : "The hold action could not be completed.");
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -7,6 +7,13 @@ required_workflows:          # driven in a real browser by obligations/app/brows
   - { id: W4, name: release,              description: a live hold is released and the available amount recovers }
   - { id: W5, name: view_events,          description: the event stream the monitor reads is visible }
   - { id: W6, name: capture,              description: a live hold is captured; posted grows by its amount, available does not recover, the row is gone }
+required_interactions:       # judged in the browser with judge-injected response faults (UI-CONTRACT.md § Interaction obligations); each probe must reach its precondition
+  - { id: I1, name: action_target_binding,  description: an action on a displayed hold targets that hold's account, not an edited-but-unloaded account field }
+  - { id: I2, name: failed_switch,          description: after a failed load of another account, no action reaches that account and the view stays bound to its own account }
+  - { id: I3, name: view_consistency,       description: a late response for a superseded selection never overwrites the newer view }
+  - { id: I4, name: receipt_preservation,   description: a received decision survives a failed refresh; the stale view is marked stale and recovers on reload }
+  - { id: I5, name: outcome_view_separation, description: lost response is UNKNOWN, service refusal is REJECTED, a same-id retry shows the receipt }
+  - { id: I6, name: receipt_scope,          description: after an account switch the receipt is cleared or still names its originating account }
 required_evaluations:        # human approvals; status is read from the "Human evaluation record" table in app/SPEC.md
   - { id: E1, name: usability,            description: a payments-ops analyst completes W1–W4 unassisted in under 3 minutes }
   - { id: E2, name: decline_distinction,  description: declined decisions are visually distinct from authorized ones }
