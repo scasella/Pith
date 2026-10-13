@@ -80,11 +80,13 @@ jobs:
         if: failure()
         run: |
           TAG="pith-judge:$(sha256sum obligations/isolation/Containerfile | cut -c1-16)"
-          docker run --rm --network none --read-only --tmpfs /tmp:rw,exec,size=4g --cap-drop ALL --cap-add CHOWN --cap-add SETUID --cap-add SETGID \
+          docker run --rm --network none --read-only --tmpfs /tmp:rw,exec,size=4g --memory 6g --cpus 2 --pids-limit 1024 --ulimit fsize=2147483648 --cap-drop ALL --cap-add CHOWN --cap-add SETUID --cap-add SETGID \
             --cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add KILL --security-opt no-new-privileges -v "$PWD":/pith:ro "$TAG" sh -c '
             set -x; id; echo "HOME=$HOME DAFNY=$DAFNY"; ls -la /opt/tools /opt/tools/dafny | head -30
             "$DAFNY" --version; echo "rc=$?"
             cd /tmp && printf "lemma L() ensures 1 + 1 == 2 {}\n" > t.dfy && "$DAFNY" verify t.dfy; echo "rc=$?"
+            ulimit -a; nproc; cp -r /pith/kernel /tmp/k && "$DAFNY" verify --verify-included-files /tmp/k/core/Kernel.dfy; echo "rc=$?"
+            cd /tmp && rm -rf ev && mkdir ev && cp -r /pith /tmp/p && cd /tmp/p && DAFNY=$DAFNY python -I kernel/gate/gate.py kernel/core/Kernel.dfy --out /tmp/claims.json; echo "rc=$?"
             java -version; python -c "import playwright, yaml; print(\"py ok\")"' 2>&1 | tail -60
       - uses: actions/upload-artifact@v7
         if: always()

@@ -130,7 +130,7 @@ def main():
     m = re.search(r"finished with (\d+) verified, (\d+) errors", out)
     ok = code == 0 and m and m.group(2) == "0"
     step("verify", ok, f"checker accepts code, proof and the included template's lemmas ({m.group(1) if m else '?'} verified, {m.group(2) if m else '?'} errors; --verify-included-files)",
-         None if ok else {"output": out[-3000:]})
+         None if ok else {"exit_code": code, "output": out[-3000:]})
 
     # 4b. reproduce the executable: the shipped Python translation must equal a fresh translation of the verified source
     shipped = impl.parent / "py" / "authcore-py"
