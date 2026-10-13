@@ -119,9 +119,8 @@ def contracts_for(rec, P, text):
     check verifies or establishes; else all of those, marked as such."""
     group = rec["id"].split("/")[0]
     related = [c for c in P.get("contracts", []) if group in c.get("verified_by", []) or c["id"] in rec.get("establishes", [])]
-    named = [c for c in related if c["id"] in (rec.get("failing_contracts") or [])]
-    if not named:
-        named = [c for c in related if re.search(rf"(?<![\w-]){re.escape(c['id'])}(?![\w-])", text or "")]
+    named = [c for c in related if c["id"] in (rec.get("failing_contracts") or [])
+             or re.search(rf"(?<![\w-]){re.escape(c['id'])}(?![\w-])", text or "")]
     basis = "named by the failing output" if named else ("records this check verifies (the failing output names none)" if related else "none recorded")
     pick = named or related
     return [{"id": c["id"], "intent": c.get("intent"), "semantics": c.get("semantics"), "change": c.get("change")} for c in pick[:8]], basis

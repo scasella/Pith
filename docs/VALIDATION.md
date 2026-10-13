@@ -1,11 +1,11 @@
 # Validation record — Pith v0.11.0 (M6: governance, compatibility, catalog, experiment harness)
 
-Releases: reservation `d2aa2ad9a5253cb7c0072d16a2573b77f6cd1716a6aa896d93ec909b4485081a`, booking
-`faaec446c3db790c6048574f8fd2b6d3e02b1b03d0a9fb9a8bea25907db6ac1a`, approval
-`72025d193b9014e0eab925c7567dc6d8a30b52493d13ebcfd665068f8dc5b772`, quota
-`e1b2fd4d9a28e173a0a22829f9dd34a7b7fe7224e48c426299fd556eb57dcbf5`; demonstrations tally 1.0.0
-`e39d3546623e4cfb987dadc56e5910c6d3d4edb8246df35b301f932812e77840`, tally 2.0.0
-`22bad60aa7e65e579641aa790bf7f41b1704d63736d86e3ea3ed9de56e2d91fd`. This release also carries M3's final state (the
+Releases: reservation `b6a58ad409fd80070f39c35e402dd3fb46e659be8b123c11b73b4f65e083ffa7`, booking
+`4b2171324020b247ee1675d207f7778e8a30fc1d21143e26c8b0b7a3d65de774`, approval
+`a0c27100b0d0c7838041e6e822238883ebb072e46f0ba813c8b1da89c2f8118f`, quota
+`b10e8147eade371f29522ef47d170e39ed1eef40c7e38308e8ee5c3883fea8bc`; demonstrations tally 1.0.0
+`94e8781945f07514f989abc1e3e9b52cb434301dbcd6e98ddb544ae47ee294b4`, tally 2.0.0
+`e7bf373c80b4a359a02e1242f1ffe76aee54f6c3c772c34b865c48d7c7c434b3`. This release also carries M3's final state (the
 trace review and `packs/quota`); the v0.9.0 and v0.10.0 records below were made before it was merged in. Local runs (advisory isolation, unsandboxed browser)
 as before; CI runs the same steps and the enforced `isolated` run.
 
@@ -75,7 +75,9 @@ Releases: reservation `a43a0626f59a8e5ca4a150b5966938ef001d78b037c5a027d5f93fc9b
   adoption journey, the scaffold, generality across packs: re-run in CI on this release
 - `validation/domain_free.py` now also scans the tally packs and the composition demos: gate/ is free of 5 packs'
   115 terms and ids
-- MATRIX_M5
+- wrong-candidate matrix (validation/matrix.py, 19 cases), re-run against the v0.10.0 reservation release: all 19
+  refused at their intended check, the same checks as v0.9.0 (the over-limit SPEC claim passes with a reviewer flag,
+  exit 0)
 
 # Validation record — Pith v0.9.0 (M4: task packets, authoring, adoption)
 
