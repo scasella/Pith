@@ -1,0 +1,39 @@
+# How an interval-booking-core/v1 deployment becomes an interval-booking-core/v2 one, with its state (format:
+# docs/rfc/0004-safe-evolution.md § 4). `python3 gate/migrate.py run` executes it: the populate script drives the OLD
+# judged artifact's own service (python or node, from its app.manifest.yaml) to produce real version 1 state, the
+# candidate's migrate entrypoint transforms it (twice: it must be re-runnable), and the verify harness judges the NEW
+# service on the migrated state. Frozen with the release.
+format: pith.migration/v1
+from: { pack: pith.booking, contract_version: interval-booking-core/v1 }
+to: { pack: pith.booking, contract_version: interval-booking-core/v2 }
+records: [MIG1]
+state: >
+  the version 1 service's state directory (the --db path, {state}/booking.db, and anything beside it: a SQLite
+  database for the Python profile and the custom example, an append-only journal for the Node.js profile)
+mapping: >
+  every version 1 resource becomes a version 2 resource with the same id and name and buffer 0, version 1's convention
+  (spec/BookingSpec.dfy BufferZeroIsHalfOpen: at g = 0 "at least g apart" is exactly half-open non-overlap, so every
+  version 1 calendar is a Valid version 2 calendar and touching bookings stay valid). Every booking, active and
+  cancelled, keeps its id, resource, interval and state; every recorded request result (accepted, conflicting,
+  invalid, not active, cancelled or not) is kept with its request_id, operation and parameters; the event history is
+  kept. Nothing is re-decided, and no resource gets a non-zero buffer it was never given.
+retries: >
+  a version 1 client retrying an old request_id (same operation, same parameters) gets the recorded result with
+  replayed=true, never a new decision, even where the state has changed since; reusing an old request_id for a
+  different operation or different parameters is still 409. Version 1 clients need no change: buffer is optional on
+  POST /resources and defaults to 0.
+in_flight: >
+  a request the version 1 service may or may not have recorded before it was SIGKILLed is decided at most once: if
+  version 1 recorded it, a retry replays that result; if not, version 2 decides it on the first retry and replays it
+  after; never both, and never a second commit.
+rollback:
+  policy: forward-only
+  why: >
+    version 1 has no buffer: once version 2 creates a resource with buffer > 0, or decides a request against one,
+    version 1 cannot represent the state, and replaying it there would accept bookings version 2 refused. Backing out
+    is a forward repair in a new release, not a downgrade. State that version 2 has not yet written to differs from
+    version 1 only by the buffer 0 column, but this release does not verify or promise a reverse migration.
+populate: "{python} -I migrations/populate.py --old {old} --state {state} --out {observed}"
+migrate: "{python} -I migrations/migrate.py --db {state}/booking.db"
+verify: "{pytest} migrations/verify.py"
+unrecognised: { files: { booking.db: "this is not a booking database\n" } }

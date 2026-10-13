@@ -3,14 +3,16 @@
 The translated Python checks no preconditions and no `nat` domains. Everything that reaches the core comes through
 validate_* here (a custom profile must establish the same, and is judged only through its service):
   - ids, starts and ends are integers in [0, 2**53); bools are rejected even though they subclass int
+  - a resource's buffer (the proof's g) is an integer in [0, 1440] minutes, fixed when the resource is created
   - a booking id is new to its calendar when Book is called (the store checks the op log first)
-  - a calendar is the slots of ONE resource, in booking-id order, as last committed
+  - a calendar is the slots of ONE resource, in booking-id order, as last committed, passed with that resource's buffer
 """
 import pathlib, sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent / "bookingcore-py"))
 import _dafny, module_, BookingSpec, BookingCore   # noqa: E402,F401  (module_ first: the translator's import order)
 
 MAX = 2 ** 53
+MAX_BUFFER = 1440                                                                                        # minutes: one day
 WIRE = {"Accepted": "ACCEPTED", "Conflict": "CONFLICT", "Invalid": "INVALID", "NotActive": "NOT_ACTIVE"}   # wire name per outcome constructor
 
 
@@ -20,6 +22,12 @@ class InvalidRequest(ValueError): pass
 def validate_int(x, name):
     if isinstance(x, bool) or not isinstance(x, int) or not 0 <= x < MAX:
         raise InvalidRequest(f"{name} must be an integer in [0, 2^53), got {x!r}")
+    return x
+
+
+def validate_buffer(x):
+    if isinstance(x, bool) or not isinstance(x, int) or not 0 <= x <= MAX_BUFFER:
+        raise InvalidRequest(f"buffer must be an integer in [0, {MAX_BUFFER}] (minutes), got {x!r}")
     return x
 
 
@@ -37,10 +45,10 @@ def outcome(o):
     return WIRE[name], (int(o.with_) if o.is_Conflict else None)
 
 
-def valid(rs):
-    """Valid(c) from the spec, on concrete rows: unique ids, well-formed intervals, no two active slots overlapping."""
+def valid(rs, g=0):
+    """Valid(c, g) from the spec, on concrete rows: unique ids, well-formed intervals, active slots at least g apart."""
     act = sorted((s, e) for _, s, e, a in rs if a)
-    return len({i for i, *_ in rs}) == len(rs) and all(s < e for _, s, e, _ in rs) and all(act[k][1] <= act[k + 1][0] for k in range(len(act) - 1))
+    return len({i for i, *_ in rs}) == len(rs) and all(s < e for _, s, e, _ in rs) and all(act[k][1] + g <= act[k + 1][0] for k in range(len(act) - 1))
 
 
 Core = BookingCore.Core

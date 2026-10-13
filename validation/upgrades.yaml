@@ -5,4 +5,11 @@
 # records the classification must name. Known-wrong migrations are overlays on a base application
 # (<wrong_migrations>/<name>/ holds only what differs), listed in <wrong_migrations>/expected.yaml.
 from_commit: 8e63d7b45cc3f104097c54b0686f19b177c366b3
-packs: {}
+packs:
+  booking:
+    pack: packs/booking
+    old_release: 4b2171324020b247ee1675d207f7778e8a30fc1d21143e26c8b0b7a3d65de774
+    applications: [{new: packs/booking/examples/calendar-py}, {new: packs/booking/examples/desk-node}, {new: packs/booking/examples/custom-py}]
+    contract_changes: {B0: "version 1 -> 2", HalfOpen: "version 1 -> 2", B2: "version 1 -> 2", B5: "version 1 -> 2", M1: "version 1 -> 2",
+                       BoundaryConformance: "version 1 -> 2", Turnaround: added, MIG1: added}
+    wrong_migrations: packs/booking/examples/wrong-migrations

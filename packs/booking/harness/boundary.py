@@ -24,12 +24,13 @@ def test_every_response_matches_its_schema(svc):
     """Contract: BoundaryConformance."""
     c = svc.client
     code, r = c.create(1, "Room A"); assert code == 201; ok("resource", r)
+    code, r = c.create(2, "Room B", 15); assert code == 201 and r["buffer"] == 15; ok("resource", r)
     for args in ((1, 1, 600, 660), (1, 2, 630, 690), (1, 3, 700, 700), (1, 1, 600, 660)):
         code, r = c.book(*args); assert code == 200; ok("book_result", r)
     code, r = c.move(1, 4, 610, 650); assert code == 200; ok("move_result", r)
     code, r = c.cancel(1, 5); assert code == 200; ok("cancel_result", r)
     code, r = c.move(1, 6, 0, 10); assert code == 200 and r["outcome"] == "NOT_ACTIVE"; ok("move_result", r)
-    ok("resources", c.resources()[1]); ok("resource_view", c.resource(1)[1]); ok("booking", c.booking(1)[1]); ok("events", c.events()[1])
+    ok("resources", c.resources()[1]); ok("resource_view", c.resource(1)[1]); ok("resource_view", c.resource(2)[1]); ok("booking", c.booking(1)[1]); ok("events", c.events()[1])
 
 
 BAD = [-1, 2 ** 53, 1.5, "1", True, None, [], {}]
@@ -44,6 +45,17 @@ def test_out_of_domain_values_are_refused_without_effect(svc, bad):
                        ("/resources/500/bookings", {"request_id": 90001, "start": bad, "end": 10}), ("/resources/500/bookings", {"request_id": 90002, "start": 0, "end": bad})):
         assert c._req("POST", path, body)[0] == 400, f"POST {path} {body}"
     assert (len(c.events()[1]), c.resource(500)[1]) == before
+
+
+BAD_BUFFER = [-1, 1441, 2 ** 53, 1.5, "15", True, None, [], {}]
+
+
+@pytest.mark.parametrize("bad", BAD_BUFFER, ids=[repr(b) for b in BAD_BUFFER])
+def test_out_of_domain_buffers_are_refused_without_effect(svc, bad):
+    """Contract: BoundaryConformance, Turnaround."""
+    c = svc.client; n = len(c.events()[1]); before = c.resources()[1]
+    assert c._req("POST", "/resources", {"id": 800, "name": "Room", "buffer": bad})[0] == 400, f"buffer {bad!r}"
+    assert c.resource(800)[0] == 404 and c.resources()[1] == before and len(c.events()[1]) == n
 
 
 def test_malformed_and_incomplete_requests_are_refused_without_effect(svc):

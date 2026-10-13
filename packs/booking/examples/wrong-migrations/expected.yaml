@@ -1,0 +1,23 @@
+# Known-wrong migrations: each is an OVERLAY on `base` (only the files that differ: here its own service/migrate.py,
+# written instead of calling the profile's migrate(), with one defect marked DEFECT). The service is the conforming
+# one, so each passes the ordinary judge (`judged: true` says validation/upgrades.py checks that); each must fail
+# `gate/migrate.py run` at the verify step for exactly the tests listed (validation/upgrades.py). Only the run with
+# populated version 1 state catches them.
+drops-cancelled:
+  base: packs/booking/examples/calendar-py
+  source: cancelled bookings are dropped as dead rows ("they free nothing")
+  failing_tests: [test_history_is_intact, test_cancelled_bookings_stay_cancelled]
+  contracts: [MIG1]
+drops-ledger:
+  base: packs/booking/examples/calendar-py
+  source: the request ledger is emptied as a cache of old responses, so old retries are re-decided
+  failing_tests: [test_every_recorded_result_is_kept_and_replayed, test_old_request_ids_stay_bound_to_their_operation]
+  may_also_fail: [test_in_flight_request_is_decided_once]          # when version 1 recorded the in-flight request before it was killed
+  contracts: [MIG1]
+  judged: true
+default-buffer:
+  base: packs/booking/examples/calendar-py
+  source: the new house buffer (15 minutes) applied to old resources, whose bookings were accepted at buffer 0
+  failing_tests: [test_history_is_intact, test_version_1_resources_keep_buffer_0_and_touching_bookings_stay_valid]
+  contracts: [MIG1]
+  judged: true

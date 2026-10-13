@@ -39,7 +39,7 @@ def serve(store, port):
         def do_POST(self):
             def fn():
                 b = self.body()
-                if self.path == "/resources": return 201, store.create_resource(b.get("id"), b.get("name"))
+                if self.path == "/resources": return 201, store.create_resource(b.get("id"), b.get("name"), b.get("buffer", 0))
                 if m := re.fullmatch(r"/resources/(\d+)/bookings", self.path): return 200, store.book(b.get("request_id"), int(m[1]), b.get("start"), b.get("end"))
                 if m := re.fullmatch(r"/bookings/(\d+)/cancel", self.path): return 200, store.cancel(b.get("request_id"), int(m[1]))
                 if m := re.fullmatch(r"/bookings/(\d+)/reschedule", self.path): return 200, store.reschedule(b.get("request_id"), int(m[1]), b.get("start"), b.get("end"))
