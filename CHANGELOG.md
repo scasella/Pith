@@ -24,7 +24,7 @@ evaluator, with structured, dependency-aware evidence. RFC: `docs/rfc/0001-contr
 - Validation: `validation/compare_m1.py` (+ `baselines/m1.json`, recorded with the v0.6.0 judge),
   `validation/evidence_reuse.py`, `validation/domain_free.py`; the matrix case for an edited policy file now edits
   `pack.yaml`.
-Release digest `2ba278ed292c44b3e2fb87f26ceafece636eef57f6d2239b1709a00ae11422c0`.
+Release digest `34be91fc373f76106c1c52f298127639242d22ebd955a91bf6bf21d341b601fa`.
 
 ## v0.6.0 — 2026-10-13
 M1 of the roadmap: the reservation application as an honest end-to-end reference.

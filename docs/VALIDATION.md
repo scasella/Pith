@@ -1,6 +1,6 @@
 # Validation record — Pith v0.7.0 (M2: contract pack, domain-free evaluator, structured evidence)
 
-Release `2ba278ed292c44b3e2fb87f26ceafece636eef57f6d2239b1709a00ae11422c0`. Local runs (advisory isolation,
+Release `34be91fc373f76106c1c52f298127639242d22ebd955a91bf6bf21d341b601fa`. Local runs (advisory isolation,
 unsandboxed browser) as for v0.6.0; the CI `isolated` job is the enforced run.
 
 ### same scoped results as the v0.6.0 judge (validation/compare_m1.py, baseline recorded with the v0.6.0 judge)

@@ -66,7 +66,8 @@ def files_matching(root, globs):
     """{relative path: sha256} of the files under root matched by any glob ('dir/**' = everything under dir)."""
     root = pathlib.Path(root); out = {}
     for g in globs:
-        for p in root.glob(g):
+        # Path.glob("dir/**") yields files only from Python 3.13; before that, directories only. Spell it out.
+        for p in root.glob(g + "/*" if g.endswith("**") else g):
             if p.is_file() and not is_os_metadata(p) and not (CACHE_DIRS & set(p.relative_to(root).parts)):
                 out[str(p.relative_to(root))] = sha(p)
     return dict(sorted(out.items()))
