@@ -28,8 +28,12 @@ status, failing delivery obligations, `release_ready` and `release_ready_missing
 - the presentation edit judged with `--reuse`: exactly the proof and the 9 TLC checks reused, everything else
   re-run, statuses identical to the base run
 
-### wrong-candidate matrix (validation/matrix.py, 19 cases)
-- re-run against this release: results to be recorded here
+### wrong-candidate matrix (validation/matrix.py, 19 cases): every case refused at its intended check
+- the same 19 cases and the same refusing checks as v0.6.0, now named by the pack: manifest allowlist; frozen files
+  (weakened harness, and an edited `pack.yaml` in place of the removed `gate/policy.yaml`); design safety (zero
+  availability, receipt-time snapshot); coverage (CovDecided, CovRetry); lifecycle harness (5 cases); boundary
+  harness (3 cases); generated artifacts current; absent UI and empty SPEC refused at delivery (exit 2); the
+  over-limit SPEC claim passes with a reviewer flag (exit 0)
 
 # Validation record — Pith v0.6.0 (M1: interaction obligations, desk fixtures, isolation profile)
 
