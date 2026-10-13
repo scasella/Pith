@@ -1,0 +1,396 @@
+{
+  "gate_mode": "authoritative",
+  "policy_source": "/home/claude/Pith",
+  "evidence_dir": "/tmp/claude-0/ev/ev-office-desk",
+  "judged_copy": "/tmp/judged-65uyno6s",
+  "started": "2026-10-13T13:42:42Z",
+  "release_digest": "512e9c778ffd78fad9c8b8822339d74ddd086f3a0eb429cf9cdc5721e65a53ee",
+  "authority": "externally-pinned-release",
+  "artifact_digest": "6da9d253c1df9989c85892714cbf8f5ab9eb3d6cef910f7decaceaf15db2b8c3",
+  "release_ready": false,
+  "toolchain": {
+    "dafny": "4.11.0+fcb2042d6d043a2634f0854338c08feeaaaf4ae2",
+    "python": "3.13.16",
+    "hypothesis": "6.169.0",
+    "jsonschema": "4.26.0",
+    "playwright": "1.63.0",
+    "cryptography": "50.0.2",
+    "tlc": "TLC - provides model checking and simulation of TLA+ specifications - Version 2.19 of 08 August 2024",
+    "java": "21.0.12.1"
+  },
+  "checks": [
+    {
+      "area": "policy",
+      "check": "frozen files intact",
+      "result": "pass",
+      "claim": "69 frozen files intact; nothing added under ['kernel', 'obligations', 'gate', 'profiles'] (OS metadata files ignored)"
+    },
+    {
+      "area": "policy",
+      "check": "release seal",
+      "result": "pass",
+      "claim": "platform release 512e9c778ffd78fa matches release.seal.json"
+    },
+    {
+      "area": "policy",
+      "check": "external release pin",
+      "result": "pass",
+      "claim": "platform matches the externally pinned release 512e9c778ffd78fa"
+    },
+    {
+      "area": "policy",
+      "check": "manifest allowlisted",
+      "result": "pass",
+      "claim": "manifest keys within ['name', 'profile', 'extra_tests', 'ui_entry']"
+    },
+    {
+      "area": "policy",
+      "check": "integration profile",
+      "result": "pass",
+      "claim": "profile = sqlite (shipped; in-process tests apply)"
+    },
+    {
+      "area": "policy",
+      "check": "artifact",
+      "result": "pass",
+      "claim": "deployment artifact copied and digested (6da9d253c1df9989); judged in a fresh copy, never the live checkout"
+    },
+    {
+      "area": "policy",
+      "check": "isolation",
+      "result": "pass",
+      "claim": "candidate isolation not enforced: reachable from the candidate: ['connect 1.1.1.1:443', 'connect github.com:443', 'modify gate code', 'read evidence directory', 'runs as root', 'write evidence directory', 'write policy (gate/)', 'write policy (kernel/)', 'write policy (obligations/)'] \u2014 advisory run; release_ready requires an enforced profile (obligations/isolation/README.md)"
+    },
+    {
+      "area": "ring0",
+      "check": "kernel gate",
+      "result": "pass",
+      "claim": "proven core: include closure verified, translation reproduced fail-closed, TCB scan, adequacy, traces"
+    },
+    {
+      "area": "ring1",
+      "check": "design module present",
+      "result": "pass",
+      "claim": "design/Design.tla"
+    },
+    {
+      "area": "ring1",
+      "check": "design extends obligations",
+      "result": "pass",
+      "claim": "EXTENDS CoreActions"
+    },
+    {
+      "area": "ring1",
+      "check": "core state only via core actions",
+      "result": "pass",
+      "claim": "status/held/posted change only through CoreDecide/CoreReplay/CoreRelease/CoreCapture"
+    },
+    {
+      "area": "ring1",
+      "check": "design interface",
+      "result": "pass",
+      "claim": "declares VARIABLE responses; does not redefine any checked predicate (they are bound in the frozen MC.tla)"
+    },
+    {
+      "area": "ring1",
+      "check": "design model (safety)",
+      "result": "pass",
+      "claim": "INV1 (composition), P2, P3, P4, PostedExact, DecideCorrect, Idempotent, Consistent hold over the configured model with both kernels interleaving (predicates bound by the frozen MC.tla)"
+    },
+    {
+      "area": "ring1",
+      "check": "design coverage (CovDecided)",
+      "result": "pass",
+      "claim": "the design reaches the behaviour CovDecided guards"
+    },
+    {
+      "area": "ring1",
+      "check": "design coverage (CovContention)",
+      "result": "pass",
+      "claim": "the design reaches the behaviour CovContention guards"
+    },
+    {
+      "area": "ring1",
+      "check": "design coverage (CovDecline)",
+      "result": "pass",
+      "claim": "the design reaches the behaviour CovDecline guards"
+    },
+    {
+      "area": "ring1",
+      "check": "design coverage (CovRelease)",
+      "result": "pass",
+      "claim": "the design reaches the behaviour CovRelease guards"
+    },
+    {
+      "area": "ring1",
+      "check": "design coverage (CovCapture)",
+      "result": "pass",
+      "claim": "the design reaches the behaviour CovCapture guards"
+    },
+    {
+      "area": "ring1",
+      "check": "design coverage (CovCaptureContention)",
+      "result": "pass",
+      "claim": "the design reaches the behaviour CovCaptureContention guards"
+    },
+    {
+      "area": "ring1",
+      "check": "design coverage (CovRetry)",
+      "result": "pass",
+      "claim": "the design reaches the behaviour CovRetry guards"
+    },
+    {
+      "area": "ring1",
+      "check": "obligations reject the known-bad design",
+      "result": "pass",
+      "claim": "receipt-time design violates INV1 under the same obligations"
+    },
+    {
+      "area": "ring2",
+      "check": "generated artifacts present",
+      "result": "pass",
+      "claim": "gen/out present"
+    },
+    {
+      "area": "ring2",
+      "check": "generated artifacts current",
+      "result": "pass",
+      "claim": "openapi, event schema and monitor equal the generator's output"
+    },
+    {
+      "area": "ring1",
+      "check": "service entrypoint",
+      "result": "pass",
+      "claim": "service/run.py present (the supervisor starts it as a separate process)"
+    },
+    {
+      "area": "ring1",
+      "check": "shipped profile tests",
+      "result": "pass",
+      "claim": "sqlite profile (frozen) in-process tests pass (23)"
+    },
+    {
+      "area": "ring1",
+      "check": "lifecycle harness (black-box)",
+      "result": "pass",
+      "claim": "through the running service: duplicate create, idempotent replay and conflicts, crash (SIGKILL) + restart + retry, restart durability, event contract (op_id, chain, state_after, one commit per op), concurrency with readers (7 checks)"
+    },
+    {
+      "area": "ring2",
+      "check": "monitor negative suite",
+      "result": "pass",
+      "claim": "generated monitor detects each named violation (rehashed mutants), op lifecycle, watermark; silent on the good stream"
+    },
+    {
+      "area": "ring2",
+      "check": "boundary harness (black-box)",
+      "result": "pass",
+      "claim": "API not falsified: JSON-Schema-valid requests/responses/events; invalid and malformed inputs rejected without effect; conflicts rejected; agrees with the proven core under bursts; idempotent; monitor silent; both branches exercised (20 checks)"
+    },
+    {
+      "area": "ring3",
+      "check": "application delivery",
+      "result": "pass",
+      "claim": "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile']; interaction obligations ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] passed under injected response faults (sandboxed=False, browser user=judge); SPEC structurally complete (lint is structural, not semantic)"
+    },
+    {
+      "area": "ring3",
+      "check": "human approval",
+      "result": "pass",
+      "claim": "pending (no attestation supplied)"
+    },
+    {
+      "area": "policy",
+      "check": "judged copy unchanged",
+      "result": "pass",
+      "claim": "the artifact copy that was judged is byte-identical at the end (an observation at two points, not a monitor)"
+    }
+  ],
+  "behavioral_assurance": "passed; scoped: ring0 proven under kernel/tcb.yaml; ring1 design model-checked within configured bounds and service not falsified by the frozen black-box lifecycle harness; ring2 not falsified by the frozen boundary harness; conformance of the implementation to the design model is by test only",
+  "application_delivery": "passed",
+  "human_approval": "pending",
+  "app": "Office Desk",
+  "isolation": {
+    "status": "not enforced",
+    "profile": "none (candidate runs as the judge's user)",
+    "candidate_identity": null,
+    "resource_limits": {
+      "RLIMIT_CPU": 900,
+      "RLIMIT_AS": 4294967296,
+      "RLIMIT_FSIZE": 536870912,
+      "RLIMIT_NOFILE": 1024
+    },
+    "observed": {
+      "uid": 0,
+      "euid": 0,
+      "groups": [],
+      "checks": {
+        "read evidence directory": "reachable",
+        "write evidence directory": "reachable",
+        "write policy (kernel/)": "reachable",
+        "write policy (obligations/)": "reachable",
+        "write policy (gate/)": "reachable",
+        "modify gate code": "reachable",
+        "connect 1.1.1.1:443": "reachable",
+        "connect github.com:443": "reachable",
+        "runs as root": "reachable"
+      }
+    },
+    "reachable_from_candidate": [
+      "connect 1.1.1.1:443",
+      "connect github.com:443",
+      "modify gate code",
+      "read evidence directory",
+      "runs as root",
+      "write evidence directory",
+      "write policy (gate/)",
+      "write policy (kernel/)",
+      "write policy (obligations/)"
+    ],
+    "scope": "observed by a frozen probe run under the candidate's identity: evidence dir, policy dirs, gate code, protected paths, outbound network; the candidate has no build or dependency-install step in this release (it runs on the judge's interpreter and packages)"
+  },
+  "ring0_scope": {
+    "proves": "for every input satisfying each obligation's precondition, the submitted methods establish its postconditions; the template's lemmas (Sum independence) are verified in the same run",
+    "over": "the Dafny semantics of the submitted source; the shipped executable is byte-identical to the backend's translation of that source",
+    "runtime_assumptions_not_checked_by_compiled_code": "preconditions (Valid(a), fresh request id) and nat domains are NOT enforced by the translated Python; the caller must establish them (see obligations/adapter)",
+    "does_not_cover": [
+      "atomicity and isolation of Decide/Release in the deployed stack (model-check the design, PBT the stack)",
+      "persistence, serialization, network, framework and library behaviour",
+      "the mapping from real request/account records to Account and Request values (the glossary binds names, not bytes)",
+      "liveness: that every request is eventually decided",
+      "everything the template does not mention (UI, performance, operations)"
+    ]
+  },
+  "delivery_detail": {
+    "workflows": {
+      "W1": {
+        "ok": true,
+        "evidence": [
+          "desktop: available shows '100'",
+          "mobile: available shows '100'"
+        ]
+      },
+      "W2": {
+        "ok": true,
+        "evidence": [
+          "desktop: decision=AUTHORIZED available='40'",
+          "mobile: decision=AUTHORIZED available='40'"
+        ]
+      },
+      "W3": {
+        "ok": true,
+        "evidence": [
+          "desktop: decision=DECLINED styles differ=True",
+          "mobile: decision=DECLINED styles differ=True"
+        ]
+      },
+      "W4": {
+        "ok": true,
+        "evidence": [
+          "desktop: available='100' holds 1->0",
+          "mobile: available='100' holds 1->0"
+        ]
+      },
+      "W5": {
+        "ok": true,
+        "evidence": [
+          "desktop: events panel lists decided/released",
+          "mobile: events panel lists decided/released"
+        ]
+      },
+      "W6": {
+        "ok": true,
+        "evidence": [
+          "desktop: posted='30' available='70'",
+          "mobile: posted='30' available='70'"
+        ]
+      },
+      "R": {
+        "ok": true,
+        "evidence": [
+          "desktop: replay shown: 'AUTHORIZED\\nAccount 100\\nRequest 1\\nREPLAYED RECEIPT\\nAvailable at decision 100'",
+          "mobile: replay shown: 'AUTHORIZED\\nAccount 101\\nRequest 1\\nREPLAYED RECEIPT\\nAvailable at decision 100'"
+        ]
+      },
+      "I1": {
+        "ok": true,
+        "evidence": [
+          "account 500 loaded, account field edited to 501, release clicked on the displayed hold: account 501 unchanged; account 500 {\"id\": 500, \"limit\": 100, \"posted\": 0, \"available\": 100, \"holds\": {}, \"status\": {\"1\": \"REL\"}}; mutations sent to 501: 0",
+          "account 502 loaded, account field edited to 503, capture clicked on the displayed hold: account 503 unchanged; account 502 {\"id\": 502, \"limit\": 100, \"posted\": 20, \"available\": 80, \"holds\": {}, \"status\": {\"1\": \"POST\"}}; mutations sent to 503: 0"
+        ]
+      },
+      "I2": {
+        "ok": true,
+        "evidence": [
+          "load of 505 failed once (503); then release on the displayed hold: account 505 unchanged; view after: loaded=504 shown holds=[] actual=[] shown available='100' actual=100 rows bound elsewhere=[]; view during: {'loaded_account': '504', 'view_state': 'current', 'available': '80', 'holds': [{'request_id': '1', 'account_id': '504'}], 'decision': 'NONE', 'decision_account': None, 'decision_request': None}",
+          "load of 507 failed once (503); then capture on the displayed hold: account 507 unchanged; view after: loaded=506 shown holds=[] actual=[] shown available='80' actual=80 rows bound elsewhere=[]; view during: {'loaded_account': '506', 'view_state': 'current', 'available': '80', 'holds': [{'request_id': '1', 'account_id': '506'}], 'decision': 'NONE', 'decision_account': None, 'decision_request': None}"
+        ]
+      },
+      "I3": {
+        "ok": true,
+        "evidence": [
+          "newest selection the page requested: 509; load 508 (response delayed 1.5 s), then load 509: loaded=509 shown holds=['1', '2'] actual=['1', '2'] shown available='60' actual=60 rows bound elsewhere=[]"
+        ]
+      },
+      "I4": {
+        "ok": true,
+        "evidence": [
+          "authorize 60 succeeded (service: available 40), refresh failed: decision=AUTHORIZED request=1 account=510 view_state=stale available shown='100'; after reload: loaded=510 shown holds=['1'] actual=['1'] shown available='40' actual=40 rows bound elsewhere=[] view_state=current"
+        ]
+      },
+      "I5": {
+        "ok": true,
+        "evidence": [
+          "lost response -> UNKNOWN (want UNKNOWN); conflicting reuse -> REJECTED (want REJECTED); same-id retry -> AUTHORIZED for request 1 account 511 (want AUTHORIZED, 1, 511)"
+        ]
+      },
+      "I6": {
+        "ok": true,
+        "evidence": [
+          "receipt on 512, then load 513: decision=AUTHORIZED decision account=512 (cleared or 512); loaded=513 shown holds=[] actual=[] shown available='100' actual=100 rows bound elsewhere=[]"
+        ]
+      }
+    },
+    "browser": {
+      "status": "passed",
+      "browser_sandbox": false,
+      "browser_user": "judge",
+      "chromium_version": "141.0.7390.37",
+      "detail": null
+    },
+    "problems": []
+  },
+  "human_approval_detail": {
+    "attestation": {
+      "reason": "no attestation supplied"
+    },
+    "spec_table_informational": {
+      "E1": "pending",
+      "E2": "pending",
+      "E3": "pending"
+    },
+    "semantic_flags_for_reviewers": []
+  },
+  "release_ready_requires": {
+    "behavioral_assurance": "passed",
+    "application_delivery": "passed",
+    "human_approval": "approved",
+    "gate_mode": "authoritative",
+    "authority": "externally-pinned-release",
+    "isolation": "enforced",
+    "browser": "Chromium sandbox, or a separate unprivileged browser user under the enforced isolation profile"
+  },
+  "release_ready_missing": [
+    "human_approval",
+    "isolation",
+    "browser"
+  ],
+  "finished": "2026-10-13T13:44:34Z",
+  "policy_sha256": {
+    "kernel": "cd40ef5430dbeba59aac66e25ddf5d9e53a33902c5d35d1be652b56974953acf",
+    "obligations": "7aaeac4eb86462842bd05edb90e28e748813b8a7881ae229c3694fbfea5a7332",
+    "gate": "c5be275dba66c4c9683f71589be22b376f7d1b47a8995ac629d6ef0c30d8e949",
+    "profiles": "87da44c1535ffef80c6b3b6d70457adee9bb090c005860c9520f4d45fd7fa4b6"
+  },
+  "artifact_digest_at_end": "6da9d253c1df9989c85892714cbf8f5ab9eb3d6cef910f7decaceaf15db2b8c3"
+}

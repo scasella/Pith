@@ -1,41 +1,41 @@
 {
   "gate_mode": "authoritative",
   "policy_source": "/home/claude/Pith",
-  "evidence_dir": "/tmp/q-a",
-  "judged_copy": "/tmp/judged-xajjurme",
-  "started": "2026-10-12T14:39:28Z",
-  "release_digest": "df0b0b2eb69ebde3e2bdbd89fec5c679df28d74cb6e458ee371a3aa3ec35ec89",
+  "evidence_dir": "/tmp/claude-0/ev/ev-build-a",
+  "judged_copy": "/tmp/judged-9sw4btoj",
+  "started": "2026-10-13T13:37:05Z",
+  "release_digest": "512e9c778ffd78fad9c8b8822339d74ddd086f3a0eb429cf9cdc5721e65a53ee",
   "authority": "externally-pinned-release",
-  "artifact_digest": "471f74490f2f1a4b9eb8f0344743ffa44699e0b70f9d4f110342599709673f9c",
+  "artifact_digest": "92a2dbd2c64634a1efac65ee763faa28c2356517977e50681fbc798aedfc878b",
   "release_ready": false,
   "toolchain": {
     "dafny": "4.11.0+fcb2042d6d043a2634f0854338c08feeaaaf4ae2",
-    "python": "3.12.3",
+    "python": "3.13.16",
     "hypothesis": "6.169.0",
     "jsonschema": "4.26.0",
-    "playwright": "1.57.0",
-    "cryptography": "46.0.6",
+    "playwright": "1.63.0",
+    "cryptography": "50.0.2",
     "tlc": "TLC - provides model checking and simulation of TLA+ specifications - Version 2.19 of 08 August 2024",
-    "java": "21.0.10"
+    "java": "21.0.12.1"
   },
   "checks": [
     {
       "area": "policy",
       "check": "frozen files intact",
       "result": "pass",
-      "claim": "61 frozen files intact; nothing added under ['kernel', 'obligations', 'gate', 'profiles'] (OS metadata files ignored)"
+      "claim": "69 frozen files intact; nothing added under ['kernel', 'obligations', 'gate', 'profiles'] (OS metadata files ignored)"
     },
     {
       "area": "policy",
       "check": "release seal",
       "result": "pass",
-      "claim": "platform release df0b0b2eb69ebde3 matches release.seal.json"
+      "claim": "platform release 512e9c778ffd78fa matches release.seal.json"
     },
     {
       "area": "policy",
       "check": "external release pin",
       "result": "pass",
-      "claim": "platform matches the externally pinned release df0b0b2eb69ebde3"
+      "claim": "platform matches the externally pinned release 512e9c778ffd78fa"
     },
     {
       "area": "policy",
@@ -53,7 +53,13 @@
       "area": "policy",
       "check": "artifact",
       "result": "pass",
-      "claim": "deployment artifact copied and digested (471f74490f2f1a4b); judged in a fresh copy, never the live checkout"
+      "claim": "deployment artifact copied and digested (92a2dbd2c64634a1); judged in a fresh copy, never the live checkout"
+    },
+    {
+      "area": "policy",
+      "check": "isolation",
+      "result": "pass",
+      "claim": "candidate isolation not enforced: reachable from the candidate: ['connect 1.1.1.1:443', 'connect github.com:443', 'modify gate code', 'read evidence directory', 'runs as root', 'write evidence directory', 'write policy (gate/)', 'write policy (kernel/)', 'write policy (obligations/)'] \u2014 advisory run; release_ready requires an enforced profile (obligations/isolation/README.md)"
     },
     {
       "area": "ring0",
@@ -185,7 +191,7 @@
       "area": "ring3",
       "check": "application delivery",
       "result": "pass",
-      "claim": "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile'] (sandboxed=False); SPEC structurally complete (lint is structural, not semantic)"
+      "claim": "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile']; interaction obligations ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] passed under injected response faults (sandboxed=False, browser user=judge); SPEC structurally complete (lint is structural, not semantic)"
     },
     {
       "area": "ring3",
@@ -204,6 +210,45 @@
   "application_delivery": "passed",
   "human_approval": "pending",
   "app": "payments-authorization-app/v2 build A (sqlite profile, web console)",
+  "isolation": {
+    "status": "not enforced",
+    "profile": "none (candidate runs as the judge's user)",
+    "candidate_identity": null,
+    "resource_limits": {
+      "RLIMIT_CPU": 900,
+      "RLIMIT_AS": 4294967296,
+      "RLIMIT_FSIZE": 536870912,
+      "RLIMIT_NOFILE": 1024
+    },
+    "observed": {
+      "uid": 0,
+      "euid": 0,
+      "groups": [],
+      "checks": {
+        "read evidence directory": "reachable",
+        "write evidence directory": "reachable",
+        "write policy (kernel/)": "reachable",
+        "write policy (obligations/)": "reachable",
+        "write policy (gate/)": "reachable",
+        "modify gate code": "reachable",
+        "connect 1.1.1.1:443": "reachable",
+        "connect github.com:443": "reachable",
+        "runs as root": "reachable"
+      }
+    },
+    "reachable_from_candidate": [
+      "connect 1.1.1.1:443",
+      "connect github.com:443",
+      "modify gate code",
+      "read evidence directory",
+      "runs as root",
+      "write evidence directory",
+      "write policy (gate/)",
+      "write policy (kernel/)",
+      "write policy (obligations/)"
+    ],
+    "scope": "observed by a frozen probe run under the candidate's identity: evidence dir, policy dirs, gate code, protected paths, outbound network; the candidate has no build or dependency-install step in this release (it runs on the judge's interpreter and packages)"
+  },
   "ring0_scope": {
     "proves": "for every input satisfying each obligation's precondition, the submitted methods establish its postconditions; the template's lemmas (Sum independence) are verified in the same run",
     "over": "the Dafny semantics of the submitted source; the shipped executable is byte-identical to the backend's translation of that source",
@@ -263,14 +308,53 @@
       "R": {
         "ok": true,
         "evidence": [
-          "desktop: replay shown: 'AUTHORIZED request 1 (replayed receipt \u2014 not a new decision) \u00b7 available at decision 100'",
-          "mobile: replay shown: 'AUTHORIZED request 1 (replayed receipt \u2014 not a new decision) \u00b7 available at decision 100'"
+          "desktop: replay shown: 'AUTHORIZED account 100 \u00b7 request 1 (replayed receipt \u2014 not a new decision) \u00b7 available at decision 100'",
+          "mobile: replay shown: 'AUTHORIZED account 101 \u00b7 request 1 (replayed receipt \u2014 not a new decision) \u00b7 available at decision 100'"
+        ]
+      },
+      "I1": {
+        "ok": true,
+        "evidence": [
+          "account 500 loaded, account field edited to 501, release clicked on the displayed hold: account 501 unchanged; account 500 {\"id\": 500, \"limit\": 100, \"posted\": 0, \"available\": 100, \"holds\": {}, \"status\": {\"1\": \"REL\"}}; mutations sent to 501: 0",
+          "account 502 loaded, account field edited to 503, capture clicked on the displayed hold: account 503 unchanged; account 502 {\"id\": 502, \"limit\": 100, \"posted\": 20, \"available\": 80, \"holds\": {}, \"status\": {\"1\": \"POST\"}}; mutations sent to 503: 0"
+        ]
+      },
+      "I2": {
+        "ok": true,
+        "evidence": [
+          "load of 505 failed once (503); then release on the displayed hold: account 505 unchanged; view after: loaded=504 shown holds=[] actual=[] shown available='100' actual=100 rows bound elsewhere=[]; view during: {'loaded_account': '504', 'view_state': 'current', 'available': '80', 'holds': [{'request_id': '1', 'account_id': '504'}], 'decision': None, 'decision_account': None, 'decision_request': None}",
+          "load of 507 failed once (503); then capture on the displayed hold: account 507 unchanged; view after: loaded=506 shown holds=[] actual=[] shown available='80' actual=80 rows bound elsewhere=[]; view during: {'loaded_account': '506', 'view_state': 'current', 'available': '80', 'holds': [{'request_id': '1', 'account_id': '506'}], 'decision': None, 'decision_account': None, 'decision_request': None}"
+        ]
+      },
+      "I3": {
+        "ok": true,
+        "evidence": [
+          "newest selection the page requested: 509; load 508 (response delayed 1.5 s), then load 509: loaded=509 shown holds=['1', '2'] actual=['1', '2'] shown available='60' actual=60 rows bound elsewhere=[]"
+        ]
+      },
+      "I4": {
+        "ok": true,
+        "evidence": [
+          "authorize 60 succeeded (service: available 40), refresh failed: decision=AUTHORIZED request=1 account=510 view_state=stale available shown='100'; after reload: loaded=510 shown holds=['1'] actual=['1'] shown available='40' actual=40 rows bound elsewhere=[] view_state=current"
+        ]
+      },
+      "I5": {
+        "ok": true,
+        "evidence": [
+          "lost response -> UNKNOWN (want UNKNOWN); conflicting reuse -> REJECTED (want REJECTED); same-id retry -> AUTHORIZED for request 1 account 511 (want AUTHORIZED, 1, 511)"
+        ]
+      },
+      "I6": {
+        "ok": true,
+        "evidence": [
+          "receipt on 512, then load 513: decision=AUTHORIZED decision account=512 (cleared or 512); loaded=513 shown holds=[] actual=[] shown available='100' actual=100 rows bound elsewhere=[]"
         ]
       }
     },
     "browser": {
       "status": "passed",
       "browser_sandbox": false,
+      "browser_user": "judge",
       "chromium_version": "141.0.7390.37",
       "detail": null
     },
@@ -293,14 +377,20 @@
     "human_approval": "approved",
     "gate_mode": "authoritative",
     "authority": "externally-pinned-release",
-    "browser_sandbox": true
+    "isolation": "enforced",
+    "browser": "Chromium sandbox, or a separate unprivileged browser user under the enforced isolation profile"
   },
-  "finished": "2026-10-12T14:41:56Z",
+  "release_ready_missing": [
+    "human_approval",
+    "isolation",
+    "browser"
+  ],
+  "finished": "2026-10-13T13:38:58Z",
   "policy_sha256": {
-    "kernel": "757a76da251264d3ab82bfe1cff71fd65e818e39322b66d78cffc36c81c9c237",
-    "obligations": "caca7e95c70bb4241036eb2af9b3087b0b0df529e1a1d50e0edd461945e63cec",
-    "gate": "1fa28b69330ece166b6593b8a2a7b49f40ed26cd29b54e1c2e8ec1012c665b31",
-    "profiles": "049f172394a33fc425357569ff1e6f7337dccdb0e29c24c9e42c1ca063ecbfdd"
+    "kernel": "ad5103a1898cc0598ca3da83fe90205137d526994ca3740b56cf078f9f2cde4c",
+    "obligations": "b03e9c9c94ace1310d9fa1ceaadbe0e0750e27d7ea43c2d23f915f15fdf42a9b",
+    "gate": "b35e0f4ee4821476b47c5a9f36dc860ba6c129ee6a5bca5038944f14a48d774c",
+    "profiles": "4a13c23ca9259afdc994d32a285597ccd827dca3908773dc6c7958e502e41c56"
   },
-  "artifact_digest_at_end": "471f74490f2f1a4b9eb8f0344743ffa44699e0b70f9d4f110342599709673f9c"
+  "artifact_digest_at_end": "92a2dbd2c64634a1efac65ee763faa28c2356517977e50681fbc798aedfc878b"
 }

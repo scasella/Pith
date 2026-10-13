@@ -1,3 +1,37 @@
+# Validation record — Pith v0.6.0 (M1: interaction obligations, desk fixtures, isolation profile)
+
+Release `512e9c778ffd78fad9c8b8822339d74ddd086f3a0eb429cf9cdc5721e65a53ee`. Local runs use an unsandboxed browser and no
+isolation profile, so `release_ready` is false by policy there; the CI `isolated` job is the enforced run.
+
+### examples judged by the pristine gate (validation/judge_example.sh)
+- examples/build-a (on pith-view.js): behavioral_assurance=passed | application_delivery=passed (W1–W6 desktop+mobile, I1–I6) | human_approval=pending | artifact 92a2dbd2c64634a1
+- examples/build-b (hand-written state): behavioral_assurance=passed | application_delivery=passed (W1–W6, I1–I6) | human_approval=pending | artifact 1e42f6181c10af7e
+- examples/club-desk (corrected): behavioral_assurance=passed | application_delivery=passed (W1–W6, I1–I6) | human_approval=pending | artifact a99350671cf28cd6
+- examples/office-desk (corrected): behavioral_assurance=passed | application_delivery=passed (W1–W6, I1–I6) | human_approval=pending | artifact 6da9d253c1df9989
+
+### known-wrong fixtures (validation/judge_wrong.py): refused for exactly the reviewed defects
+- examples/wrong/club-desk: assurance=passed, delivery=failed on I2, I4, I5, I6 (expected I2, I4, I5, I6)
+- examples/wrong/office-desk: assurance=passed, delivery=failed on I1–I6 (expected I1–I6)
+Both fixtures pass every ring-0..2 obligation and W1–W6; before v0.6.0 they would have been judged delivered.
+
+### isolation profile (CI job `isolated`, obligations/isolation/judge-isolated.sh, build-a)
+- isolation=enforced: candidate uid 10001 with no groups; evidence read/write, policy writes, gate-code modification,
+  outbound connections (1.1.1.1:443, github.com:443) and root all denied
+- browser ran as uid 10002; behavioral_assurance=passed, application_delivery=passed; release_ready_missing=['human_approval']
+- finding: a container-wide `--ulimit fsize` makes Dafny (.NET) die with SIGXFSZ and no output; the profile bounds disk
+  with the /tmp tmpfs instead and keeps RLIMIT_FSIZE on candidate processes only
+
+### wrong-candidate matrix (validation/matrix.py, 19 cases): every case refused at its intended check
+- policy: manifest allowlist; frozen files intact (weakened harness, edited policy.yaml)
+- ring 1: design safety (zero availability, receipt-time snapshot); coverage (CovDecided, CovRetry); lifecycle harness
+  (conflicting replay, lost state on restart, missing op.committed, dropped reservation event, always-declining service)
+- ring 2: boundary harness (negative amounts, wrong hold amount, skipped validation); generated artifacts current
+- ring 3: absent UI and empty SPEC refused (exit 2); an over-limit SPEC claim passes with a reviewer flag (exit 0)
+- the matrix had drifted since v0.5.0 (check and source names); its cases were updated, not weakened
+
+### client-state library
+- obligations/app/lib/test_pith_view.mjs: 9 node:test cases pass, one or more per interaction obligation
+
 # Validation record — Pith v0.5.0 (two kernels)
 
 ### v0.5.0: both kernels, judged by the pristine gate under the sealed release

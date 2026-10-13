@@ -39,7 +39,7 @@ case("design reads availability at receipt (stale snapshot)", A, "design model (
      sed(d, "design/Design.tla", "(CoreDecide(r, Available) \\/ CoreReplay(r))", "(CoreDecide(r, snapshot[r]) \\/ CoreReplay(r))"),
      sed(d, "design/Design.tla", "/\\ UNCHANGED tries\n\n\\* The client", "/\\ UNCHANGED <<tries, snapshot>>\n\n\\* The client"),
      sed(d, "design/Design.tla", "/\\ UNCHANGED <<status, held, posted, responses, tries>>", "/\\ UNCHANGED <<status, held, posted, responses, tries, snapshot>>")))
-case("custom adapter accepts negative amounts", B, "lifecycle harness", lambda d: sed(d, "adapter/jsonrepo.py", 'core.validate_id(req_id, "request_id"), core.validate_amount(amount)', 'core.validate_id(req_id, "request_id"), int(amount)'))
+case("custom adapter accepts negative amounts", B, "boundary harness", lambda d: sed(d, "adapter/jsonrepo.py", 'core.validate_id(req_id, "request_id"), core.validate_amount(amount)', 'core.validate_id(req_id, "request_id"), int(amount)'))
 case("custom adapter accepts a conflicting replay", B, "lifecycle harness", lambda d: sed(d, "adapter/jsonrepo.py", 'if rec["amount"] != amount: raise core.ConflictingReplay', 'if False: raise core.ConflictingReplay'))
 case("custom adapter loses state on restart (ignores path)", B, "lifecycle harness", lambda d: sed(d, "adapter/jsonrepo.py", 'self.path = path or os.path.join', 'self.path = os.path.join'))
 case("custom adapter omits op.committed", B, "lifecycle harness", lambda d: sed(d, "adapter/jsonrepo.py", "def _done(self, doc, acct_id, req_id, op, a):\n", "def _done(self, doc, acct_id, req_id, op, a):\n        return\n"))

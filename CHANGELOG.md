@@ -28,7 +28,7 @@ M1 of the roadmap: the reservation application as an honest end-to-end reference
 - Docs reconciled (README, ARCHITECTURE § The interface is a layer too, AGENT, CUSTOMIZATION, SECURITY,
   CONTRIBUTING, examples/README). CI judges four examples and the wrong fixtures, runs the library tests, and judges
   build-a inside the isolation profile.
-Release digest `RELEASE_DIGEST`.
+Release digest `512e9c778ffd78fad9c8b8822339d74ddd086f3a0eb429cf9cdc5721e65a53ee`.
 
 ## v0.5.0 — 2026-10-12
 Second proven kernel: posting (`Capture`), as a separate Dafny module importing the shared state and invariant;
