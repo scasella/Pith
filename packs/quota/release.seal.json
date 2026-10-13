@@ -1,6 +1,6 @@
 {
   "format": 2,
-  "created": "2026-10-13T18:13:04Z",
+  "created": "2026-10-13T18:51:36Z",
   "pack": {
     "id": "pith.quota",
     "version": "0.1.0"
@@ -12,5 +12,5 @@
     "delivery"
   ],
   "files": 46,
-  "release_digest": "3ea02abe4f896c56292c709feba4221b28435bee8fcd09e01b02d508ff78c82d"
+  "release_digest": "3e7b2cb3817a228c70d70c7b300c791c3b9dd3e24332c3119c6314bd839e7e9e"
 }

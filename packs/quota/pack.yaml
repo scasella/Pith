@@ -172,6 +172,7 @@ checks:
     name: lifecycle harness (black-box)
     kind: command
     command: "{pytest} harness/lifecycle.py"
+    why_tail: 12000      # the pytest summary must survive long failure messages: judge_wrong.py reads test names from it
     count: '(\d+) passed'
     claim: "through the library: the reviewed traces, the half-open window at every boundary, no window over the limit, independent limiters, dump/load carrying the clock and every live grant, regressions without effect, no wall-clock dependence, threads sharing one limiter, extreme values ({count} checks)"
     status: behavioral_assurance
@@ -185,6 +186,7 @@ checks:
     name: boundary harness (black-box)
     kind: command
     command: "{pytest} harness/boundary.py"
+    why_tail: 12000      # the pytest summary must survive long failure messages: judge_wrong.py reads test names from it
     count: '(\d+) passed'
     claim: "malformed configurations, keys, costs, instants and dump texts refused as InvalidArgument without effect on the log or the clock; arguments checked before the clock; the decision types ({count} checks)"
     status: behavioral_assurance
@@ -198,6 +200,7 @@ checks:
     name: conformance to the verified core
     kind: command
     command: "{pytest} harness/conformance.py"
+    why_tail: 12000      # the pytest summary must survive long failure messages: judge_wrong.py reads test names from it
     count: '(\d+) passed'
     claim: "200 generated call sequences with regressions and dump/load round trips: every decision, remaining count, retry hint and error equal the verified core's (property-based, black-box)"
     status: behavioral_assurance

@@ -39,7 +39,7 @@ pack. RFC: `docs/rfc/0002-generality.md`; authoring guide: `docs/PACK-AUTHORING.
 Release digests: reservation `3286ed7e2257e2d6b93728e2fce0dd95e86eec4f1547f44bc6374fcb1d2c6119`, booking
 `a90e315748315501532551968263d46bb67019cec66bcadf140b7fdd0923331c`, approval
 `14d4b7a14b79144851fe7256ef33b3a63848b36ee48434bc75cc212eec61ab6c`, quota
-`3ea02abe4f896c56292c709feba4221b28435bee8fcd09e01b02d508ff78c82d`.
+`3e7b2cb3817a228c70d70c7b300c791c3b9dd3e24332c3119c6314bd839e7e9e`.
 
 ## v0.7.0 — 2026-10-13
 M2 of the roadmap: a reusable foundation. The reservation seed becomes one contract pack judged by a domain-free

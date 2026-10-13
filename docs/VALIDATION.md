@@ -3,7 +3,7 @@
 Releases: reservation `3286ed7e2257e2d6b93728e2fce0dd95e86eec4f1547f44bc6374fcb1d2c6119`, booking
 `a90e315748315501532551968263d46bb67019cec66bcadf140b7fdd0923331c`, approval
 `14d4b7a14b79144851fe7256ef33b3a63848b36ee48434bc75cc212eec61ab6c`, quota
-`3ea02abe4f896c56292c709feba4221b28435bee8fcd09e01b02d508ff78c82d`. Local runs (advisory isolation, unsandboxed
+`3e7b2cb3817a228c70d70c7b300c791c3b9dd3e24332c3119c6314bd839e7e9e`. Local runs (advisory isolation, unsandboxed
 browser) as for v0.7.0; CI runs the same steps (jobs `judge` and `packs`) and the enforced `isolated` run.
 
 ### one evaluator, four packs (validation/generality.py)
@@ -43,7 +43,7 @@ browser) as for v0.7.0; CI runs the same steps (jobs `judge` and `packs`) and th
   fixed in `gate/kinds.py`, so a recurrence will show what TLC reported)
 
 ### wrong-candidate matrix (validation/matrix.py, 19 cases)
-- re-run against the v0.8.0 reservation release: all 19 cases refused at their intended check, the same checks as
+- re-run against the final v0.8.0 reservation release: all 19 cases refused at their intended check, the same checks as
   v0.7.0 (the over-limit SPEC claim passes with a reviewer flag, exit 0)
 
 # Validation record — Pith v0.7.0 (M2: contract pack, domain-free evaluator, structured evidence)
