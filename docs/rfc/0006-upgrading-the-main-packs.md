@@ -100,7 +100,30 @@ passes the ordinary judge), `drops-request-ledger` (clears the idempotency ledge
 `creates-not-requalified` (leaves recorded creates without a quorum, so an old create retried is a conflict).
 The trace review of M3 (`docs/reviews/m3-trace-review.md`) does not cover T12 to T14.
 
-<!-- QUOTA -->
+### Quota (0.1.1 → 0.2.0, `sliding-window-quota/v1` → `sliding-window-quota/v2`)
+
+**A limit per key.** Version 1 held every key to one limit. A limiter now takes optional per-key limits
+(`Limiter(limit, window, limits={...})`, the same in Node.js; each a whole number from 1 to 2^31−1) and answers
+`limit_for(key)`, the key's own limit or the default, so a caller can report "N of M". The Dafny spec has
+`LimitOf(c, k)` wherever it had `c.limit`, and the core re-verifies. Records: `Q0`, `Q1`, `Q3`, `Q4`, `Q5` 1 → 2 (each is
+now against the key's own limit), `Persistence` 1 → 2 (dump and load carry the per-key limits),
+`BoundaryConformance` 1 → 2 (malformed limits are refused as invalid arguments), new `KEYLIMIT`. Two new reviewed
+traces (T9, T10), a new known-wrong core and library (`retry-default-limit`: the retry hint still uses the default limit).
+
+The quota pack is a library: its state is what `dump` hands over. `MIG1` (`migrations/from-v1.yaml`): `populate` drives
+the old library through the old release's own driver and writes its dumps, including one taken while the process kept
+granting; the candidate's migrate entrypoint converts version 1 dumps in place (same limit, window, clock and live
+grants; no per-key limits) and refuses anything else; `verify` checks that each migrated dump continues with version
+1's decisions, that earlier instants still regress, that grants after a dump are not invented, and that per-key limits
+work afterwards. There are no request ids to replay: old answers carry over because the clock and the live grants do.
+Rollback forward-only. Known-wrong migrations: `clock-from-log` (rebuilds the clock from the newest grant; passes the
+ordinary judge), `counts-only` (keeps counts and loses grant instants; passes the ordinary judge), `closed-expiry`
+(re-prunes with a closed window). Three existing known-wrong libraries now also fail a new test that sees the same
+defect, which their `expected.yaml` entries record.
+
+This pack was written by an outside author. The upgrade was made by this project's maintainer, who is now listed as a
+second maintainer of the pack; `AUTHORING-NOTES.md` says the author has not reviewed it, and the catalog keeps the
+pack at `demonstration` until its author says otherwise.
 
 ## 5. What the upgrade check shows (`validation/upgrades.py`, CI job `upgrades`)
 
