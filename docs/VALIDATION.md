@@ -33,7 +33,8 @@ browser) as for v0.7.0; CI runs the same steps (jobs `judge` and `packs`) and th
   extended scan found comments added in M3 that used the reservation pack's terms; they were reworded)
 
 ### wrong-candidate matrix (validation/matrix.py, 19 cases)
-MATRIX_RESULT
+- re-run against the v0.8.0 reservation release: all 19 cases refused at their intended check, the same checks as
+  v0.7.0 (the over-limit SPEC claim passes with a reviewer flag, exit 0)
 
 # Validation record — Pith v0.7.0 (M2: contract pack, domain-free evaluator, structured evidence)
 
