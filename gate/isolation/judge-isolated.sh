@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# obligations/isolation/judge-isolated.sh — run the authoritative judge inside the supported isolation profile. FROZEN.
+# gate/isolation/judge-isolated.sh — run the authoritative judge inside the supported isolation profile. FROZEN.
 #
-#   obligations/isolation/judge-isolated.sh <pristine-release> <candidate> <evidence-out> <expected-release> [gate args...]
+#   gate/isolation/judge-isolated.sh <pristine-release> <candidate> <evidence-out> <expected-release> [gate args...]
 #
 # Host requirements: Linux with docker or podman. What the profile enforces, and what the gate then OBSERVES with
-# obligations/isolation/probe.py before any candidate code runs:
+# gate/isolation/probe.py before any candidate code runs:
 #   * no network at all (--network none): the candidate and its page reach nothing but 127.0.0.1;
 #   * the pristine release and the candidate are mounted read-only; the judge works on its own copy in a tmpfs;
 #   * the evidence directory is the only writable mount, owned by the judge (root in the container), mode 0700;
@@ -18,8 +18,8 @@ set -euo pipefail
 [ $# -ge 4 ] || { sed -n '4,4p' "$0"; exit 2; }
 PRISTINE="$(cd "$1" && pwd)"; CAND="$(cd "$2" && pwd)"; OUT="$3"; REL="$4"; shift 4
 ENGINE="${CONTAINER_ENGINE:-$(command -v docker || command -v podman)}"
-TAG="pith-judge:$(sha256sum "$PRISTINE/obligations/isolation/Containerfile" | cut -c1-16)"
-"$ENGINE" image inspect "$TAG" >/dev/null 2>&1 || "$ENGINE" build -q -t "$TAG" -f "$PRISTINE/obligations/isolation/Containerfile" "$PRISTINE/obligations/isolation"
+TAG="pith-judge:$(sha256sum "$PRISTINE/gate/isolation/Containerfile" | cut -c1-16)"
+"$ENGINE" image inspect "$TAG" >/dev/null 2>&1 || "$ENGINE" build -q -t "$TAG" -f "$PRISTINE/gate/isolation/Containerfile" "$PRISTINE/gate/isolation"
 [ -e "$OUT" ] && { echo "refused: evidence directory $OUT exists; use a fresh one" >&2; exit 1; }
 mkdir -p "$OUT"; OUT="$(cd "$OUT" && pwd)"
 exec "$ENGINE" run --rm --network none --read-only --tmpfs /tmp:rw,exec,size=4g \

@@ -1,12 +1,16 @@
 {
-  "format": 1,
-  "created": "2026-10-13T13:22:58Z",
+  "format": 2,
+  "created": "2026-10-13T15:06:39Z",
+  "pack": {
+    "id": "pith.reservation",
+    "version": "0.7.0"
+  },
   "policy_dirs": [
+    "gate",
     "kernel",
     "obligations",
-    "gate",
     "profiles"
   ],
-  "files": 69,
-  "release_digest": "512e9c778ffd78fad9c8b8822339d74ddd086f3a0eb429cf9cdc5721e65a53ee"
+  "files": 75,
+  "release_digest": "34be91fc373f76106c1c52f298127639242d22ebd955a91bf6bf21d341b601fa"
 }

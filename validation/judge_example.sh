@@ -4,8 +4,9 @@
 set -euo pipefail
 SEED="$(cd "$(dirname "$0")/.." && pwd)"; EX="$(cd "$1" && pwd)"; OUT="$2"; shift 2
 CAND="$(mktemp -d)"
-for d in kernel obligations gate profiles; do cp -r "$SEED/$d" "$CAND/$d"; done
-cp "$SEED/release.seal.json" "$CAND/"
+# the release = the evaluator (gate/) + the pack (pack.yaml and its policy_dirs)
+for d in $(python3 "$SEED/gate/release.py" dirs); do cp -r "$SEED/$d" "$CAND/$d"; done
+cp "$SEED/pack.yaml" "$SEED/release.seal.json" "$CAND/"
 cp -r "$EX"/. "$CAND"/
 rm -f "$CAND/claims-from-release.json" "$CAND"/*.example
 REL="$(python3 "$SEED/gate/release.py" id)"

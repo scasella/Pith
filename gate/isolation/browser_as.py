@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-obligations/isolation/browser_as.py — FROZEN. A launcher Playwright starts in place of Chromium
+gate/isolation/browser_as.py — FROZEN. A launcher Playwright starts in place of Chromium
 (SEED_BROWSER_LAUNCHER) when the judge runs as root inside the isolation profile. It hands the profile directory
 Playwright created to SEED_BROWSER_UID, drops to that unprivileged user (no supplementary groups), and execs
 SEED_CHROMIUM (default: the Playwright-managed Chromium under PLAYWRIGHT_BROWSERS_PATH) with the same arguments. Playwright's control pipe (fds 3 and 4) survives the exec, so the judge still

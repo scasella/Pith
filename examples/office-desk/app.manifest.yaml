@@ -1,4 +1,4 @@
-# app.manifest.yaml — the agent's configuration. Only the keys in gate/policy.yaml:manifest_allowlist.
+# app.manifest.yaml — the agent's configuration. Only the keys in pack.yaml:candidate.manifest_allowlist.
 name: Office Desk
 profile: sqlite            # sqlite (shipped profile) or custom (your own adapter; judged only through your service)
 extra_tests: []            # supplementary pytest commands (reported, never relied on)

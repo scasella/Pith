@@ -17,7 +17,7 @@ layer must satisfy (TLA+ invariants, black-box harnesses, a UI contract with int
 evaluator that runs the candidate as a separate, unprivileged process and never trusts its output. An agent clones the repository, reads
 `AGENT.md`, and builds the design model, service, and user interface. The gate decides when it is done.
 
-> Status: research prototype, v0.6.0. The method and the judge have been through five external reviews, one
+> Status: research prototype, v0.7.0. The method and the judge have been through five external reviews, one
 > unassisted agent build and two reference-assisted agent builds (see `docs/VALIDATION.md`). It is not a payment system; no funds move. Read
 > `INTENT.md` for what the core means and `kernel/tcb.yaml` for what a green result rests on.
 
@@ -29,15 +29,20 @@ kernel/        the proven core: Dafny spec + implementation + proof, Python tran
 obligations/   what the rest of the app must satisfy: TLA+ core actions, invariants and coverage checks for
                agent-written designs; black-box lifecycle and boundary harnesses; generated API/event/monitor
                artifacts; UI contract, interaction obligations under injected faults, real-browser workflow tests;
-               an optional client-state library; the supported isolation profile (container + probe); prose-spec lint
+               an optional client-state library; the delivery adapter; prose-spec lint
 profiles/      a shipped, frozen SQLite integration profile (replaceable: a custom profile is judged black-box)
-gate/          the judge: policy, release seal, review attestations, app_gate.py
+pack.yaml      the contract pack: which of the above is policy, the ordered checks, statuses, and one contract
+               record per protected requirement (docs/rfc/0001-contract-packs-and-evidence.md)
+gate/          the evaluator, domain-free: judge, check kinds, structured evidence, release seal, review
+               attestations, the supported isolation profile (container + probe)
 examples/      conforming builds (two reference, two corrected agent builds, one archived) and known-wrong fixtures
 docs/          validation record, research background, the hybrid-spec essay this grew out of
 ```
 
-Everything under `kernel/`, `obligations/`, `gate/` and `profiles/` is frozen and hash-listed; the release has
-an identity (`gate/release.py id`) that an operator pins from a trusted copy before an agent gets a workspace.
+A release is the evaluator plus one contract pack. `gate/` knows packages, artifacts, tools, checks, evidence and
+statuses; everything about reservations, holds and accounts is in the pack. `pack.yaml`, `gate/` and the pack's
+policy directories (`kernel/`, `obligations/`, `profiles/`) are frozen and hash-listed; the release has an identity
+(`gate/release.py id`) that an operator pins from a trusted copy before an agent gets a workspace.
 
 ## Quick start
 
@@ -65,13 +70,18 @@ For a run that can count toward release, use the supported isolation profile (Li
 runs the same judge with no network and the candidate and browser as separate unprivileged users:
 
 ```bash
-obligations/isolation/judge-isolated.sh /path/to/pristine /path/to/agent-checkout ../evidence-003 "$RELEASE"
+gate/isolation/judge-isolated.sh /path/to/pristine /path/to/agent-checkout ../evidence-003 "$RELEASE"
 ```
 
 `app-claims.json` in the evidence directory carries three separate statuses and a `release_ready` flag that
 needs all of them, an authoritative pinned run, an isolation profile the judge observed to be enforced, a
 contained browser, and an Ed25519 review attestation (`gate/review.py`) that only an operator can produce.
-`release_ready_missing` names whatever is absent.
+`release_ready_missing` names whatever is absent. Next to it, `evidence.json` holds one record per check (method,
+contract records established, the digests of the inputs it read, toolchain, what it rests on) and
+`statement.intoto.json` binds them to the artifact. After a change, `python3 gate/evidence.py impact --evidence
+../evidence-001` says which records still hold and which the change invalidated, and `--reuse ../evidence-001`
+re-runs only what is invalidated or not cacheable (the proof and model checks are; anything that starts the
+service is not).
 
 To see a conforming build without an agent: `validation/judge_example.sh examples/build-a ../evidence-ex-a`.
 
@@ -91,7 +101,7 @@ refresh, and "no response", "refused" and "decided" are shown as different outco
 It does not mean the application is correct. Conformance of the implementation to the design model is by
 test; the proof's runtime assumptions are established by validation code, not by the compiler; the monitor
 sees only emitted events; the interaction obligations are tests of named scenarios, not a proof of the UI;
-isolation is observed by a probe, not proven, and covers the threats in `obligations/isolation/README.md` only. `kernel/tcb.yaml`, `INTENT.md` and
+isolation is observed by a probe, not proven, and covers the threats in `gate/isolation/README.md` only. `kernel/tcb.yaml`, `INTENT.md` and
 `CUSTOMIZATION.md` say where the lines are.
 
 ## Documents
@@ -100,6 +110,7 @@ isolation is observed by a probe, not proven, and covers the threats in `obligat
 - `INTENT.md` — what the core means, what it excludes, how behaviour is legitimately changed
 - `CUSTOMIZATION.md` — presentation vs. supported profiles vs. behavioural extensions
 - `ARCHITECTURE.md` — the rings and why the judge is shaped the way it is
+- `docs/rfc/0001-contract-packs-and-evidence.md` — the contract-pack format, check kinds and evidence model
 - `docs/VALIDATION.md` — every gate run behind this release, including the reviewers' bypass candidates being refused
 - `docs/FRONTIER.md` — the research this is built on (vericoding benchmarks, specification gaming, evaluator isolation)
 - `docs/hybrid-spec-reference.html` — the hybrid spec-driven development essay this project started from
