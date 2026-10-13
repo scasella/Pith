@@ -1,16 +1,16 @@
 {
   "gate_mode": "authoritative",
   "policy_source": "/home/claude/Pith",
-  "evidence_dir": "/tmp/claude-0/v3/ev-build-b",
-  "judged_copy": "/tmp/judged-xg023541",
-  "started": "2026-10-13T15:08:50Z",
-  "release_digest": "34be91fc373f76106c1c52f298127639242d22ebd955a91bf6bf21d341b601fa",
+  "evidence_dir": "/tmp/claude-0/-home-claude-Pith/5d846ede-2a0d-5bd1-be73-bc76465c9ae0/scratchpad/base/ev-build-b",
+  "judged_copy": "/tmp/judged-8ymxz1ex",
+  "started": "2026-10-13T16:27:52Z",
+  "release_digest": "0031cde0de9ec614db5c7e4d1fe220a93f1ba936ad005f31750a8b6d98c7ff0b",
   "authority": "externally-pinned-release",
   "artifact_digest": "1e42f6181c10af7e4e2991ddee15d1dc90bda8ccf8032b01a553a749ad636cca",
   "release_ready": false,
   "pack": {
     "id": "pith.reservation",
-    "version": "0.7.0",
+    "version": "0.8.0",
     "contract_version": "authorization-and-posting-core/v2"
   },
   "toolchain": {
@@ -28,19 +28,19 @@
       "area": "policy",
       "check": "frozen files intact",
       "result": "pass",
-      "claim": "75 frozen files intact; nothing added under ['gate', 'kernel', 'obligations', 'profiles'] (OS metadata files ignored)"
+      "claim": "77 frozen files intact; nothing added under ['gate', 'kernel', 'obligations', 'profiles'] (OS metadata files ignored)"
     },
     {
       "area": "policy",
       "check": "release seal",
       "result": "pass",
-      "claim": "platform release 34be91fc373f7610 matches release.seal.json"
+      "claim": "platform release 0031cde0de9ec614 matches release.seal.json"
     },
     {
       "area": "policy",
       "check": "external release pin",
       "result": "pass",
-      "claim": "platform matches the externally pinned release 34be91fc373f7610"
+      "claim": "platform matches the externally pinned release 0031cde0de9ec614"
     },
     {
       "area": "policy",
@@ -271,7 +271,7 @@
       "write policy (obligations/)",
       "write policy (profiles/)"
     ],
-    "scope": "observed by a frozen probe run under the candidate's identity: evidence dir, policy dirs, gate code, protected paths, outbound network; the candidate has no build or dependency-install step in this release (it runs on the judge's interpreter and packages)"
+    "scope": "observed by a frozen probe run under the candidate's identity: evidence dir, policy dirs, gate code, protected paths, outbound network; the candidate has no build or dependency-install step in this release (it runs on the judge's pinned runtimes: python)"
   },
   "ring0_scope": {
     "proves": "for every input satisfying each obligation's precondition, the submitted methods establish its postconditions; the template's lemmas (Sum independence) are verified in the same run",
@@ -409,15 +409,15 @@
     "isolation",
     "browser"
   ],
-  "finished": "2026-10-13T15:10:36Z",
+  "finished": "2026-10-13T16:29:37Z",
   "policy_sha256": {
-    "gate": "e4f7715c257096e8a48a5edc6e7cdcc8a7acf812b4d956ddad03fd60985c5776",
-    "kernel": "1d5ae712e150fc25d8f6f21c14bdfcf43f8f10d1d262229ccadcc1a5f2ff4cd0",
-    "obligations": "7064c90212467bda324bb7ad72f6b37c5d441282959bf69f3dd0d4ac3d509aae",
-    "profiles": "eaa0486ae66066ec2a251510f42ed64b1b6e72b0fc1c02c65a0338ecdd1c8c52",
-    "pack.yaml": "6c674044cffb5d492e4d623e4d81b97b5b27bcf4a49f291561bdc37e96c4ada1"
+    "gate": "09366781aa7353887c4f3d9f8d4fc02de0f4bf77deed1fc613487a624c4ac2e0",
+    "kernel": "a17fb7dc050a459688122f31099f258f8ae2411f6be0d0f3d0098b29bda9bbc4",
+    "obligations": "812fdb5a746d8b6a0d7967d39b4b8aecfc20ca60d53a55ab9036fc4777010b38",
+    "profiles": "495bbb39cc43437418608316bdf4239226af4542f66ca7c491297d495d83d10d",
+    "pack.yaml": "f35938c20ac8ffef0fb9b7468e3315848743e0b3d75aabb37897bd68c29204fc"
   },
   "artifact_digest_at_end": "1e42f6181c10af7e4e2991ddee15d1dc90bda8ccf8032b01a553a749ad636cca",
   "evidence": "evidence.json",
-  "evidence_digest": "2fa8a9f9495e98118caccc53ae229a83c6756ba24908def073006e253a77bffc"
+  "evidence_digest": "07eecd3bd70b6fb842db0ada13fa21e4b8f265d9facd15d1747cad3d8ad22c14"
 }

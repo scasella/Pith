@@ -1,0 +1,15 @@
+# packs/approval/examples/wrong/expected.yaml — known-wrong pith.approval candidates and the verdict the pristine gate
+# must reach (validation/judge_wrong.py --pack packs/approval, and CI). Each is a correct example with ONE defect,
+# marked DEFECT in its source. A refused candidate must be refused at exactly `refused_at`, by exactly the
+# `failing_tests`; a delivery defect must pass behavioral assurance and fail exactly `must_fail`.
+stale-approvals-counted:
+  source: approvals-py whose quorum counts approvals of every revision, the service-level twin of model/wrong/WrongStaleApprovals.tla
+  refused_at: service.lifecycle
+  failing_tests: [test_approvals_are_bound_to_a_revision_and_stale_ones_never_count]
+self-approval:
+  source: approvals-node with no separation of duties, the service-level twin of model/wrong/WrongSelfApproval.tla
+  refused_at: service.lifecycle
+  failing_tests: [test_separation_of_duties_is_per_revision, test_replays_are_idempotent_and_conflicting_reuse_is_rejected]
+unknown-as-refused:
+  source: approvals-py whose CLI reports "no answer" as a refusal
+  must_fail: [AI1, AI2]

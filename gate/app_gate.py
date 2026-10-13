@@ -128,9 +128,9 @@ def judge(candidate, policy_src, out, mode, expected_release, review, reviewer_k
         import shutil; shutil.rmtree(root, ignore_errors=True)
         print("app-claims.json: " + " | ".join(f"{s}={claims.get(s)}" for s in statuses) + f" | release_ready={claims['release_ready']} | gate_mode={mode} | evidence={out}")
 
-    def refuse_exit():
-        if statuses:
-            rs = P["refusal_status"]; claims[rs] = claims.get(rs) or "refused"
+    def refuse_exit(spec=None):
+        if statuses:       # the status the failing check contributes to is refused; evaluator checks refuse refusal_status
+            rs = (spec or {}).get("status") if (spec or {}).get("status") in statuses else P["refusal_status"]; claims[rs] = claims.get(rs) or "refused"
             for s in statuses: claims[s] = claims.get(s) or "not evaluated"
         finish(); sys.exit(1)
 
@@ -148,7 +148,7 @@ def judge(candidate, policy_src, out, mode, expected_release, review, reviewer_k
                         "outcome": res.outcome if res else None, "outputs": res.outputs if res else {}, **({"reused_from": reused} if reused else {})})
         else: rec.update({"kind": "evaluator", "method": "policy"})
         records.append(rec)
-        if not ok and blocking: refuse_exit()
+        if not ok and blocking: refuse_exit(spec)
 
     # ---------------- release integrity, pin, pack, manifest ----------------
     frozen = {}
@@ -218,7 +218,8 @@ def judge(candidate, policy_src, out, mode, expected_release, review, reviewer_k
                            "candidate_identity": {"uid": ident[0], "gid": ident[1]} if ident else None, "resource_limits": SB.LIMITS if ident else {k: v for k, v in SB.LIMITS.items() if k != "RLIMIT_NPROC"},
                            "observed": seen, "reachable_from_candidate": reachable,
                            "scope": "observed by a frozen probe run under the candidate's identity: evidence dir, policy dirs, gate code, protected paths, outbound network; "
-                                    "the candidate has no build or dependency-install step in this release (it runs on the judge's interpreter and packages)"}
+                                    "the candidate has no build or dependency-install step in this release (it runs on the judge's pinned runtimes: "
+                                    + ", ".join(P["candidate"].get("runtimes") or ["python"]) + ")"}
     check("policy", "isolation", True, f"candidate isolation {claims['isolation']['status']}" + (f": reachable from the candidate: {reachable}" if reachable else f" ({claims['isolation']['profile']})")
           + ("" if enforced else " — advisory run; release_ready requires an enforced profile (gate/isolation/README.md)"), blocking=False)
 
@@ -247,7 +248,7 @@ def judge(candidate, policy_src, out, mode, expected_release, review, reviewer_k
     claims["release_ready_requires"] = {n: req for n, _, req in conds}
     claims["release_ready_missing"] = [n for n, ok, _ in conds if not ok] + ([] if stable else ["judged copy unchanged"])
     finish()
-    sys.exit(0 if (claims[P["completion_status"]] == P["statuses"][P["completion_status"]]["ready"].get("equals", "passed") and stable) else (1 if not stable else 2))
+    sys.exit(0 if (ready(P["completion_status"], claims[P["completion_status"]]) and stable) else (1 if not stable else 2))
 
 
 if __name__ == "__main__":

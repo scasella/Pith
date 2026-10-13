@@ -11,7 +11,7 @@
 format: pith.pack/v1
 pack:
   id: pith.reservation
-  version: 0.7.0
+  version: 0.8.0
   title: Reservation and capture (authorization holds, release, posting) with a browser-delivered application
   contract_version: authorization-and-posting-core/v2          # = kernel/gate/manifest.yaml:name
   intent: INTENT.md                                              # reviewed prose; not an oracle

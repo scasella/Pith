@@ -58,7 +58,16 @@ artifact). A change therefore invalidates exactly the records whose inputs, or w
 `gate/evidence.py impact` lists them, and `--reuse` re-runs only those plus everything that is not cacheable. Only
 the proof and the model checks are cacheable; a check that starts the candidate's service always runs.
 
-The rings below are this pack's structure (`area` in `pack.yaml`), not the evaluator's.
+From v0.8.0 the same evaluator judges two more packs, each its own release built from `packs/<name>/`:
+`pith.booking` (a verified Dafny core the candidate's service builds on, with a Python and a Node.js backend
+profile, delivered as a page) and `pith.approval` (a TLA+ model; the candidate writes the whole workflow and is
+judged against a reference model that `harness/refines.py` shows equal to the spec within bounds; delivered as a
+CLI, with no human evaluation). What the evaluator had to learn for them, and why, is
+`docs/rfc/0002-generality.md` § 4: multi-pack releases, glob and must-fail checks, service supervision and
+browser containment moved out of the reservation pack, per-runtime limits. Every run records the evaluator's
+digest, and `validation/generality.py` checks it is the same across all three packs.
+
+The rings below are the reservation pack's structure (`area` in `pack.yaml`), not the evaluator's.
 
 ## The interface is a layer too
 

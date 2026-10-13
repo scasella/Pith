@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Room Calendar</title>
+<style>
+  :root { --bg: #f6f7f9; --card: #fff; --ink: #1d2430; --muted: #5d6675; --line: #dde1e7; --ok: #17643a; --ok-bg: #e3f4ea; --bad: #8a1c1c; --bad-bg: #fbe6e6; --warn: #7a5300; --warn-bg: #fff3d6; --accent: #2a5bd7; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; background: var(--bg); color: var(--ink); }
+  header { padding: 16px 20px; background: var(--card); border-bottom: 1px solid var(--line); }
+  header h1 { margin: 0; font-size: 19px; }
+  header p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  main { max-width: 980px; margin: 0 auto; padding: 16px; display: grid; gap: 14px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  h2 { margin: 0 0 10px; font-size: 15px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+  label { display: grid; gap: 3px; font-size: 12px; color: var(--muted); }
+  input { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; min-width: 0; width: 120px; }
+  button { font: inherit; padding: 7px 12px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
+  button.ghost { background: #fff; color: var(--accent); }
+  #receipt { padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: #fafbfc; color: var(--muted); }
+  #receipt[data-outcome="ACCEPTED"], #receipt[data-outcome="CANCELLED"] { background: var(--ok-bg); color: var(--ok); border-color: #b6dfc6; }
+  #receipt[data-outcome="CONFLICT"], #receipt[data-outcome="INVALID"], #receipt[data-outcome="NOT_ACTIVE"], #receipt[data-outcome="NOT_CANCELLED"], #receipt[data-outcome="ERROR"] { background: var(--bad-bg); color: var(--bad); border-color: #efc1c1; }
+  #receipt[data-outcome="UNKNOWN"] { background: var(--warn-bg); color: var(--warn); border-color: #f0d79a; }
+  #stale { display: none; margin-top: 8px; color: var(--warn); font-size: 13px; }
+  .timeline { position: relative; height: 34px; margin: 12px 0 4px; background: repeating-linear-gradient(90deg, #f0f2f5 0 1px, transparent 1px calc(100% / 12)); border: 1px solid var(--line); border-radius: 6px; }
+  .bar { position: absolute; top: 4px; bottom: 4px; background: #c9d6f7; border: 1px solid #93abeb; border-radius: 4px; }
+  .scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+  .list { display: grid; gap: 8px; margin-top: 12px; }
+  .slot { border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; padding: 8px 10px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+  .slot[data-active="false"] { display: none; }
+  .slot .acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .slot input { width: 96px; padding: 3px 6px; font-size: 13px; }
+  .slot button { padding: 4px 10px; font-size: 13px; }
+  .empty { color: var(--muted); font-size: 13px; }
+  @media (max-width: 600px) { input { width: 100px; } .slot { left: 44px; } }
+</style>
+</head>
+<body>
+<header><h1>Room Calendar</h1><p>Book rooms by the minute. A booking holds [start, end): the next one may start exactly when it ends.</p></header>
+<main>
+  <section>
+    <h2>Rooms</h2>
+    <div class="row">
+      <label>Room number <input data-testid="resource-id" inputmode="numeric" placeholder="e.g. 12"></label>
+      <label>Name <input data-testid="resource-name" placeholder="e.g. Board room"></label>
+      <button data-testid="resource-create">Add room</button>
+      <label>Show room <input data-testid="resource-pick" inputmode="numeric"></label>
+      <button class="ghost" data-testid="resource-load">Show</button>
+    </div>
+  </section>
+  <section>
+    <h2 id="cal-title">No room shown</h2>
+    <div class="row">
+      <label>Start <input data-testid="book-start" type="time" value="09:00"></label>
+      <label>End <input data-testid="book-end" type="time" value="10:00"></label>
+      <button data-testid="book-submit">Book</button>
+    </div>
+    <div id="receipt" data-testid="receipt" style="margin-top:10px">No booking submitted yet.</div>
+    <div id="stale">The calendar below could not be refreshed and may be out of date. <button class="ghost" id="retry">Refresh</button></div>
+    <div data-testid="calendar" id="calendar"><div class="timeline" id="bars" aria-hidden="true"></div><div class="scale" id="scale"></div><div class="list" id="list"></div></div>
+  </section>
+</main>
+<script>
+const $ = (t) => document.querySelector(`[data-testid="${t}"]`);
+const view = { resource: null, name: "", bookings: [] };        // what is SHOWN: one resource and the bookings loaded for it
+const toMin = (v) => { const m = /^(\d{1,2}):(\d{2})$/.exec(v || ""); return m ? Number(m[1]) * 60 + Number(m[2]) : NaN; };
+const fmt = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+const rid = () => { const a = new Uint32Array(2); crypto.getRandomValues(a); return (a[0] & 0x1fffff) * 2 ** 32 + a[1]; };   // < 2^53
+let loadSeq = 0;
+
+function receipt(outcome, text, attrs) {
+  const r = $("receipt"); r.dataset.outcome = outcome; r.textContent = text;
+  for (const k of ["bookingId", "resourceId", "conflictsWith"]) delete r.dataset[k];
+  Object.assign(r.dataset, attrs);
+}
+async function api(method, path, body) {
+  let res;
+  try { res = await fetch(path, { method, headers: { "Content-Type": "application/json" }, body: body && JSON.stringify(body) }); }
+  catch (e) { return { lost: true }; }                                          // no response: the outcome is unknown
+  let data = null; try { data = await res.json(); } catch {}
+  return { status: res.status, data };
+}
+async function show(id) {
+  const seq = ++loadSeq; const r = await api("GET", `/resources/${id}`);
+  if (seq !== loadSeq) return;                                                   // a newer selection superseded this one
+  if (r.status !== 200) { receipt("ERROR", "Could not load the room.", { resourceId: id }); return false; }   // DEFECT: a failed refresh overwrites the last receipt
+  view.resource = r.data.id; view.name = r.data.name; view.bookings = r.data.bookings;
+  document.getElementById("stale").style.display = "none"; render(); return true;
+}
+function render() {
+  const cal = $("calendar"); cal.dataset.resourceId = view.resource ?? "";
+  document.getElementById("cal-title").textContent = view.resource == null ? "No room shown" : `Room ${view.resource} · ${view.name}`;
+  const act = view.bookings.filter((b) => b.active);
+  const lo = Math.min(8 * 60, ...act.map((b) => b.start)), hi = Math.max(20 * 60, ...act.map((b) => b.end));
+  const bars = document.getElementById("bars"), list = document.getElementById("list"), scale = document.getElementById("scale");
+  bars.innerHTML = ""; list.innerHTML = ""; scale.innerHTML = `<span>${fmt(lo)}</span><span>${fmt(Math.round((lo + hi) / 2))}</span><span>${fmt(hi)}</span>`;
+  for (const b of act) {                                                        // the day at a glance (decoration only)
+    const bar = document.createElement("div"); bar.className = "bar"; bar.title = `${fmt(b.start)}–${fmt(b.end)}`;
+    bar.style.left = `${(100 * (b.start - lo)) / (hi - lo)}%`; bar.style.width = `${(100 * (b.end - b.start)) / (hi - lo)}%`; bars.appendChild(bar);
+  }
+  for (const b of [...view.bookings].sort((x, y) => x.start - y.start)) {
+    const el = document.createElement("div"); el.className = "slot"; el.dataset.testid = "booking-row";
+    Object.assign(el.dataset, { bookingId: b.id, start: b.start, end: b.end, active: String(b.active) });
+    el.innerHTML = `<div><strong>${fmt(b.start)}–${fmt(b.end)}</strong><br><small>booking ${b.id}</small></div>
+      <div class="acts"><input data-testid="move-start" type="time" value="${fmt(b.start)}" aria-label="New start"><input data-testid="move-end" type="time" value="${fmt(b.end)}" aria-label="New end">
+      <button class="ghost" data-testid="move-submit">Move</button><button class="ghost" data-testid="cancel">Cancel</button></div>`;
+    const id = b.id, room = view.resource;                                       // actions bind to THIS booking and room
+    el.querySelector('[data-testid="move-submit"]').onclick = () => move(id, room, el);
+    el.querySelector('[data-testid="cancel"]').onclick = () => cancel(id, room);
+    list.appendChild(el);
+  }
+  if (!act.length) { const e = document.createElement("p"); e.className = "empty"; e.textContent = view.resource == null ? "" : "No bookings yet."; list.appendChild(e); }
+}
+function describe(r, what) {
+  const d = r.data;
+  if (d.outcome === "ACCEPTED") return `${what} accepted: booking ${d.booking_id}${d.replayed ? " (already recorded)" : ""}.`;
+  if (d.outcome === "CONFLICT") return `Not ${what === "Booking" ? "booked" : "moved"}: booking ${d.conflicts_with} is in the way.`;
+  if (d.outcome === "INVALID") return "The end must be after the start.";
+  return "That booking is cancelled and cannot be moved.";
+}
+async function book() {
+  if (view.resource == null) return receipt("ERROR", "Show a room first.", {});
+  const room = view.resource, s = toMin($("book-start").value), e = toMin($("book-end").value), id = rid();
+  const r = await api("POST", `/resources/${room}/bookings`, { request_id: id, start: s, end: e });
+  if (r.lost) receipt("ERROR", `Booking failed.`, { bookingId: id, resourceId: room });   // DEFECT: a lost response is reported as a failure
+  else if (r.status !== 200) receipt("ERROR", `The service refused the request (${r.status}${r.data && r.data.error ? ": " + r.data.error : ""}).`, { bookingId: id, resourceId: room });
+  else receipt(r.data.outcome, describe(r, "Booking"), { bookingId: r.data.booking_id, resourceId: room, ...(r.data.conflicts_with != null ? { conflictsWith: r.data.conflicts_with } : {}) });
+  if (room === view.resource) await show(room);
+}
+async function move(id, room, el) {
+  const s = toMin(el.querySelector('[data-testid="move-start"]').value), e = toMin(el.querySelector('[data-testid="move-end"]').value);
+  const r = await api("POST", `/bookings/${id}/reschedule`, { request_id: rid(), start: s, end: e });
+  if (r.lost) receipt("UNKNOWN", `No answer from the service: booking ${id} may or may not have moved.`, { bookingId: id, resourceId: room });
+  else if (r.status !== 200) receipt("ERROR", `The service refused the move (${r.status}).`, { bookingId: id, resourceId: room });
+  else receipt(r.data.outcome, describe(r, "Move"), { bookingId: id, resourceId: room, ...(r.data.conflicts_with != null ? { conflictsWith: r.data.conflicts_with } : {}) });
+  if (room === view.resource) await show(room);
+}
+async function cancel(id, room) {
+  const r = await api("POST", `/bookings/${id}/cancel`, { request_id: rid() });
+  if (r.lost) receipt("UNKNOWN", `No answer from the service: booking ${id} may or may not be cancelled.`, { bookingId: id, resourceId: room });
+  else if (r.status !== 200) receipt("ERROR", `The service refused the cancellation (${r.status}).`, { bookingId: id, resourceId: room });
+  else receipt(r.data.cancelled ? "CANCELLED" : "NOT_CANCELLED", r.data.cancelled ? `Booking ${id} cancelled.` : `Booking ${id} was already cancelled.`, { bookingId: id, resourceId: room });
+  if (room === view.resource) await show(room);
+}
+$("resource-create").onclick = async () => {
+  const id = Number($("resource-id").value), name = $("resource-name").value.trim();
+  const r = await api("POST", "/resources", { id, name });
+  if (r.status === 201 || r.status === 409) await show(id);
+};
+$("resource-load").onclick = () => show(Number($("resource-pick").value));
+$("book-submit").onclick = book;
+document.getElementById("retry").onclick = () => view.resource != null && show(view.resource);
+render();
+</script>
+</body>
+</html>

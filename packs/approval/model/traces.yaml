@@ -1,0 +1,39 @@
+# model/traces.yaml — concrete accepting and rejecting traces for author review before the pack is sealed. FROZEN.
+# Each step is "actor command [revision] => OK | REASON"; `end` is the document after the last step. Roles are
+# model/MC.tla's: alice and bob edit and approve, carol approves, dave publishes; the quorum is 2. harness/traces.py
+# runs every trace against harness/reference.py (equal to model/Approval.tla within these bounds: harness/refines.py)
+# and prints them as a table for review (--markdown). The comment on a trace names the known-wrong design
+# (model/wrong/) or wrong application (examples/wrong/) that behaves differently on it.
+- id: T1_two_other_approvers_then_publish
+  says: the author submits, two approvers who did not write it approve, the publisher publishes
+  steps: ["alice create => OK", "alice submit 1 => OK", "bob approve 1 => OK", "carol approve 1 => OK", "dave publish 1 => OK"]
+  end: { status: published, revision: 1, current_votes: [bob, carol] }
+- id: T2_author_cannot_approve_own_revision          # model/wrong/WrongSelfApproval.tla, examples/wrong/self-approval accept alice's approval
+  says: the author of the current revision is refused, and the refusal changes nothing
+  steps: ["alice create => OK", "alice submit 1 => OK", "alice approve 1 => SEPARATION_OF_DUTIES", "bob approve 1 => OK"]
+  end: { status: in_review, revision: 1, current_votes: [bob] }
+- id: T3_separation_is_per_revision
+  says: alice wrote revision 1, bob wrote revision 2; alice may approve revision 2 and bob may not
+  steps: ["alice create => OK", "bob edit => OK", "bob submit 2 => OK", "bob approve 2 => SEPARATION_OF_DUTIES", "alice approve 2 => OK", "carol approve 2 => OK"]
+  end: { status: approved, revision: 2, current_votes: [alice, carol] }
+- id: T4_an_edit_discards_the_quorum                  # model/wrong/WrongStaleApprovals.tla, examples/wrong/stale-approvals-counted approve after one new vote
+  says: two approvals of revision 1, then an edit; revision 2 needs two approvals of its own
+  steps: ["alice create => OK", "alice submit 1 => OK", "bob approve 1 => OK", "carol approve 1 => OK", "alice edit => OK", "alice submit 2 => OK", "bob approve 2 => OK"]
+  end: { status: in_review, revision: 2, current_votes: [bob] }
+- id: T5_stale_revision_is_refused_not_redirected
+  says: an approval that names a superseded revision is refused; it does not count for the new one
+  steps: ["alice create => OK", "alice submit 1 => OK", "bob edit => OK", "carol approve 1 => STALE_REVISION", "bob submit 2 => OK", "carol approve 2 => OK"]
+  end: { status: in_review, revision: 2, current_votes: [carol] }
+- id: T6_publish_needs_approval                       # model/wrong/WrongPublishInReview.tla publishes here
+  says: a document in review with one approval cannot be published
+  steps: ["alice create => OK", "alice submit 1 => OK", "bob approve 1 => OK", "dave publish 1 => WRONG_STATE"]
+  end: { status: in_review, revision: 1, current_votes: [bob] }
+- id: T7_published_is_final
+  says: after publishing, no edit and no further review is possible
+  steps: ["alice create => OK", "alice submit 1 => OK", "bob approve 1 => OK", "carol approve 1 => OK", "dave publish 1 => OK", "bob edit => WRONG_STATE", "carol reject 1 => WRONG_STATE"]
+  end: { status: published, revision: 1, current_votes: [bob, carol] }
+- id: T8_roles_and_precedence
+  says: a missing role is reported before anything else; only the author submits; one approver counts once
+  steps: ["carol create => ROLE", "alice create => OK", "dave approve 1 => ROLE", "carol approve 9 => STALE_REVISION", "bob submit 1 => NOT_AUTHOR",
+          "alice submit 1 => OK", "bob approve 1 => OK", "bob approve 1 => ALREADY_APPROVED", "carol reject 1 => OK"]
+  end: { status: rejected, revision: 1, current_votes: [bob] }

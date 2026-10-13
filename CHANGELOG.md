@@ -1,5 +1,38 @@
 # Changelog
 
+## v0.8.0 — 2026-10-13
+M3 of the roadmap: generality. Two structurally different packs judged by the same evaluator as the reservation
+pack. RFC: `docs/rfc/0002-generality.md`; authoring guide: `docs/PACK-AUTHORING.md`.
+
+- **`packs/booking/` (`pith.booking`)**: interval booking with half-open intervals, cancellation and atomic
+  rescheduling. Dafny spec and verified core (B0–B5, X1–X3, M0–M3), six known-wrong cores the spec rejects,
+  reviewed traces T1–T8; shipped Python/SQLite and Node.js/journal profiles on the Python and JavaScript
+  translations (both reproduced byte-for-byte on every run, each with its own profile tests) or a custom store;
+  black-box lifecycle, boundary and conformance harnesses; a browser UI contract (BW1–BW6, BI1–BI3 under injected
+  faults) and human evaluations BE1–BE2. Examples `calendar-py`, `desk-node`, `custom-py`; four wrong applications.
+- **`packs/approval/` (`pith.approval`)**: document approval with roles, per-revision separation of duties,
+  approvals bound to a revision and a two-approver quorum, over a simulated actor model. TLA+ model (A1–A7) checked
+  by TLC, three known-wrong designs it rejects, a reference model `harness/refines.py` shows equal to the spec
+  (1314 states, 1602 transitions), reviewed traces T1–T8; the candidate writes the whole service and is judged
+  black-box against the reference; a command-line client contract (AW1–AW5, AI1–AI3 under a judge-owned fault
+  proxy); no human evaluation and a `model_assurance` status. Examples `approvals-py`, `approvals-node`; three
+  wrong applications.
+- **Evaluator** (`gate/`), each change forced by one of the packs (RFC 0002 § 4): `release.py build|id|seal
+  --pack`; `each: {glob}`; `expect_exit: nonzero` and `{item}` for `command`; `gate/service.py` (supervised
+  candidate service); `sandbox.limits` overrides and `run_as_candidate_full`; `gate/browser.py` (browser
+  containment); isolation scope names the pack's candidate runtimes; the exit code follows the completion
+  status's `ready` condition; a blocking failure refuses the status its check counts toward.
+- **Validation**: `validation/generality.py` (one evaluator digest across packs; variation per pack);
+  `domain_free.py` scans every pack's vocabulary; `judge_example.sh` and `judge_wrong.py` take `--pack`; CI job
+  `packs` judges both new packs and their wrong applications. The reservation pack keeps the M2 baseline
+  (`compare_m1.py`).
+- **Not done** (RFC 0002 § 7): no pack has an independent author yet, and the reviewed traces have not been
+  reviewed by a human. The isolation container has no Node.js, so the enforced-isolation CI run is still
+  reservation-only.
+Release digests: reservation `0031cde0de9ec614db5c7e4d1fe220a93f1ba936ad005f31750a8b6d98c7ff0b`, booking
+`5c46b4c19b3d629b780458f8ac473a3e5c65a71c0b303f50631478bfe0113a49`, approval
+`7fb94ff09874a3aeafed8aea0fb2de8c4fa03b3e09a93f91369534a0eb456d72`.
+
 ## v0.7.0 — 2026-10-13
 M2 of the roadmap: a reusable foundation. The reservation seed becomes one contract pack judged by a domain-free
 evaluator, with structured, dependency-aware evidence. RFC: `docs/rfc/0001-contract-packs-and-evidence.md`.

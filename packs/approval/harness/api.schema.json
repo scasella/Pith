@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "pith.approval response schemas. FROZEN. harness/boundary.py validates the responses it observes against these.",
+  "$defs": {
+    "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$" },
+    "int": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "actor": { "type": "object", "required": ["id", "roles"], "properties": { "id": { "$ref": "#/$defs/name" }, "roles": { "type": "array", "items": { "enum": ["editor", "approver", "publisher"] } } } },
+    "actors": { "type": "object", "required": ["actors"], "properties": { "actors": { "type": "array", "items": { "$ref": "#/$defs/actor" } } } },
+    "document": { "type": "object", "required": ["id", "title", "status", "revision", "revisions", "approvals", "current_votes"],
+                  "properties": { "id": { "$ref": "#/$defs/name" }, "title": { "type": "string" }, "status": { "enum": ["draft", "in_review", "approved", "rejected", "published"] },
+                                  "revision": { "type": "integer", "minimum": 1 },
+                                  "revisions": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["revision", "author", "body"],
+                                                 "properties": { "revision": { "type": "integer", "minimum": 1 }, "author": { "$ref": "#/$defs/name" }, "body": { "type": "string" } } } },
+                                  "approvals": { "type": "array", "items": { "type": "object", "required": ["revision", "actor"], "properties": { "revision": { "type": "integer", "minimum": 1 }, "actor": { "$ref": "#/$defs/name" } } } },
+                                  "current_votes": { "type": "array", "items": { "$ref": "#/$defs/name" } } } },
+    "result": { "type": "object", "required": ["request_id", "outcome", "reason", "document", "replayed"],
+                "properties": { "request_id": { "$ref": "#/$defs/int" }, "outcome": { "enum": ["OK", "REFUSED"] },
+                                "reason": { "enum": [null, "ROLE", "STALE_REVISION", "WRONG_STATE", "NOT_AUTHOR", "SEPARATION_OF_DUTIES", "ALREADY_APPROVED"] },
+                                "document": { "oneOf": [{ "$ref": "#/$defs/document" }, { "type": "null" }] }, "replayed": { "type": "boolean" } } },
+    "events": { "type": "array", "items": { "type": "object", "required": ["seq", "type"], "properties": { "seq": { "type": "integer", "minimum": 1 }, "type": { "type": "string" } } } }
+  }
+}

@@ -1,0 +1,11 @@
+# model/assumptions.yaml — what a passing pith.approval model check rests on, and what it does not cover. FROZEN.
+assumptions:
+  - TLC 2.x explores the whole reachable state space of model/MC.tla under model/MC.cfg (4 actors, quorum 2, at most 3 revisions)
+  - the bounds are representative: the rules are uniform in actors and revisions, so a violation needs at most a few of each (a small-scope argument, not a proof)
+  - model/Approval.tla captures the intended contract (validated by the known-wrong designs in model/wrong/ and human review of INTENT.md, not by TLC)
+  - harness/reference.py is equal to the spec within the bounds (harness/refines.py, exhaustively); beyond the bounds the two follow the same rules by construction, not by check
+not_covered:
+  - the candidate's code: it is judged black-box against the reference model by test (harness/lifecycle.py, conformance.py), not proven
+  - persistence, concurrency control, the network and the wire format (by test through the service)
+  - authentication and identity (the actor model is simulated: INTENT.md)
+  - liveness and fairness (that every command is eventually answered, that documents are eventually reviewed)

@@ -1,0 +1,3 @@
+# app.manifest.yaml — the agent's configuration. Only the keys in pack.yaml:candidate.manifest_allowlist.
+name: Policy Approvals (unknown reported as refused)
+runtime: python            # service/run.py and cli/main.py under the judge's Python

@@ -1,3 +1,40 @@
+# Validation record — Pith v0.8.0 (M3: three packs, one evaluator)
+
+Releases: reservation `0031cde0de9ec614db5c7e4d1fe220a93f1ba936ad005f31750a8b6d98c7ff0b`, booking
+`5c46b4c19b3d629b780458f8ac473a3e5c65a71c0b303f50631478bfe0113a49`, approval
+`7fb94ff09874a3aeafed8aea0fb2de8c4fa03b3e09a93f91369534a0eb456d72`. Local runs (advisory isolation, unsandboxed
+browser) as for v0.7.0; CI runs the same steps (jobs `judge` and `packs`) and the enforced `isolated` run.
+
+### one evaluator, three packs (validation/generality.py)
+- 9 runs, 3 packs, one evaluator digest (`a084c3d6ae5993ff`) in every run's evidence.json
+- reservation: build-a, build-b (custom profile), club-desk, office-desk; booking: calendar-py (Python profile, 27
+  checks), desk-node (Node.js profile on the JavaScript translation, 27), custom-py (own store, 26); approval:
+  approvals-py (Python + SQLite, 19), approvals-node (Node.js + journal, 19). Every mechanical status passed;
+  human approval pending where the pack asks for it (the approval pack does not)
+
+### the reservation pack keeps the M2 baseline (validation/compare_m1.py)
+- examples/build-a, build-b, club-desk, office-desk and both wrong desks: same as the v0.6.0 judge, with the same
+  two expected claim-text differences as v0.7.0; evidence invalidation and `--reuse` as v0.7.0
+  (validation/evidence_reuse.py)
+
+### known-wrong applications (validation/judge_wrong.py --pack)
+- booking: closed-intervals, check-then-insert, move-loses-booking refused at `service.lifecycle` by exactly their
+  tests (closed-intervals may also fail the concurrent-burst test, when a touching interval wins the race: listed
+  as `may_also_fail`); receipt-overwritten passes assurance and fails delivery on exactly BI1, BI2
+- approval: stale-approvals-counted and self-approval refused at `service.lifecycle` by exactly their tests;
+  unknown-as-refused passes assurance and fails delivery on exactly AI1, AI2
+- pack adequacy, on every run: the six wrong booking cores fail to verify (`core.adequacy`); the three wrong
+  approval designs violate the invariant named for each (`model.adequacy.*`); `harness/refines.py` finds the
+  reference and the spec equal (1314 states, 1602 transitions) and detects a one-line mutation of the reference;
+  reviewed traces pass (`core.traces`, `model.traces`), and a changed expectation in model/traces.yaml fails `model.traces`
+
+### the evaluator is domain-free across every pack (validation/domain_free.py)
+- no vocabulary, contract id or check id of any of the three packs occurs in gate/ (the first run of the
+  extended scan found comments added in M3 that used the reservation pack's terms; they were reworded)
+
+### wrong-candidate matrix (validation/matrix.py, 19 cases)
+MATRIX_RESULT
+
 # Validation record — Pith v0.7.0 (M2: contract pack, domain-free evaluator, structured evidence)
 
 Release `34be91fc373f76106c1c52f298127639242d22ebd955a91bf6bf21d341b601fa`. Local runs (advisory isolation,

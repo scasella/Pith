@@ -1,0 +1,17 @@
+{
+  "format": 2,
+  "created": "2026-10-13T16:25:57Z",
+  "pack": {
+    "id": "pith.booking",
+    "version": "0.8.0"
+  },
+  "policy_dirs": [
+    "gate",
+    "spec",
+    "profiles",
+    "harness",
+    "delivery"
+  ],
+  "files": 56,
+  "release_digest": "5c46b4c19b3d629b780458f8ac473a3e5c65a71c0b303f50631478bfe0113a49"
+}

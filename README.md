@@ -17,7 +17,7 @@ layer must satisfy (TLA+ invariants, black-box harnesses, a UI contract with int
 evaluator that runs the candidate as a separate, unprivileged process and never trusts its output. An agent clones the repository, reads
 `AGENT.md`, and builds the design model, service, and user interface. The gate decides when it is done.
 
-> Status: research prototype, v0.7.0. The method and the judge have been through five external reviews, one
+> Status: research prototype, v0.8.0. The method and the judge have been through five external reviews, one
 > unassisted agent build and two reference-assisted agent builds (see `docs/VALIDATION.md`). It is not a payment system; no funds move. Read
 > `INTENT.md` for what the core means and `kernel/tcb.yaml` for what a green result rests on.
 
@@ -34,7 +34,10 @@ profiles/      a shipped, frozen SQLite integration profile (replaceable: a cust
 pack.yaml      the contract pack: which of the above is policy, the ordered checks, statuses, and one contract
                record per protected requirement (docs/rfc/0001-contract-packs-and-evidence.md)
 gate/          the evaluator, domain-free: judge, check kinds, structured evidence, release seal, review
-               attestations, the supported isolation profile (container + probe)
+               attestations, service supervision, the supported isolation profile (container + probe)
+packs/         two more contract packs judged by the same evaluator: booking/ (half-open intervals, rescheduling;
+               a verified Dafny core with Python and Node.js backends; a browser app) and approval/ (roles,
+               separation of duties, revision-bound approvals; a TLA+ model; a command-line app)
 examples/      conforming builds (two reference, two corrected agent builds, one archived) and known-wrong fixtures
 docs/          validation record, research background, the hybrid-spec essay this grew out of
 ```
@@ -43,6 +46,12 @@ A release is the evaluator plus one contract pack. `gate/` knows packages, artif
 statuses; everything about reservations, holds and accounts is in the pack. `pack.yaml`, `gate/` and the pack's
 policy directories (`kernel/`, `obligations/`, `profiles/`) are frozen and hash-listed; the release has an identity
 (`gate/release.py id`) that an operator pins from a trusted copy before an agent gets a workspace.
+
+The root is one pack; `packs/booking/` and `packs/approval/` are two more, each its own release
+(`python3 gate/release.py build --pack packs/booking --out DIR`), all judged by byte-identical evaluator code.
+They differ on purpose: a verified core versus a model the candidate's own code is judged against, a page versus a
+CLI, human evaluation versus none (`docs/rfc/0002-generality.md`). To judge one of their examples:
+`validation/judge_example.sh --pack packs/approval packs/approval/examples/approvals-node ../ev-approvals`.
 
 ## Quick start
 
@@ -111,6 +120,8 @@ isolation is observed by a probe, not proven, and covers the threats in `gate/is
 - `CUSTOMIZATION.md` — presentation vs. supported profiles vs. behavioural extensions
 - `ARCHITECTURE.md` — the rings and why the judge is shaped the way it is
 - `docs/rfc/0001-contract-packs-and-evidence.md` — the contract-pack format, check kinds and evidence model
+- `docs/rfc/0002-generality.md` — three packs on one evaluator: what changed for them, and which M3 criteria are not met
+- `docs/PACK-AUTHORING.md` — how to write a pack without changing the evaluator
 - `docs/VALIDATION.md` — every gate run behind this release, including the reviewers' bypass candidates being refused
 - `docs/FRONTIER.md` — the research this is built on (vericoding benchmarks, specification gaming, evaluator isolation)
 - `docs/hybrid-spec-reference.html` — the hybrid spec-driven development essay this project started from

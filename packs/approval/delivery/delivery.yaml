@@ -1,0 +1,15 @@
+# delivery/delivery.yaml — application delivery criteria for pith.approval. Frozen.
+# This pack asks for no human evaluation: its application is a CLI whose obligations are all mechanical, and its
+# completion status is application_delivery (pack.yaml). That is a choice of this pack, not of the evaluator.
+required_workflows:          # driven by delivery/cli_workflows.py through CLI-CONTRACT.md
+  - { id: AW1, name: create_and_show,          description: an editor creates a document; show reports it in draft at revision 1, in JSON and for a person }
+  - { id: AW2, name: review_and_publish,       description: the author submits, two other approvers approve, a publisher publishes; show reports published }
+  - { id: AW3, name: refusals_are_named,       description: a self-approval and a stale revision exit 3 with SEPARATION_OF_DUTIES and STALE_REVISION, named on the first line for a person }
+  - { id: AW4, name: edit_restarts_review,     description: an edit after an approval makes a new draft revision with no current votes; approving the old revision is STALE_REVISION }
+  - { id: AW5, name: errors_are_not_refusals,  description: an unknown document exits 5 and a missing option exits 2; neither is reported as a refusal }
+required_interactions:       # with judge-injected faults (CLI-CONTRACT.md § Interaction obligations)
+  - { id: AI1, name: lost_response,            description: a response lost after commit is UNKNOWN (exit 4) with the request id; the retry with it replays; applied exactly once }
+  - { id: AI2, name: unreachable_service,      description: an unreachable service is UNKNOWN (exit 4), never OK, REFUSED or ERROR }
+  - { id: AI3, name: fresh_request_ids,        description: runs without --request-id never collide }
+required_evaluations: []     # no human approval in this pack
+cli_contract: delivery/CLI-CONTRACT.md

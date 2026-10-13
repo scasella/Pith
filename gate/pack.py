@@ -42,6 +42,10 @@ def validate(P, root):
         need(c.get("status") is None or c["status"] in P["statuses"], f"{c['id']}: unknown status {c.get('status')}")
         for d in c.get("depends_on", []):
             need(d in seen, f"{c['id']}: depends_on {d} must name an earlier check")
+        if c.get("each"):
+            need(isinstance(c["each"], dict) and len(set(c["each"]) & {"list", "glob"}) == 1, f"{c['id']}: each needs exactly one of list, glob")
+        if c["kind"] == "command" and "expect_exit" in c:
+            need(c["expect_exit"] in ("zero", "nonzero"), f"{c['id']}: expect_exit must be zero or nonzero")
         if c["kind"] == "adapter":
             need(pathlib.PurePosixPath(c["adapter"]).parts[0] in P["policy_dirs"], f"{c['id']}: an adapter must be pack policy code")
         seen.add(c["id"])
@@ -66,7 +70,9 @@ def expand(P, root, manifest, section="checks"):
     for c in P.get(section, []):
         if not all(m.get(k) == v for k, v in ((c.get("when") or {}).get("manifest") or {}).items()): continue
         items = None
-        if c.get("each"):
+        if c.get("each", {}).get("glob"):                      # one check per file the glob matches in the judged workspace
+            items = sorted(str(p.relative_to(root)) for p in root.glob(c["each"]["glob"]) if p.is_file())
+        elif c.get("each"):
             src = c["each"]["list"]; base = root / c["copy"]["from"] / src if c.get("copy") else root / src
             items = base.read_text().split() if base.exists() else []
         elif c["kind"] == "manifest_commands":

@@ -1,0 +1,282 @@
+# pack.yaml — the approval-workflow contract pack (pith.approval). FROZEN (covered by frozen.sha256 and the release digest).
+#
+# The third pack judged by the same evaluator (gate/) as the reservation and booking packs. It is structurally
+# different from both: the oracle is a TLA+ state machine with an actor model, not a verified core; the pack ships
+# no core and no backend profile (the candidate writes the whole workflow and is judged black-box against a
+# reference model that harness/refines.py shows equal to the spec); the application is a command-line client, not a
+# page; and the pack asks for no human evaluation. Build the release with
+# `python3 gate/release.py build --pack packs/approval`. What M3 changed in gate/: docs/rfc/0002-generality.md.
+
+format: pith.pack/v1
+pack:
+  id: pith.approval
+  version: 0.8.0
+  title: Document approval workflow (roles, separation of duties, revision-bound approvals) with a command-line client
+  contract_version: approval-workflow/v1
+  intent: packs/approval/INTENT.md
+  maintainers: [scasella]
+
+policy_dirs: [model, harness, delivery]                          # frozen pack content; the evaluator adds gate/ and this file
+
+candidate:
+  owned_dirs: [service, cli]                                     # plus app.manifest.yaml
+  manifest_allowlist: [name, runtime]
+  runtimes: [python, node]                                       # what the candidate's code runs on (recorded in the isolation scope)
+
+tools:
+  TLA2TOOLS: { env: TLA2TOOLS, default: tla2tools.jar }
+
+toolchain:
+  tlc: { command: "java -cp {TLA2TOOLS} tlc2.TLC -h; java -version", regex: 'TLC2 Version [^\n]*|TLC - [^\n]*Version [^\n]*' }
+  java: { command: "java -version", regex: 'version "([^"]+)"', group: 1 }
+  node: { command: "node --version" }
+  hypothesis: { python_package: hypothesis }
+  jsonschema: { python_package: jsonschema }
+
+pytest: "{python} -m pytest -q -p no:cacheprovider --noconftest -c /dev/null --rootdir={root}"
+
+statuses:
+  model_assurance:                # about the pack, not the candidate: the same for every candidate of this release
+    rule: all_pass
+    passed: >-
+      passed; scoped: model/Approval.tla's safety invariants and temporal properties hold over the bounded
+      configuration (model/assumptions.yaml), the known-wrong designs violate them, and the reference model the service
+      is judged against has exactly the spec's reachable states and transitions within those bounds
+    ready: { startswith: passed }
+  behavioral_assurance:
+    rule: all_pass
+    passed: >-
+      passed; scoped: the service not falsified by the frozen black-box lifecycle, boundary and conformance harnesses
+      against the reference model (by test, not proof; the actor model is simulated)
+    ready: { startswith: passed }
+  application_delivery:
+    rule: from_check
+    check: delivery
+    ready: { equals: passed }
+refusal_status: behavioral_assurance          # evaluator checks; a failing pack check refuses the status it contributes to
+completion_status: application_delivery
+
+preflight:
+  - id: runtime
+    area: policy
+    name: candidate runtime
+    kind: manifest_choice
+    key: runtime
+    default: python
+    choices:
+      python: " (service/run.py and cli/main.py under the judge's Python)"
+      node: " (service/run.mjs and cli/main.mjs under the judge's Node.js)"
+    claim: "runtime = {value}{note}"
+    why: runtime must be python or node
+    status: behavioral_assurance
+    method: policy
+
+checks:
+  # ---- the model (pack content: evidence about the release, reusable across candidates) ----
+  - id: model.safety
+    area: model
+    name: workflow model checked
+    kind: tlc
+    jar: "{TLA2TOOLS}"
+    workdir: model
+    copy: { from: model, suffixes: [.tla, .cfg] }
+    module: MC.tla
+    cfg: MC.cfg
+    expect: no_error
+    claim: "Safety (TypeOK, SeparationOfDuties, ApproverRole, BoundToRevision, NoFutureApprovals) and PublishedIsFinal, PublishOnlyApproved, RevisionsGrow hold over model/MC.cfg"
+    status: model_assurance
+    method: model-check
+    inputs: ["model/**"]
+    tools: [tlc, java]
+    cacheable: true
+    establishes: [A1, A2, A3, A4, A5, A6, A7]
+    assumptions: model/assumptions.yaml
+
+  - id: model.adequacy.stale
+    area: model
+    name: the model rejects counting stale approvals
+    kind: tlc
+    jar: "{TLA2TOOLS}"
+    workdir: model
+    copy: { from: model/wrong, suffixes: [.tla, .cfg] }
+    module: MCWrongStaleApprovals.tla
+    cfg: MCWrongStaleApprovals.cfg
+    expect: { violated: BoundToRevision }
+    claim: a design whose edits keep earlier approvals violates BoundToRevision under the same configuration
+    why: model/wrong/WrongStaleApprovals.tla no longer violates BoundToRevision
+    status: model_assurance
+    method: model-check
+    inputs: ["model/**"]
+    tools: [tlc, java]
+    cacheable: true
+
+  - id: model.adequacy.self
+    area: model
+    name: the model rejects self-approval
+    kind: tlc
+    jar: "{TLA2TOOLS}"
+    workdir: model
+    copy: { from: model/wrong, suffixes: [.tla, .cfg] }
+    module: MCWrongSelfApproval.tla
+    cfg: MCWrongSelfApproval.cfg
+    expect: { violated: SeparationOfDuties }
+    claim: a design that lets an author approve their own revision violates SeparationOfDuties
+    why: model/wrong/WrongSelfApproval.tla no longer violates SeparationOfDuties
+    status: model_assurance
+    method: model-check
+    inputs: ["model/**"]
+    tools: [tlc, java]
+    cacheable: true
+
+  - id: model.adequacy.publish
+    area: model
+    name: the model rejects publishing under review
+    kind: tlc
+    jar: "{TLA2TOOLS}"
+    workdir: model
+    copy: { from: model/wrong, suffixes: [.tla, .cfg] }
+    module: MCWrongPublishInReview.tla
+    cfg: MCWrongPublishInReview.cfg
+    expect: { violated: BoundToRevision }
+    claim: a design that publishes a document still in review violates BoundToRevision
+    why: model/wrong/WrongPublishInReview.tla no longer violates BoundToRevision
+    status: model_assurance
+    method: model-check
+    inputs: ["model/**"]
+    tools: [tlc, java]
+    cacheable: true
+
+  - id: model.refines
+    area: model
+    name: reference model equals the spec
+    kind: command
+    command: "TLA2TOOLS={TLA2TOOLS} {python} harness/refines.py"
+    count: '"states": (\d+)'
+    claim: "harness/reference.py and model/Approval.tla have the same initial states, the same {count} reachable states and the same labelled transitions over model/MC.cfg (exhaustive)"
+    status: model_assurance
+    method: model-check
+    inputs: ["model/**", "harness/reference.py", "harness/refines.py"]
+    tools: [tlc, java]
+    cacheable: true
+    depends_on: [model.safety]
+
+  - id: model.traces
+    area: model
+    name: reviewed traces
+    kind: command
+    command: "{python} harness/traces.py"
+    count: '"traces": (\d+)'
+    claim: "the {count} accepting and rejecting traces in model/traces.yaml give, step by step, the outcomes and end states the author reviewed"
+    status: model_assurance
+    method: test
+    inputs: ["model/**", "harness/reference.py", "harness/traces.py"]
+    cacheable: true
+    depends_on: [model.refines]
+
+  # ---- the candidate's service, black-box ----
+  - id: service.entrypoint.python
+    area: service
+    name: service and CLI entrypoints
+    kind: files_present
+    when: { manifest: { runtime: python } }
+    files: [service/run.py, cli/main.py]
+    claim: service/run.py and cli/main.py present (each run by the evaluator as a separate process)
+    why: service/run.py or cli/main.py missing
+    status: behavioral_assurance
+    method: structural
+    inputs: ["service/**", "cli/**"]
+
+  - id: service.entrypoint.node
+    area: service
+    name: service and CLI entrypoints
+    kind: files_present
+    when: { manifest: { runtime: node } }
+    files: [service/run.mjs, cli/main.mjs]
+    claim: service/run.mjs and cli/main.mjs present (each run by the evaluator as a separate process)
+    why: service/run.mjs or cli/main.mjs missing
+    status: behavioral_assurance
+    method: structural
+    inputs: ["service/**", "cli/**"]
+
+  - id: service.lifecycle
+    area: service
+    name: lifecycle harness (black-box)
+    kind: command
+    command: "{pytest} harness/lifecycle.py"
+    count: '(\d+) passed'
+    claim: "through the running service: roles, the two-approver quorum, per-revision separation of duties, revision-bound approvals, rejection, idempotent replays, SIGKILL + restart + retry, durability, racing approvals and edits, one commit per command ({count} checks)"
+    status: behavioral_assurance
+    method: test
+    inputs: ["service/**", "app.manifest.yaml", "harness/**"]
+    depends_on: [service.entrypoint.python, service.entrypoint.node]
+    establishes: [Idempotency, Durability, Atomicity]
+
+  - id: service.boundary
+    area: service
+    name: boundary harness (black-box)
+    kind: command
+    command: "{pytest} harness/boundary.py"
+    count: '(\d+) passed'
+    claim: "every response schema-valid (harness/api.schema.json); out-of-domain, malformed and incomplete input refused without effect; unknown documents 404 ({count} checks)"
+    status: behavioral_assurance
+    method: test
+    inputs: ["service/**", "app.manifest.yaml", "harness/**"]
+    tools: [jsonschema]
+    depends_on: [service.lifecycle]
+    establishes: [BoundaryConformance]
+
+  - id: service.conformance
+    area: service
+    name: conformance to the reference model
+    kind: command
+    command: "{pytest} harness/conformance.py"
+    count: '(\d+) passed'
+    claim: "generated command sequences by every actor: every outcome, refusal reason and resulting document equal the reference model's, which equals the spec within its bounds (property-based, black-box)"
+    status: behavioral_assurance
+    method: test
+    inputs: ["service/**", "app.manifest.yaml", "harness/**"]
+    tools: [hypothesis]
+    depends_on: [model.refines, service.lifecycle]
+    establishes: [ModelConformance]
+
+  # ---- the application ----
+  - id: delivery
+    area: delivery
+    name: application delivery (CLI)
+    kind: adapter
+    adapter: delivery/delivery_adapter.py
+    claims_key: delivery_detail
+    blocking: false
+    status: application_delivery
+    method: test
+    inputs: ["service/**", "cli/**", "app.manifest.yaml", "harness/**", "delivery/**"]
+    depends_on: [service.lifecycle, service.boundary]
+    establishes: [AW1, AW2, AW3, AW4, AW5, AI1, AI2, AI3]
+
+contracts:
+  - { id: A1, version: 1, intent: "Nobody approves or rejects a revision they wrote.", semantics: { tla: "model/Approval.tla SeparationOfDuties [A1]" },
+      verified_by: [model.safety, service.lifecycle, service.conformance], wrong: [model/wrong/WrongSelfApproval.tla, packs/approval/examples/wrong/self-approval], change: behavioral }
+  - { id: A2, version: 1, intent: "Only approvers' approvals are recorded; each command needs its role.", semantics: { tla: "model/Approval.tla ApproverRole [A2]", markdown: "harness/SERVICE.md § The workflow" },
+      verified_by: [model.safety, service.lifecycle, service.conformance], change: behavioral }
+  - { id: A3, version: 1, intent: "A document is approved only with two approvals of its current revision; stale approvals never count.", semantics: { tla: "model/Approval.tla BoundToRevision [A3]" },
+      verified_by: [model.safety, service.lifecycle, service.conformance], wrong: [model/wrong/WrongStaleApprovals.tla, model/wrong/WrongPublishInReview.tla, packs/approval/examples/wrong/stale-approvals-counted], change: behavioral }
+  - { id: A4, version: 1, intent: "No approval names a revision that does not exist yet.", semantics: { tla: "model/Approval.tla NoFutureApprovals [A4]" }, verified_by: [model.safety, service.conformance], change: behavioral }
+  - { id: A5, version: 1, intent: "Published is final.", semantics: { tla: "model/Approval.tla PublishedIsFinal [A5]" }, verified_by: [model.safety, service.lifecycle], change: behavioral }
+  - { id: A6, version: 1, intent: "Only an approved document is published.", semantics: { tla: "model/Approval.tla PublishOnlyApproved [A6]" }, verified_by: [model.safety, service.conformance], change: behavioral }
+  - { id: A7, version: 1, intent: "Revisions only grow and keep their authors.", semantics: { tla: "model/Approval.tla RevisionsGrow [A7]" }, verified_by: [model.safety, service.conformance], change: behavioral }
+  - { id: Atomicity, version: 1, intent: "Each command is decided against the latest committed document, one at a time.", semantics: { python: "harness/lifecycle.py" }, verified_by: [service.lifecycle], change: integration }
+  - { id: Durability, version: 1, intent: "An acknowledged command survives a crash and restart.", semantics: { python: "harness/lifecycle.py" }, timing: after acknowledgement, verified_by: [service.lifecycle], change: integration }
+  - { id: Idempotency, version: 1, intent: "request_id is the idempotency key of every command; a reuse for something else is refused.", semantics: { markdown: "harness/SERVICE.md" }, verified_by: [service.lifecycle], change: integration }
+  - { id: BoundaryConformance, version: 1, intent: "The API answers in its schemas and refuses out-of-domain input without effect.", semantics: { jsonschema: "harness/api.schema.json" }, verified_by: [service.boundary], change: integration }
+  - { id: ModelConformance, version: 1, intent: "The running service gives the reference model's outcomes and reasons for the same commands.", semantics: { python: "harness/conformance.py" }, verified_by: [service.conformance], change: integration }
+  - { id: AW1, version: 1, intent: "An editor creates a document and sees it in draft.", semantics: { yaml: "delivery/delivery.yaml AW1" }, verified_by: [delivery], change: presentation }
+  - { id: AW2, version: 1, intent: "The review path ends published.", semantics: { yaml: "delivery/delivery.yaml AW2" }, verified_by: [delivery], change: presentation }
+  - { id: AW3, version: 1, intent: "Refusals exit 3 and name the rule.", semantics: { yaml: "delivery/delivery.yaml AW3" }, verified_by: [delivery], change: presentation }
+  - { id: AW4, version: 1, intent: "An edit restarts review.", semantics: { yaml: "delivery/delivery.yaml AW4" }, verified_by: [delivery], change: presentation }
+  - { id: AW5, version: 1, intent: "Errors and usage mistakes are not refusals.", semantics: { yaml: "delivery/delivery.yaml AW5" }, verified_by: [delivery], change: presentation }
+  - { id: AI1, version: 1, intent: "A lost response is UNKNOWN with a request id that retries safely.", semantics: { markdown: "delivery/CLI-CONTRACT.md AI1" }, verified_by: [delivery],
+      wrong: [packs/approval/examples/wrong/unknown-as-refused], change: presentation }
+  - { id: AI2, version: 1, intent: "An unreachable service is UNKNOWN.", semantics: { markdown: "delivery/CLI-CONTRACT.md AI2" }, verified_by: [delivery], wrong: [packs/approval/examples/wrong/unknown-as-refused], change: presentation }
+  - { id: AI3, version: 1, intent: "Generated request ids never collide.", semantics: { markdown: "delivery/CLI-CONTRACT.md AI3" }, verified_by: [delivery], change: presentation }
+
+domain_vocabulary: [approver, publisher, revision, separation of duties, quorum, Approval.tla, reference.py, refines.py, STALE_REVISION, harness/, delivery/, model/wrong, cli/main]
