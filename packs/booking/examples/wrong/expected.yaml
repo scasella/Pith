@@ -1,0 +1,29 @@
+# packs/booking/examples/wrong/expected.yaml — known-wrong pith.booking candidates and the verdict the pristine gate must
+# reach (validation/judge_wrong.py --pack packs/booking, and CI). Each is a correct example (../custom-py) with ONE
+# defect, marked DEFECT in its source. A refused candidate must be refused at exactly `refused_at`, by exactly the
+# `failing_tests`; a delivery defect must pass behavioral assurance and fail exactly `must_fail`. Since v0.9.0 the task
+# packet must put the first failure in `category` and name at least `contracts` (gate/packet.py).
+closed-intervals:
+  source: custom-py with closed-interval overlap (s1 <= e2 and s2 <= e1), the service-level twin of spec/wrong/closed_intervals.dfy
+  refused_at: service.lifecycle
+  failing_tests: [test_half_open_intervals_conflicts_and_independent_resources, test_reschedule_is_atomic]
+  may_also_fail: [test_concurrent_overlapping_bursts_keep_calendars_conflict_free]   # when a touching interval wins the race, the loser's conflict names it
+  category: violation
+  contracts: [HalfOpen]
+check-then-insert:
+  source: custom-py whose availability check and insert are separate critical sections
+  refused_at: service.lifecycle
+  failing_tests: [test_concurrent_requests_for_one_interval_accept_exactly_one_per_resource, test_concurrent_overlapping_bursts_keep_calendars_conflict_free]
+  category: violation
+  contracts: [Atomicity, B0]
+move-loses-booking:
+  source: custom-py whose move is cancel-then-book, the service-level twin of spec/wrong/reschedule_cancel_then_book.dfy
+  refused_at: service.lifecycle
+  failing_tests: [test_reschedule_is_atomic]
+  category: violation
+  contracts: [M3]
+receipt-overwritten:
+  source: custom-py whose page overwrites the receipt when a refresh fails and reports a lost response as a failure
+  must_fail: [BI1, BI2]
+  category: violation
+  contracts: [BI1, BI2]

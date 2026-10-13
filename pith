@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+# pith — the command-line interface (gate/cli.py) from a source checkout: ./pith doctor | verify | packet | pack | adopt
+exec python3 "$(dirname "$0")/gate/cli.py" "$@"

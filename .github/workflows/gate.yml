@@ -48,6 +48,14 @@ jobs:
           done
       - name: known-wrong fixtures are refused for exactly their defects
         run: python3 validation/judge_wrong.py "$RUNNER_TEMP"
+      - name: failure categories and task packets (M4)
+        run: |
+          python3 -m pytest validation/test_packet.py -q -p no:cacheprovider
+          python3 validation/packets.py "$RUNNER_TEMP/packets"
+      - name: the machine is ready, and the pack is consistent (gate/cli.py doctor, pack check)
+        run: |
+          python3 gate/cli.py doctor
+          python3 gate/cli.py pack check .
       - name: same scoped results as the v0.6.0 judge (M2 exit check)
         run: python3 validation/compare_m1.py compare "$RUNNER_TEMP"
       - name: evidence is invalidated by exactly what changed, and reused only where sound
@@ -55,6 +63,93 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with: { name: evidence, path: "${{ runner.temp }}/ev-*\n${{ runner.temp }}/wrong-*", retention-days: 14 }
+
+  packs:
+    # M3: the booking, approval and quota packs, judged by the same evaluator as the reservation pack (docs/rfc/0002-generality.md)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with: { python-version: "3.12" }
+      - uses: actions/setup-java@v6
+        with: { distribution: temurin, java-version: "21" }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22" }
+      - uses: actions/cache@v6
+        with: { path: .tools, key: "tools-${{ runner.os }}-${{ hashFiles('bootstrap.sh') }}" }
+      - name: toolchain
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          bash bootstrap.sh
+          .venv/bin/python -m playwright install-deps chromium >/dev/null 2>&1 || true
+          echo "DAFNY=$PWD/.tools/dafny/dafny" >> "$GITHUB_ENV"
+          echo "TLA2TOOLS=$PWD/.tools/tla2tools.jar" >> "$GITHUB_ENV"
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - name: each pack's release identity matches its seal, and a built release has the same identity
+        run: |
+          for pk in packs/booking packs/approval packs/quota evolution/tally-v1 evolution/tally-v2; do
+            id="$(python3 gate/release.py id --pack $pk)"
+            test "$id" = "$(python3 -c "import json;print(json.load(open('$pk/release.seal.json'))['release_digest'])")"
+            out="$RUNNER_TEMP/rel-$(basename $pk)"; python3 gate/release.py build --pack $pk --out "$out" >/dev/null
+            test "$id" = "$(cd "$out" && python3 gate/release.py id)"; echo "$pk $id"
+          done
+      - name: the evaluator is domain-free across every pack
+        run: python3 validation/domain_free.py
+      - name: each pack is consistent (gate/cli.py pack check)
+        run: for pk in packs/booking packs/approval packs/quota evolution/tally-v1 evolution/tally-v2; do python3 gate/cli.py pack check $pk; done
+      - name: booking pack examples (Python, Node.js, custom backends)
+        run: |
+          set -o pipefail
+          for ex in calendar-py desk-node custom-py; do
+            validation/judge_example.sh --pack packs/booking "packs/booking/examples/$ex" "$RUNNER_TEMP/ev-booking-$ex" | tail -1
+          done
+      - name: booking pack known-wrong apps are refused for exactly their defects
+        run: python3 validation/judge_wrong.py --pack packs/booking "$RUNNER_TEMP"
+      - name: approval pack examples (Python and Node.js stacks)
+        run: |
+          set -o pipefail
+          for ex in approvals-py approvals-node adopt-handbook; do
+            validation/judge_example.sh --pack packs/approval "packs/approval/examples/$ex" "$RUNNER_TEMP/ev-approval-$ex" | tail -1
+          done
+      - name: approval pack known-wrong apps are refused for exactly their defects
+        run: python3 validation/judge_wrong.py --pack packs/approval "$RUNNER_TEMP"
+      - name: quota pack examples (an outside author's library pack, Python and Node.js)
+        run: |
+          set -o pipefail
+          for ex in sliding-log-py tally-node; do
+            validation/judge_example.sh --pack packs/quota "packs/quota/examples/$ex" "$RUNNER_TEMP/ev-quota-$ex" | tail -1
+          done
+      - name: quota pack known-wrong apps are refused for exactly their defects
+        run: python3 validation/judge_wrong.py --pack packs/quota "$RUNNER_TEMP"
+      - name: an existing project adopts a pack (M4; docs/ADOPTING.md)
+        run: python3 validation/adoption.py "$RUNNER_TEMP/adoption"
+      - name: a scaffolded draft pack is judgeable as it comes (gate/cli.py pack new)
+        run: |
+          set -o pipefail
+          D="$RUNNER_TEMP/scaffold/demo"
+          python3 gate/cli.py pack new demo --out "$D" && python3 gate/release.py seal --pack "$D" && python3 gate/cli.py pack check "$D"
+          validation/judge_example.sh --pack "$D" "$D/examples/basic" "$RUNNER_TEMP/ev-scaffold-basic" | tail -1
+          python3 validation/judge_wrong.py --pack "$D" "$RUNNER_TEMP"
+      - name: a composition contract tells a broken integration from a broken component (M5)
+        run: python3 gate/cli.py compose check compositions/ledger-receipts
+      - name: handoff, rewrite, contract upgrade with populated state, composition (M5 exit check)
+        run: |
+          python3 validation/evolution.py "$RUNNER_TEMP/evolution"
+          python3 validation/judge_wrong.py --pack evolution/tally-v2 "$RUNNER_TEMP"
+      - name: the catalog matches its packs; revocation and the experiment harness work end to end (M6)
+        run: |
+          python3 gate/catalog.py check
+          python3 validation/governance.py "$RUNNER_TEMP/governance"
+      - name: one evaluator, four packs (M3 exit check)
+        run: |
+          set -o pipefail
+          validation/judge_example.sh examples/build-a "$RUNNER_TEMP/ev-reservation-build-a" | tail -1
+          validation/judge_example.sh examples/club-desk "$RUNNER_TEMP/ev-reservation-club-desk" | tail -1
+          python3 validation/generality.py "$RUNNER_TEMP"/ev-reservation-* "$RUNNER_TEMP"/ev-booking-* "$RUNNER_TEMP"/ev-approval-* "$RUNNER_TEMP"/ev-quota-*
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with: { name: evidence-packs, path: "${{ runner.temp }}/ev-*\n${{ runner.temp }}/wrong-*\n${{ runner.temp }}/adoption\n${{ runner.temp }}/evolution\n${{ runner.temp }}/governance", retention-days: 14 }
 
   isolated:
     # the supported isolation profile, end to end: container build, judge as root, candidate and browser as separate

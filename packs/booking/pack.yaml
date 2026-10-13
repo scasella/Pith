@@ -1,0 +1,360 @@
+# pack.yaml — the interval-booking contract pack (pith.booking). FROZEN (covered by frozen.sha256 and the release digest).
+#
+# The second pack judged by the same evaluator (gate/) as the reservation pack, with no evaluator change made for its
+# domain: rooms, intervals and rescheduling are this file's business. What M3 did change in gate/ is listed, with the
+# reason, in docs/rfc/0002-generality.md. Build the release with `python3 gate/release.py build --pack packs/booking`.
+
+format: pith.pack/v1
+pack:
+  id: pith.booking
+  version: 0.11.0
+  title: Interval booking (half-open intervals, cancellation, atomic rescheduling) with a browser-delivered application and two backend stacks
+  contract_version: interval-booking-core/v1
+  intent: packs/booking/INTENT.md
+  maintainers: [scasella]
+
+policy_dirs: [spec, profiles, harness, delivery]                 # frozen pack content; the evaluator adds gate/ and this file
+
+candidate:
+  owned_dirs: [service, ui]                                      # plus app.manifest.yaml
+  # include/subsystem (v0.9.0): an existing project adopting the pack names its own code the entrypoints use, and the
+  # subsystem the evidence covers (docs/ADOPTING.md); the rest of that project is not judged
+  manifest_allowlist: [name, runtime, profile, ui_entry, include, subsystem]
+  runtimes: [python, node]                                       # what the candidate's code runs on (recorded in the isolation scope)
+
+tools:
+  DAFNY: { env: DAFNY, default: dafny }
+
+toolchain:
+  dafny: { command: "{DAFNY} --version" }
+  node: { command: "node --version" }
+  hypothesis: { python_package: hypothesis }
+  jsonschema: { python_package: jsonschema }
+  playwright: { python_package: playwright }
+  cryptography: { python_package: cryptography }
+
+change_routes:                                                   # the route a change to the candidate's own paths takes (gate/change.py; advisory)
+  - { paths: ["ui/**"], route: presentation, why: "the browser application: delivery and interaction checks" }
+  - { paths: ["service/**"], route: integration, why: "the service over the verified core: runtime assumptions and correspondence" }
+  - { paths: ["app.manifest.yaml"], route: integration, why: "selects the profile and included code" }
+
+parameters:                                                      # every manifest key's domain and what evidence covers it (gate/cli.py pack check)
+  name: { domain: "free text", evidence: none (report label) }
+  ui_entry: { domain: "a path under ui/", evidence: [delivery] }
+  include: { domain: "relative paths inside the candidate, not policy (gate/workspace.py)", evidence: "judged only through the entrypoints: every check that starts the service" }
+  subsystem: { domain: "free text", evidence: none (names the covered subsystem in the report) }
+
+pytest: "{python} -m pytest -q -p no:cacheprovider --noconftest -c /dev/null --rootdir={root}"
+
+statuses:
+  behavioral_assurance:
+    rule: all_pass
+    passed: >-
+      passed; scoped: the core proven against spec/BookingSpec.dfy under spec/tcb.yaml and its translations reproduced; the
+      profile's atomicity and durability by test; the service not falsified by the frozen black-box lifecycle, boundary and
+      conformance harnesses (conformance to the verified core is by test only)
+    ready: { startswith: passed }
+  application_delivery:
+    rule: from_check
+    check: delivery
+    ready: { equals: passed }
+  human_approval:
+    rule: from_check
+    check: approval
+    ready: { equals: approved }
+refusal_status: behavioral_assurance
+completion_status: application_delivery
+
+preflight:
+  - id: runtime
+    area: policy
+    name: candidate runtime
+    kind: manifest_choice
+    key: runtime
+    default: python
+    choices:
+      python: " (service/run.py under the judge's Python)"
+      node: " (service/run.mjs under the judge's Node.js)"
+    claim: "runtime = {value}{note}"
+    why: runtime must be python or node
+    status: behavioral_assurance
+    method: policy
+  - id: profile
+    area: policy
+    name: integration profile
+    kind: manifest_choice
+    key: profile
+    default: shipped
+    choices:
+      shipped: " (the pack's integration for the runtime; its in-process tests apply)"
+      custom: " (the candidate's own; judged only through the service, against the verified core)"
+    claim: "profile = {value}{note}"
+    why: profile must be shipped or custom
+    status: behavioral_assurance
+    method: policy
+
+checks:
+  # ---- the verified core (pack content: evidence about the release, reusable across candidates) ----
+  - id: core.tcb
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
+    area: proof
+    name: core stays inside the trusted base
+    kind: source_rules
+    file: spec/BookingCore.dfy
+    forbid_lines: ['\bassume\b', '\{:axiom\}', '\{:verify\s+false\}', '\{:extern', 'decreases\s+\*', '\bexpect\b', '\{:only\}|\{:focus\}']
+    claim: "spec/BookingCore.dfy uses none of spec/tcb.yaml:banned_in_core"
+    why: "banned constructs: {lines}"
+    status: behavioral_assurance
+    method: structural
+    inputs: ["spec/**"]
+
+  - id: core.verify
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
+    area: proof
+    name: core verified against the contract
+    kind: command
+    command: "{DAFNY} verify spec/BookingCore.dfy"
+    count: 'finished with (\d+) verified'
+    claim: "Book, Cancel and Reschedule proven to refine the spec's traits: B0 preserved, B1-B5, X1-X3, M0-M3 ({count} verified)"
+    status: behavioral_assurance
+    method: proof
+    inputs: ["spec/**"]
+    tools: [dafny]
+    cacheable: true
+    depends_on: [core.tcb]
+    establishes: [B0, HalfOpen, B1, B2, B3, B4, B5, X1, X2, X3, M0, M1, M2, M3]
+    assumptions: spec/tcb.yaml
+
+  - id: core.adequacy
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
+    area: proof
+    name: "the contract rejects {item}"
+    kind: command
+    each: { glob: "spec/wrong/*.dfy" }
+    command: "{DAFNY} verify {item}"
+    expect_exit: nonzero
+    claim: "known-wrong core {item} fails to verify against the contract"
+    why: "{item} verified: the contract no longer rejects this known-wrong core"
+    status: behavioral_assurance
+    method: proof
+    inputs: ["spec/**"]
+    tools: [dafny]
+    cacheable: true
+
+  - id: core.traces
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
+    area: proof
+    name: reviewed traces
+    kind: command
+    command: "T=$(mktemp -d) && {DAFNY} test --target py --output $T/traces spec/traces.dfy; c=$?; rm -rf $T; exit $c"
+    count: '(\d+) verified'
+    claim: "the accepting and rejecting traces in spec/traces.dfy run as reviewed against the verified core"
+    status: behavioral_assurance
+    method: test
+    inputs: ["spec/**"]
+    tools: [dafny]
+    cacheable: true
+    depends_on: [core.verify]
+
+  - id: translation.python
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
+    area: profile
+    name: Python translation reproduced
+    kind: regenerated
+    command: "DAFNY={DAFNY} {python} profiles/translate.py py"
+    files: [profiles/python/bookingcore-py/BookingCore.py, profiles/python/bookingcore-py/BookingSpec.py, profiles/python/bookingcore-py/module_.py,
+            profiles/python/bookingcore-py/__main__.py, profiles/python/bookingcore-py/bookingcore-py.dtr]
+    claim: the shipped Python core is byte-identical to dafny translate py of the verified core
+    why: "differs from the translator's output: {drift}"
+    status: behavioral_assurance
+    method: structural
+    inputs: ["spec/**", "profiles/translate.py", "profiles/python/bookingcore-py/**"]
+    tools: [dafny]
+    cacheable: true
+    depends_on: [core.verify]
+
+  - id: translation.node
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
+    area: profile
+    name: JavaScript translation reproduced
+    kind: regenerated
+    command: "DAFNY={DAFNY} {python} profiles/translate.py js"
+    files: [profiles/node/bookingcore.js]
+    claim: the shipped JavaScript core is byte-identical to dafny translate js of the verified core (plus the export footer)
+    why: "differs from the translator's output: {drift}"
+    status: behavioral_assurance
+    method: structural
+    inputs: ["spec/**", "profiles/translate.py", "profiles/node/bookingcore.js"]
+    tools: [dafny]
+    cacheable: true
+    depends_on: [core.verify]
+
+  # ---- the integration profile the candidate chose ----
+  - id: profile.python
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
+    area: profile
+    name: shipped Python profile tests
+    kind: command
+    when: { manifest: { runtime: python, profile: shipped } }
+    command: "{pytest} profiles/python/tests/test_profile.py"
+    count: '(\d+) passed'
+    claim: "SQLite store: atomic decisions under 16 threads, reopen durability, replays never reach the core, invalid input inert, agrees with the core ({count} tests)"
+    status: behavioral_assurance
+    method: test
+    inputs: ["profiles/python/**"]
+    tools: [hypothesis]
+    depends_on: [translation.python]
+    establishes: [Atomicity, Durability]
+
+  - id: profile.node
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
+    area: profile
+    name: shipped Node.js profile tests
+    kind: command
+    when: { manifest: { runtime: node, profile: shipped } }
+    command: "node --test profiles/node/tests/store.test.mjs"
+    count: '# pass (\d+)'
+    claim: "journal store: atomic decisions across interleaved turns, fsync-before-ack and torn-tail recovery, replays never reach the core, invalid input inert, agrees with the core ({count} tests)"
+    status: behavioral_assurance
+    method: test
+    inputs: ["profiles/node/**"]
+    tools: [node]
+    depends_on: [translation.node]
+    establishes: [Atomicity, Durability]
+
+  # ---- the candidate's service, black-box ----
+  - id: service.entrypoint.python
+    area: service
+    name: service entrypoint
+    kind: files_present
+    when: { manifest: { runtime: python } }
+    files: [service/run.py]
+    claim: service/run.py present (started by the evaluator as a separate process)
+    why: service/run.py missing
+    status: behavioral_assurance
+    method: structural
+    inputs: ["service/**"]
+
+  - id: service.entrypoint.node
+    area: service
+    name: service entrypoint
+    kind: files_present
+    when: { manifest: { runtime: node } }
+    files: [service/run.mjs]
+    claim: service/run.mjs present (started by the evaluator as a separate process)
+    why: service/run.mjs missing
+    status: behavioral_assurance
+    method: structural
+    inputs: ["service/**"]
+
+  - id: service.lifecycle
+    area: service
+    name: lifecycle harness (black-box)
+    kind: command
+    command: "{pytest} harness/lifecycle.py"
+    count: '(\d+) passed'
+    claim: "through the running service: half-open conflicts, independent resources, idempotent replays, cancel and atomic reschedule, SIGKILL + restart + retry, durability, concurrent bursts never double-book, one commit per operation ({count} checks)"
+    status: behavioral_assurance
+    method: test
+    inputs: ["service/**", "ui/**", "app.manifest.yaml", "profiles/**", "harness/**"]
+    depends_on: [service.entrypoint.python, service.entrypoint.node, translation.python, translation.node]
+    establishes: [Idempotency, Durability, Atomicity, Independence]
+
+  - id: service.boundary
+    area: service
+    name: boundary harness (black-box)
+    kind: command
+    command: "{pytest} harness/boundary.py"
+    count: '(\d+) passed'
+    claim: "every response schema-valid (harness/api.schema.json); out-of-domain, malformed and incomplete input refused without effect; unknown targets 404; UI served ({count} checks)"
+    status: behavioral_assurance
+    method: test
+    inputs: ["service/**", "ui/**", "app.manifest.yaml", "profiles/**", "harness/**"]
+    tools: [jsonschema]
+    depends_on: [service.lifecycle]
+    establishes: [BoundaryConformance]
+
+  - id: service.conformance
+    area: service
+    name: conformance to the verified core
+    kind: command
+    command: "{pytest} harness/conformance.py"
+    count: '(\d+) passed'
+    claim: "80 generated operation sequences: every outcome, named conflict and resulting calendar equal the verified core's (property-based, black-box)"
+    status: behavioral_assurance
+    method: test
+    inputs: ["service/**", "ui/**", "app.manifest.yaml", "profiles/**", "harness/**", "spec/**"]
+    tools: [hypothesis]
+    depends_on: [core.verify, translation.python, service.lifecycle]
+    establishes: [CoreConformance]
+
+  # ---- the application ----
+  - id: delivery
+    area: delivery
+    name: application delivery
+    kind: adapter
+    adapter: delivery/delivery_adapter.py
+    claims_key: delivery_detail
+    blocking: false
+    status: application_delivery
+    method: browser
+    inputs: ["service/**", "ui/**", "app.manifest.yaml", "profiles/**", "harness/**", "delivery/**"]
+    tools: [playwright]
+    depends_on: [service.lifecycle, service.boundary]
+    establishes: [BW1, BW2, BW3, BW4, BW5, BW6, BI1, BI2, BI3]
+
+  - id: approval
+    area: delivery
+    name: human approval
+    kind: attestation
+    required_from: { yaml: delivery/delivery.yaml, list: required_evaluations, field: id }
+    reviewer_context_from: delivery
+    claims_key: human_approval_detail
+    blocking: false
+    status: human_approval
+    method: review
+    depends_on: [delivery]
+    establishes: [BE1, BE2]
+
+contracts:
+  - { id: B0, version: 1, intent: "Two active bookings on one resource never overlap.", semantics: { dafny: "spec/BookingSpec.dfy Valid [B0]" }, timing: invariant of every committed calendar; per operation in the proof, across concurrent requests by test,
+      verified_by: [core.verify, service.lifecycle, service.conformance], assumptions: ["each operation runs atomically against the latest committed calendar (spec/tcb.yaml); established per profile by test"],
+      wrong: [spec/wrong/start_inside_only.dfy, spec/wrong/cancel_toggles.dfy, spec/wrong/ignores_one_minute_overlap.dfy], change: behavioral }
+  - { id: HalfOpen, version: 1, intent: "A booking holds [start, end): touching endpoints do not conflict.", semantics: { dafny: "spec/BookingSpec.dfy Overlaps [HALF-OPEN]" },
+      verified_by: [core.verify, core.traces, service.lifecycle], examples: [spec/traces.dfy T1_TouchingIntervalsAreBothAccepted, spec/traces.dfy T9_TouchingFromBelowIsAccepted, spec/traces.dfy T10_OneMinuteOverlapConflicts], wrong: [spec/wrong/closed_intervals.dfy, spec/wrong/closed_at_end.dfy, spec/wrong/ignores_one_minute_overlap.dfy], change: behavioral }
+  - { id: B1, version: 1, intent: "An empty or reversed interval is invalid and changes nothing.", semantics: { dafny: "spec/BookingSpec.dfy [B1]" }, verified_by: [core.verify, service.lifecycle], change: behavioral }
+  - { id: B2, version: 1, intent: "A request is accepted exactly when its interval is valid and free.", semantics: { dafny: "spec/BookingSpec.dfy [B2]" }, timing: "against the calendar of the same atomic step",
+      verified_by: [core.verify, service.conformance], wrong: [spec/wrong/closed_intervals.dfy, spec/wrong/start_inside_only.dfy], change: behavioral }
+  - { id: B3, version: 1, intent: "Acceptance adds exactly the requested booking.", semantics: { dafny: "spec/BookingSpec.dfy [B3]" }, verified_by: [core.verify], change: behavioral }
+  - { id: B4, version: 1, intent: "A refused booking changes nothing.", semantics: { dafny: "spec/BookingSpec.dfy [B4]" }, verified_by: [core.verify, service.boundary], change: behavioral }
+  - { id: B5, version: 1, intent: "A conflict names a booking that really overlaps.", semantics: { dafny: "spec/BookingSpec.dfy [B5]" }, verified_by: [core.verify, service.lifecycle], wrong: [spec/wrong/conflict_names_requester.dfy], change: behavioral }
+  - { id: X1, version: 1, intent: "Only an active booking is cancelled.", semantics: { dafny: "spec/BookingSpec.dfy [X1]" }, verified_by: [core.verify], change: behavioral }
+  - { id: X2, version: 1, intent: "Cancelling frees exactly that booking.", semantics: { dafny: "spec/BookingSpec.dfy [X2]" }, verified_by: [core.verify, service.lifecycle], change: behavioral }
+  - { id: X3, version: 1, intent: "Cancelled is terminal.", semantics: { dafny: "spec/BookingSpec.dfy [X3]" }, verified_by: [core.verify, core.traces], wrong: [spec/wrong/cancel_toggles.dfy], change: behavioral }
+  - { id: M0, version: 1, intent: "Only an active booking can be moved.", semantics: { dafny: "spec/BookingSpec.dfy [M0]" }, verified_by: [core.verify], change: behavioral }
+  - { id: M1, version: 1, intent: "A move is checked against every other active booking, not against the booking itself.", semantics: { dafny: "spec/BookingSpec.dfy [M1]" },
+      verified_by: [core.verify, core.traces], wrong: [spec/wrong/reschedule_blocks_itself.dfy], change: behavioral }
+  - { id: M2, version: 1, intent: "An accepted move changes only that booking's interval.", semantics: { dafny: "spec/BookingSpec.dfy [M2]" }, verified_by: [core.verify], change: behavioral }
+  - { id: M3, version: 1, intent: "A refused move keeps the original booking.", semantics: { dafny: "spec/BookingSpec.dfy [M3]" }, timing: atomic with the move request,
+      verified_by: [core.verify, core.traces, service.lifecycle], wrong: [spec/wrong/reschedule_cancel_then_book.dfy], change: behavioral }
+  - { id: Atomicity, version: 1, intent: "The deployed stack decides each operation against the latest committed calendar, one at a time.", semantics: { python: "profiles/python/tests/test_profile.py", javascript: "profiles/node/tests/store.test.mjs" },
+      verified_by: [profile.python, profile.node, service.lifecycle], change: integration }
+  - { id: Durability, version: 1, intent: "An acknowledged operation survives a crash and restart.", semantics: { python: "harness/lifecycle.py" }, timing: after acknowledgement, verified_by: [profile.python, profile.node, service.lifecycle], change: integration }
+  - { id: Idempotency, version: 1, intent: "request_id is the idempotency key of every write; a reuse for something else is refused.", semantics: { markdown: "harness/SERVICE.md" }, verified_by: [service.lifecycle], change: integration }
+  - { id: Independence, version: 1, intent: "Bookings on one resource never block another.", semantics: { python: "harness/lifecycle.py" }, verified_by: [service.lifecycle], change: integration }
+  - { id: BoundaryConformance, version: 1, intent: "The API answers in its schemas and refuses out-of-domain input without effect.", semantics: { jsonschema: "harness/api.schema.json" }, verified_by: [service.boundary], change: integration }
+  - { id: CoreConformance, version: 1, intent: "The running service gives the verified core's outcomes for the same operations.", semantics: { python: "harness/conformance.py" }, verified_by: [service.conformance], change: integration }
+  - { id: BW1, version: 1, intent: "A scheduler creates a resource and sees its calendar.", semantics: { yaml: "delivery/delivery.yaml BW1" }, verified_by: [delivery], change: presentation }
+  - { id: BW2, version: 1, intent: "Booking a free interval shows ACCEPTED and the booking.", semantics: { yaml: "delivery/delivery.yaml BW2" }, verified_by: [delivery], change: presentation }
+  - { id: BW3, version: 1, intent: "A conflict is shown distinctly and names the booking in the way.", semantics: { yaml: "delivery/delivery.yaml BW3" }, verified_by: [delivery], change: presentation }
+  - { id: BW4, version: 1, intent: "The half-open convention is what the user gets.", semantics: { yaml: "delivery/delivery.yaml BW4" }, verified_by: [delivery], change: presentation }
+  - { id: BW5, version: 1, intent: "Moves show where they landed; refused moves leave the booking in place.", semantics: { yaml: "delivery/delivery.yaml BW5" }, verified_by: [delivery], change: presentation }
+  - { id: BW6, version: 1, intent: "A cancelled booking frees its interval.", semantics: { yaml: "delivery/delivery.yaml BW6" }, verified_by: [delivery], change: presentation }
+  - { id: BI1, version: 1, intent: "An accepted booking's receipt survives a failed refresh.", semantics: { markdown: "delivery/UI-CONTRACT.md BI1" }, timing: "after the receipt is shown, across later refresh failures", verified_by: [delivery],
+      wrong: [packs/booking/examples/wrong/receipt-overwritten], change: presentation }
+  - { id: BI2, version: 1, intent: "A lost response is shown as UNKNOWN, never as a refusal.", semantics: { markdown: "delivery/UI-CONTRACT.md BI2" }, verified_by: [delivery], wrong: [packs/booking/examples/wrong/receipt-overwritten], change: presentation }
+  - { id: BI3, version: 1, intent: "A row's actions act on that row's booking only.", semantics: { markdown: "delivery/UI-CONTRACT.md BI3" }, verified_by: [delivery], change: presentation }
+  - { id: BE1, version: 1, intent: "A scheduler books, moves and cancels unassisted in under 3 minutes.", semantics: { yaml: "delivery/delivery.yaml BE1" }, verified_by: [approval], change: presentation }
+  - { id: BE2, version: 1, intent: "Conflicts say which booking is in the way, in plain words.", semantics: { yaml: "delivery/delivery.yaml BE2" }, verified_by: [approval], change: presentation }
+
+domain_vocabulary: [booking, reschedul, BookingCore, BookingSpec, bookingcore, calendar, half-open, interval, harness/, delivery/, spec/wrong, conflicts_with]

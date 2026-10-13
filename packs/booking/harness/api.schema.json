@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "pith.booking response schemas. FROZEN. harness/boundary.py validates every response it observes against these.",
+  "$defs": {
+    "id": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "outcome": { "enum": ["ACCEPTED", "CONFLICT", "INVALID", "NOT_ACTIVE"] },
+    "resource": { "type": "object", "required": ["id", "name"], "properties": { "id": { "$ref": "#/$defs/id" }, "name": { "type": "string", "minLength": 1 } } },
+    "slot": { "type": "object", "required": ["id", "start", "end", "active"],
+              "properties": { "id": { "$ref": "#/$defs/id" }, "start": { "$ref": "#/$defs/id" }, "end": { "$ref": "#/$defs/id" }, "active": { "type": "boolean" } } },
+    "resource_view": { "allOf": [{ "$ref": "#/$defs/resource" }, { "type": "object", "required": ["bookings"], "properties": { "bookings": { "type": "array", "items": { "$ref": "#/$defs/slot" } } } }] },
+    "resources": { "type": "object", "required": ["resources"], "properties": { "resources": { "type": "array", "items": { "$ref": "#/$defs/resource" } } } },
+    "booking": { "type": "object", "required": ["id", "resource", "start", "end", "active"],
+                 "properties": { "id": { "$ref": "#/$defs/id" }, "resource": { "$ref": "#/$defs/id" }, "start": { "$ref": "#/$defs/id" }, "end": { "$ref": "#/$defs/id" }, "active": { "type": "boolean" } } },
+    "book_result": { "type": "object", "required": ["request_id", "booking_id", "resource", "outcome", "conflicts_with", "replayed"],
+                     "properties": { "request_id": { "$ref": "#/$defs/id" }, "booking_id": { "$ref": "#/$defs/id" }, "resource": { "$ref": "#/$defs/id" },
+                                     "outcome": { "enum": ["ACCEPTED", "CONFLICT", "INVALID"] }, "conflicts_with": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+                                     "replayed": { "type": "boolean" } } },
+    "cancel_result": { "type": "object", "required": ["request_id", "booking_id", "cancelled", "replayed"],
+                       "properties": { "request_id": { "$ref": "#/$defs/id" }, "booking_id": { "$ref": "#/$defs/id" }, "cancelled": { "type": "boolean" }, "replayed": { "type": "boolean" } } },
+    "move_result": { "type": "object", "required": ["request_id", "booking_id", "outcome", "conflicts_with", "start", "end", "replayed"],
+                     "properties": { "request_id": { "$ref": "#/$defs/id" }, "booking_id": { "$ref": "#/$defs/id" }, "outcome": { "$ref": "#/$defs/outcome" },
+                                     "conflicts_with": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] }, "start": { "$ref": "#/$defs/id" }, "end": { "$ref": "#/$defs/id" },
+                                     "replayed": { "type": "boolean" } } },
+    "events": { "type": "array", "items": { "type": "object", "required": ["seq", "type"], "properties": { "seq": { "type": "integer", "minimum": 1 }, "type": { "type": "string" } } } }
+  }
+}

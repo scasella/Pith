@@ -1,0 +1,17 @@
+# delivery/delivery.yaml — application delivery criteria for pith.booking. Frozen.
+required_workflows:          # driven by delivery/browser_workflows.py through UI-CONTRACT.md affordances
+  - { id: BW1, name: create_and_show_resource, description: a scheduler creates a resource and the page shows its (empty) calendar }
+  - { id: BW2, name: book_free,                description: booking a free interval shows ACCEPTED and the booking appears with that interval }
+  - { id: BW3, name: book_conflict,            description: booking an overlapping interval shows CONFLICT naming the booking in the way, distinctly from ACCEPTED; nothing is added }
+  - { id: BW4, name: touching_is_free,         description: an interval starting exactly when another ends is ACCEPTED (the half-open convention is what the user gets) }
+  - { id: BW5, name: reschedule,               description: a booking moved to a free interval shows there; a move into a taken interval shows CONFLICT and the booking stays where it was }
+  - { id: BW6, name: cancel,                   description: a cancelled booking stops blocking its interval, which can then be booked again }
+required_interactions:       # with judge-injected request faults (UI-CONTRACT.md § Interaction obligations)
+  - { id: BI1, name: receipt_preservation,    description: an accepted booking's receipt survives a failed refresh }
+  - { id: BI2, name: outcome_view_separation, description: a lost response is UNKNOWN, never a refusal }
+  - { id: BI3, name: action_target_binding,   description: a row's cancel and move act on that row's booking only }
+required_evaluations:        # human approvals (gate/review.py attestation)
+  - { id: BE1, name: usability,       description: a front-desk scheduler books, moves and cancels a room unassisted in under 3 minutes }
+  - { id: BE2, name: conflict_copy,   description: a conflict tells the user which booking is in the way, in plain words }
+ui_contract: delivery/UI-CONTRACT.md
+browser_viewports: [desktop, mobile]

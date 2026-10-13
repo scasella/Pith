@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Front Desk</title>
+<style>
+  :root { --ink: #222; --dim: #6b6b6b; --line: #e3e0da; --paper: #fffdf8; --shade: #f3efe6; --go: #0f6b4b; --stop: #9b2c2c; --wait: #8a5a00; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 Georgia, "Iowan Old Style", serif; color: var(--ink); background: var(--shade); }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 18px 16px 40px; }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: .01em; }
+  .sub { color: var(--dim); margin: 0 0 16px; }
+  .grid { display: grid; grid-template-columns: 260px 1fr; gap: 16px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  .panel { background: var(--paper); border: 1px solid var(--line); padding: 14px; }
+  .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin: 0 0 10px; font-family: system-ui, sans-serif; }
+  .field { display: grid; gap: 2px; margin-bottom: 8px; font: 12px system-ui, sans-serif; color: var(--dim); }
+  input { font: 14px system-ui, sans-serif; padding: 6px 8px; border: 1px solid #cfcac0; background: #fff; width: 100%; }
+  button { font: 13px system-ui, sans-serif; padding: 6px 12px; border: 1px solid var(--ink); background: var(--ink); color: #fff; cursor: pointer; }
+  button.line { background: transparent; color: var(--ink); }
+  table { width: 100%; border-collapse: collapse; font: 14px system-ui, sans-serif; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { font-size: 12px; color: var(--dim); font-weight: 600; }
+  tr[data-active="false"] td { color: #a19d94; text-decoration: line-through; }
+  tr[data-active="false"] td.acts { text-decoration: none; }
+  td.acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  td.acts input { width: 70px; }
+  .inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+  .inline .field { margin: 0; flex: 1 1 110px; }
+  #receipt { margin: 12px 0; padding: 10px 12px; border-left: 4px solid var(--line); background: #fff; font-family: system-ui, sans-serif; }
+  #receipt[data-outcome="ACCEPTED"], #receipt[data-outcome="CANCELLED"] { border-color: var(--go); color: var(--go); }
+  #receipt[data-outcome="CONFLICT"], #receipt[data-outcome="INVALID"], #receipt[data-outcome="NOT_ACTIVE"], #receipt[data-outcome="NOT_CANCELLED"], #receipt[data-outcome="ERROR"] { border-color: var(--stop); color: var(--stop); background: #fff6f5; }
+  #receipt[data-outcome="UNKNOWN"] { border-color: var(--wait); color: var(--wait); background: #fffaf0; }
+  #notice { font: 12px system-ui, sans-serif; color: var(--wait); min-height: 1em; }
+  .rooms button { display: block; width: 100%; text-align: left; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Front Desk</h1>
+  <p class="sub">Times are on the day's clock. A booking from 10:00 to 11:00 leaves 11:00 free for the next guest.</p>
+  <div class="grid">
+    <div class="panel">
+      <h2>Rooms</h2>
+      <div class="field">Room id<input data-testid="resource-id" inputmode="numeric"></div>
+      <div class="field">Room name<input data-testid="resource-name"></div>
+      <button data-testid="resource-create">Add room</button>
+      <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
+      <div class="field">Open room id<input data-testid="resource-pick" inputmode="numeric"></div>
+      <button class="line" data-testid="resource-load">Open</button>
+      <div class="rooms" id="rooms" style="margin-top:12px"></div>
+    </div>
+    <div class="panel">
+      <h2 id="heading">Bookings</h2>
+      <div class="inline">
+        <div class="field">From (HH:MM)<input data-testid="book-start" placeholder="10:00"></div>
+        <div class="field">Until (HH:MM)<input data-testid="book-end" placeholder="11:00"></div>
+        <button data-testid="book-submit">Book</button>
+      </div>
+      <div id="receipt" data-testid="receipt" data-outcome="">Nothing submitted yet.</div>
+      <div id="notice"></div>
+      <div data-testid="calendar" id="calendar" data-resource-id="">
+        <table><thead><tr><th>Booking</th><th>From</th><th>Until</th><th>Change</th></tr></thead><tbody id="rows"></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+// State is kept in one object and changed only by the functions below, so what is shown, what is loaded and what the
+// last receipt said cannot drift apart: a receipt is written only by the operation that produced it, a refresh only
+// replaces the shown bookings, and a response for a room that is no longer open is dropped.
+const S = { open: null, name: "", rows: [], loading: 0 };
+const el = (t) => document.querySelector(`[data-testid="${t}"]`);
+const parse = (v) => { const m = /^\s*(\d{1,2}):(\d{2})\s*$/.exec(v || ""); return m ? (+m[1]) * 60 + (+m[2]) : NaN; };
+const clock = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+const newId = () => Math.floor(Math.random() * 2 ** 52) + 1;
+
+async function call(method, path, body) {
+  try {
+    const r = await fetch(path, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+    let data = null; try { data = await r.json(); } catch (_) {}
+    return { kind: r.ok ? "ok" : "error", status: r.status, data };
+  } catch (_) { return { kind: "lost" }; }
+}
+function setReceipt(outcome, message, about) {
+  const r = el("receipt"); r.textContent = message; r.dataset.outcome = outcome;
+  r.removeAttribute("data-booking-id"); r.removeAttribute("data-resource-id"); r.removeAttribute("data-conflicts-with");
+  if (about.booking != null) r.dataset.bookingId = about.booking;
+  if (about.room != null) r.dataset.resourceId = about.room;
+  if (about.blocker != null) r.dataset.conflictsWith = about.blocker;
+}
+async function refreshRooms() {
+  const r = await call("GET", "/resources"); if (r.kind !== "ok") return;
+  const box = document.getElementById("rooms"); box.innerHTML = "";
+  for (const x of r.data.resources) { const b = document.createElement("button"); b.className = "line"; b.textContent = `${x.id} · ${x.name}`; b.onclick = () => open(x.id); box.appendChild(b); }
+}
+async function open(room) {
+  const ticket = ++S.loading; const r = await call("GET", `/resources/${room}`);
+  if (ticket !== S.loading) return;                                       // superseded by a newer open
+  if (r.kind !== "ok") { document.getElementById("notice").textContent = `Could not load room ${room}; showing what was last loaded.`; return; }
+  S.open = r.data.id; S.name = r.data.name; S.rows = r.data.bookings; document.getElementById("notice").textContent = ""; draw();
+}
+function draw() {
+  el("calendar").dataset.resourceId = S.open ?? "";
+  document.getElementById("heading").textContent = S.open == null ? "Bookings" : `Bookings · ${S.name} (room ${S.open})`;
+  const tb = document.getElementById("rows"); tb.innerHTML = "";
+  for (const b of [...S.rows].sort((a, c) => a.start - c.start)) {
+    const tr = document.createElement("tr"); tr.dataset.testid = "booking-row";
+    tr.dataset.bookingId = b.id; tr.dataset.start = b.start; tr.dataset.end = b.end; tr.dataset.active = String(b.active);
+    tr.innerHTML = `<td>#${b.id}</td><td>${clock(b.start)}</td><td>${clock(b.end)}</td><td class="acts">` + (b.active ?
+      `<input data-testid="move-start" value="${clock(b.start)}" aria-label="New from"><input data-testid="move-end" value="${clock(b.end)}" aria-label="New until">
+       <button class="line" data-testid="move-submit">Move</button><button class="line" data-testid="cancel">Cancel</button>` : "cancelled") + "</td>";
+    if (b.active) {
+      const booking = b.id, room = S.open;                                // bound now, not looked up at click time
+      tr.querySelector('[data-testid="move-submit"]').onclick = () => move(room, booking, tr);
+      tr.querySelector('[data-testid="cancel"]').onclick = () => cancel(room, booking);
+    }
+    tb.appendChild(tr);
+  }
+}
+function report(r, about, okText, noun) {
+  if (r.kind === "lost") return setReceipt("UNKNOWN", `The desk lost contact before hearing back: ${noun} may or may not have gone through. Reopen the room to check.`, about);
+  if (r.kind === "error") return setReceipt("ERROR", `The service rejected the request (HTTP ${r.status}).`, about);
+  const d = r.data;
+  if ("cancelled" in d) return setReceipt(d.cancelled ? "CANCELLED" : "NOT_CANCELLED", d.cancelled ? `Booking #${about.booking} cancelled.` : `Booking #${about.booking} was already cancelled.`, about);
+  const msg = { ACCEPTED: okText(d), CONFLICT: `Refused: booking #${d.conflicts_with} already holds part of that time.`, INVALID: "Refused: the end must be later than the start.", NOT_ACTIVE: "Refused: that booking is cancelled." }[d.outcome];
+  setReceipt(d.outcome, msg, { ...about, blocker: d.conflicts_with });
+}
+async function book() {
+  if (S.open == null) return setReceipt("ERROR", "Open a room first.", {});
+  const room = S.open, id = newId();
+  const r = await call("POST", `/resources/${room}/bookings`, { request_id: id, start: parse(el("book-start").value), end: parse(el("book-end").value) });
+  report(r, { booking: r.data?.booking_id ?? id, room }, (d) => `Booked: #${d.booking_id}, ${clock(parse(el("book-start").value))}–${clock(parse(el("book-end").value))}.`, `booking #${id}`);
+  if (S.open === room) await open(room);
+}
+async function move(room, booking, tr) {
+  const s = parse(tr.querySelector('[data-testid="move-start"]').value), e = parse(tr.querySelector('[data-testid="move-end"]').value);
+  const r = await call("POST", `/bookings/${booking}/reschedule`, { request_id: newId(), start: s, end: e });
+  report(r, { booking, room }, (d) => `Moved #${booking} to ${clock(d.start)}–${clock(d.end)}.`, `the move of #${booking}`);
+  if (S.open === room) await open(room);
+}
+async function cancel(room, booking) {
+  const r = await call("POST", `/bookings/${booking}/cancel`, { request_id: newId() });
+  report(r, { booking, room }, () => "", `the cancellation of #${booking}`);
+  if (S.open === room) await open(room);
+}
+el("resource-create").onclick = async () => {
+  const id = Number(el("resource-id").value), name = el("resource-name").value.trim() || `Room ${el("resource-id").value}`;
+  const r = await call("POST", "/resources", { id, name });
+  if (r.kind === "ok" || r.status === 409) { await refreshRooms(); await open(id); }
+};
+el("resource-load").onclick = () => open(Number(el("resource-pick").value));
+el("book-submit").onclick = book;
+refreshRooms(); draw();
+</script>
+</body>
+</html>

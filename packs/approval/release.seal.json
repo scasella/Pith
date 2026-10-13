@@ -1,0 +1,16 @@
+{
+  "format": 2,
+  "created": "2026-10-13T19:26:41Z",
+  "pack": {
+    "id": "pith.approval",
+    "version": "0.11.0"
+  },
+  "policy_dirs": [
+    "gate",
+    "model",
+    "harness",
+    "delivery"
+  ],
+  "files": 69,
+  "release_digest": "a0c27100b0d0c7838041e6e822238883ebb072e46f0ba813c8b1da89c2f8118f"
+}

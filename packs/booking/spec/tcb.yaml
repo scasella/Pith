@@ -1,0 +1,20 @@
+# spec/tcb.yaml — what a passing pith.booking proof rests on, and what it does not cover. FROZEN.
+banned_in_core:                                   # checked by the core.tcb check (pack.yaml); the same list the reservation kernel uses
+  - '\bassume\b'
+  - '\{:axiom\}'
+  - '\{:verify\s+false\}'
+  - '\{:extern'
+  - 'decreases\s+\*'
+  - '\bexpect\b'
+  - '\{:only\}|\{:focus\}'
+assumptions:
+  - Dafny 4.11 verifier and Boogie/Z3 are sound for the constructs used
+  - the Dafny-to-Python and Dafny-to-JavaScript translators preserve the verified semantics (the translations are reproduced, not trusted blindly; their behaviour is then tested in the profile tests and through the service)
+  - spec/BookingSpec.dfy captures the intended contract (validated by spec/traces.dfy, the known-wrong cores in spec/wrong/ and human review of INTENT.md, not by the verifier)
+  - each call to Book, Cancel or Reschedule is executed atomically against the latest committed calendar of its resource (established per profile by test: profiles/*/tests, harness/lifecycle.py bursts)
+  - the cross-module trait declarations ({:termination false}) are harmless because no obligation is recursive through a trait
+not_covered:
+  - persistence, serialization, the network, frameworks, and the mapping from wire values to Calendar values (the profiles' validate functions bound the domain; harness/boundary.py tests it)
+  - timezones, recurrence, external calendar synchronisation, capacity above one (outside the contract: INTENT.md)
+  - liveness and fairness (that every request is eventually answered)
+  - everything the contract does not mention (the UI beyond UI-CONTRACT.md, performance, operations)

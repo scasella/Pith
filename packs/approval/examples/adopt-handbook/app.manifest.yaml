@@ -1,0 +1,7 @@
+# app.manifest.yaml — this project's adoption of pith.approval (written by gate/cli.py adopt). Only the keys in the
+# pack's manifest_allowlist; include lists the project code the entrypoints use; nothing else of the project is judged.
+name: Handbook reviews
+runtime: python
+include:
+- handbook
+subsystem: review of policy documents (handbook/reviews.py), through service/ and cli/

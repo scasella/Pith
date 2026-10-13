@@ -1,0 +1,9 @@
+# Revoked releases, evaluators, review keys and reviews (format pith.revocations/v1; GOVERNANCE.md § Keys,
+# attestations and revocation). Append-only: an entry is never deleted; a mistaken one is superseded by a later entry.
+# Each entry: { digest, date, reason, advisory, effect } — effect for a release names what it is unsound for, e.g.
+# "unsound-for: [A3]". `python3 gate/catalog.py revoked --evidence DIR` and `gate/deploy.py check --revocations` read it.
+format: pith.revocations/v1
+releases: []
+evaluators: []
+keys: []
+reviews: []

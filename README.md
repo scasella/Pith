@@ -17,7 +17,7 @@ layer must satisfy (TLA+ invariants, black-box harnesses, a UI contract with int
 evaluator that runs the candidate as a separate, unprivileged process and never trusts its output. An agent clones the repository, reads
 `AGENT.md`, and builds the design model, service, and user interface. The gate decides when it is done.
 
-> Status: research prototype, v0.7.0. The method and the judge have been through five external reviews, one
+> Status: research prototype, v0.11.0. The method and the judge have been through five external reviews, one
 > unassisted agent build and two reference-assisted agent builds (see `docs/VALIDATION.md`). It is not a payment system; no funds move. Read
 > `INTENT.md` for what the core means and `kernel/tcb.yaml` for what a green result rests on.
 
@@ -34,9 +34,19 @@ profiles/      a shipped, frozen SQLite integration profile (replaceable: a cust
 pack.yaml      the contract pack: which of the above is policy, the ordered checks, statuses, and one contract
                record per protected requirement (docs/rfc/0001-contract-packs-and-evidence.md)
 gate/          the evaluator, domain-free: judge, check kinds, structured evidence, release seal, review
-               attestations, the supported isolation profile (container + probe)
+               attestations, service supervision, the supported isolation profile (container + probe)
+packs/         three more contract packs judged by the same evaluator: booking/ (half-open intervals, rescheduling;
+               a verified Dafny core with Python and Node.js backends; a browser app), approval/ (roles,
+               separation of duties, revision-bound approvals; a TLA+ model; a command-line app) and quota/
+               (sliding-window quotas delivered as a library, no service; written by an outside author)
 examples/      conforming builds (two reference, two corrected agent builds, one archived) and known-wrong fixtures
-docs/          validation record, research background, the hybrid-spec essay this grew out of
+templates/     the draft-pack scaffold (`gate/cli.py pack new`)
+evolution/     a contract upgrade with its migration (tally/v1 -> tally/v2), used by the safe-evolution demonstrations
+compositions/  composition contracts: components, owned state, shared invariants (gate/compose.py)
+experiments/   the conditions experiment: protocol, external criteria, run records, analysis (docs/EXPERIMENTS.md)
+catalog.yaml   the packs this project maintains, held to their packs in CI; revocations.yaml: what no longer stands
+integrations/  thin wrappers over the CLI (GitHub Spec Kit)
+docs/          validation record, adoption guide, RFCs, research background, the hybrid-spec essay this grew out of
 ```
 
 A release is the evaluator plus one contract pack. `gate/` knows packages, artifacts, tools, checks, evidence and
@@ -44,13 +54,21 @@ statuses; everything about reservations, holds and accounts is in the pack. `pac
 policy directories (`kernel/`, `obligations/`, `profiles/`) are frozen and hash-listed; the release has an identity
 (`gate/release.py id`) that an operator pins from a trusted copy before an agent gets a workspace.
 
+The root is one pack; `packs/booking/`, `packs/approval/` and `packs/quota/` are three more, each its own release
+(`python3 gate/release.py build --pack packs/booking --out DIR`), all judged by byte-identical evaluator code.
+They differ on purpose: a verified core versus a model the candidate's own code is judged against, a page versus a
+CLI versus a library, human evaluation versus none (`docs/rfc/0002-generality.md`). To judge one of their examples:
+`validation/judge_example.sh --pack packs/approval packs/approval/examples/approvals-node ../ev-approvals`.
+
 ## Quick start
 
 ```bash
 git clone https://github.com/scasella/Pith && cd Pith
 bash bootstrap.sh && source .env            # Dafny 4.11, TLC, Python venv with Hypothesis/Playwright/jsonschema/cryptography
+python3 gate/cli.py doctor                  # is every tool the pack needs here? what to install if not
 python3 gate/app_gate.py --out ../evidence-001
-# -> ring 0 passes (the core is proven); ring 1 refuses with instructions. That refusal is where an agent starts.
+# -> ring 0 passes (the core is proven); ring 1 refuses. ../evidence-001/TASK.md says what is missing, whose problem
+#    it is (category evidence_missing), what may be edited and how to rerun. That packet is where an agent starts.
 ```
 
 Give an agent the repository and this instruction:
@@ -73,6 +91,12 @@ runs the same judge with no network and the candidate and browser as separate un
 gate/isolation/judge-isolated.sh /path/to/pristine /path/to/agent-checkout ../evidence-003 "$RELEASE"
 ```
 
+Every run also writes a **task packet** (`TASK.md`, `task-packet.json`): the first failure, its category
+(`violation`, `not_exercised`, `evidence_missing`, `toolchain_unavailable`, `contract_change`, `infrastructure`), the
+contract records it bears on, a minimal counterexample, what the agent may edit and the exact rerun command, in a few
+KB a small model can act on (`docs/rfc/0003-adoption-and-agent-feedback.md`). `python3 gate/cli.py` is the stable
+command-line and JSON interface for agents and tools (`doctor`, `verify`, `packet`, `pack new|check`, `adopt`).
+
 `app-claims.json` in the evidence directory carries three separate statuses and a `release_ready` flag that
 needs all of them, an authoritative pinned run, an isolation profile the judge observed to be enforced, a
 contained browser, and an Ed25519 review attestation (`gate/review.py`) that only an operator can produce.
@@ -84,6 +108,26 @@ re-runs only what is invalidated or not cacheable (the proof and model checks ar
 service is not).
 
 To see a conforming build without an agent: `validation/judge_example.sh examples/build-a ../evidence-ex-a`.
+
+**Existing projects.** A pack can protect one workflow inside a codebase that already exists: `python3 gate/cli.py
+adopt` writes the manifest (`include`: the project's code the pack's entrypoints use; `subsystem`: what is covered) and
+an adoption record, and every report states that nothing outside the judged paths is covered. Guide:
+`docs/ADOPTING.md`; worked example: `packs/approval/examples/adopt-handbook`.
+
+**Changes, upgrades and deployments.** Before a change, `python3 gate/cli.py change plan --evidence ../evidence-001
+--paths ui/index.html` says which checks read those paths, the contract records they establish, the route
+(presentation, integration or behavioral) and what must be re-established; after it, `change classify` says what the
+change actually reached. Both are advisory and say when they are ambiguous. A release that changes the contract can
+ship a migration that `gate/migrate.py` judges on state the previously accepted artifact really produced;
+`gate/compose.py` checks a composition contract (shared invariants across components with separate state); and
+`gate/deploy.py` binds evidence to a deployment and reports drift (`docs/rfc/0004-safe-evolution.md`).
+
+**Maintaining packs.** `GOVERNANCE.md` says who may approve what (no one reviews their own pack's release),
+how keys, attestations and releases are revoked, and what happens when unsoundness is found; `COMPATIBILITY.md`
+says which formats and commands other tools may rely on; `catalog.yaml` lists the maintained packs, and their stage
+(`draft` until an independent reviewer signs a release) is derived, never claimed (`docs/rfc/0005-community-release.md`).
+Whether any of this helps is an empirical question: `docs/EXPERIMENTS.md` is the experiment that would answer it,
+built and dry-run, not yet run with real models.
 
 ## What a green result means, and does not
 
@@ -111,6 +155,14 @@ isolation is observed by a probe, not proven, and covers the threats in `gate/is
 - `CUSTOMIZATION.md` — presentation vs. supported profiles vs. behavioural extensions
 - `ARCHITECTURE.md` — the rings and why the judge is shaped the way it is
 - `docs/rfc/0001-contract-packs-and-evidence.md` — the contract-pack format, check kinds and evidence model
+- `docs/rfc/0002-generality.md` — four packs on one evaluator (one by an outside author): what changed for them, and what M3 still lacks
+- `docs/rfc/0003-adoption-and-agent-feedback.md` — task packets, failure categories, the CLI, the author workflow, existing projects; which M4 criteria are not met
+- `docs/rfc/0004-safe-evolution.md` — change classification, composition contracts, migrations with populated state, deployment records; the M5 exit demonstrations
+- `docs/rfc/0005-community-release.md` — governance, compatibility, the catalog, revocation, the experiment harness; which M6 criteria are not met and what the maintainer has to do next
+- `GOVERNANCE.md`, `COMPATIBILITY.md` — roles and approvals; stable interfaces and how they change
+- `docs/EXPERIMENTS.md` — the conditions experiment (prose vs. core with tests vs. Pith), how to run it, and that it has not been run
+- `docs/PACK-AUTHORING.md` — how to write a pack without changing the evaluator (scaffold, checks, independent review)
+- `docs/ADOPTING.md` — adding Pith to one workflow of an existing project, and how to record a trial
 - `docs/VALIDATION.md` — every gate run behind this release, including the reviewers' bypass candidates being refused
 - `docs/FRONTIER.md` — the research this is built on (vericoding benchmarks, specification gaming, evaluator isolation)
 - `docs/hybrid-spec-reference.html` — the hybrid spec-driven development essay this project started from

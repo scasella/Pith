@@ -1,0 +1,141 @@
+# pack.yaml — demo.tally 2.0.0: the "after" release of the M5 evolution demonstrations (evolution/README.md). A
+# behavioral change from 1.0.0 (evolution/tally-v1): one bound per named counter (T1, T2 version 2), the migration of a
+# running version 1 service with its state (M1, migrations/from-1.yaml), and no rollback.
+
+format: pith.pack/v1
+pack:
+  id: demo.tally
+  version: 2.0.0
+  title: "tally 2: a bounded tally per named counter, upgraded from tally 1 with its state (evolution demo, after)"
+  contract_version: tally/v2
+  intent: INTENT.md
+  maintainers: [scasella]   # who answers for this pack; a reviewer must not be one of them
+
+policy_dirs: [model, harness, migrations]                                    # frozen pack content; the evaluator adds gate/ and this file
+
+candidate:
+  owned_dirs: [service]                                          # plus app.manifest.yaml
+  manifest_allowlist: [name, include, subsystem]
+  runtimes: [python]
+
+change_routes:
+  - { paths: ["service/**"], route: integration, why: "the service: correspondence to the model, through the black-box harness" }
+  - { paths: ["app.manifest.yaml"], route: integration, why: "included code" }
+
+parameters:                                                      # every manifest key: its domain and what evidence covers it
+  name: { domain: "free text", evidence: none (report label) }
+  include: { domain: "relative paths inside the candidate, not policy (gate/workspace.py)", evidence: "judged only through service/run.py: service.lifecycle" }
+  subsystem: { domain: "free text", evidence: none (names the covered subsystem in the report) }
+
+tools:
+  TLA2TOOLS: { env: TLA2TOOLS, default: tla2tools.jar }
+
+toolchain:
+  tlc: { command: "java -cp {TLA2TOOLS} tlc2.TLC -h; java -version", regex: 'TLC2 Version [^\n]*|TLC - [^\n]*Version [^\n]*' }
+  java: { command: "java -version", regex: 'version "([^"]+)"', group: 1 }
+
+pytest: "{python} -m pytest -q -p no:cacheprovider --noconftest -c /dev/null --rootdir={root}"
+
+statuses:
+  model_assurance:
+    rule: all_pass
+    passed: "passed; scoped: model/Spec.tla's invariants hold over model/MC.cfg, and the known-wrong design violates them"
+    ready: { startswith: passed }
+  behavioral_assurance:
+    rule: all_pass
+    passed: "passed; scoped: the service not falsified by the frozen black-box harness (by test, not proof)"
+    ready: { startswith: passed }
+refusal_status: behavioral_assurance
+completion_status: behavioral_assurance
+
+checks:
+  - id: model.safety
+    about: release
+    area: model
+    name: model checked
+    kind: tlc
+    jar: "{TLA2TOOLS}"
+    workdir: model
+    copy: { from: model, suffixes: [.tla, .cfg] }
+    module: MC.tla
+    cfg: MC.cfg
+    expect: no_error
+    claim: "Bounded and Exact hold for every counter over model/MC.cfg"
+    status: model_assurance
+    method: model-check
+    inputs: ["model/**"]
+    tools: [tlc, java]
+    cacheable: true
+    establishes: [T1, T2]
+
+  - id: model.adequacy
+    about: release
+    area: model
+    name: the model rejects a bound checked on counter default only
+    kind: tlc
+    jar: "{TLA2TOOLS}"
+    workdir: model
+    copy: { from: model/wrong, suffixes: [.tla, .cfg] }
+    module: MCWrongDefaultBound.tla
+    cfg: MCWrongDefaultBound.cfg
+    expect: { violated: Bounded }
+    claim: a design that checks only counter default's bound violates Bounded
+    why: model/wrong/WrongDefaultBound.tla no longer violates Bounded
+    status: model_assurance
+    method: model-check
+    inputs: ["model/**"]
+    tools: [tlc, java]
+    cacheable: true
+
+  - id: service.entrypoint
+    area: service
+    name: service entrypoint
+    kind: files_present
+    files: [service/run.py]
+    claim: service/run.py present (run by the evaluator as a separate process)
+    why: "service/run.py missing: write it to harness/SERVICE.md"
+    status: behavioral_assurance
+    method: structural
+    inputs: ["service/**"]
+
+  - id: service.migrate
+    area: service
+    name: migration entrypoint
+    kind: files_present
+    files: [service/migrate.py]
+    claim: service/migrate.py present (run by gate/migrate.py on version 1 state; migrations/from-1.yaml)
+    why: "service/migrate.py missing: version 2 upgrades a running version 1 service (harness/SERVICE.md, Upgrading from version 1)"
+    status: behavioral_assurance
+    method: structural
+    inputs: ["service/**"]
+
+  - id: service.lifecycle
+    area: service
+    name: lifecycle harness (black-box)
+    kind: command
+    command: "{pytest} harness/lifecycle.py"
+    count: '(\d+) passed'
+    claim: "through the running service: a bound per counter, the default counter, replays across counters, SIGKILL + restart, concurrent requests ({count} checks)"
+    status: behavioral_assurance
+    method: test
+    inputs: ["service/**", "app.manifest.yaml", "harness/**"]
+    depends_on: [service.entrypoint]
+    establishes: [Idempotency, Durability]
+
+contracts:
+  - { id: T1, version: 2, intent: "Each named counter's tally never exceeds its bound; version 1's single tally is counter default.", semantics: { tla: "model/Spec.tla Bounded [T1]" },
+      verified_by: [model.safety, service.lifecycle], wrong: [model/wrong/WrongDefaultBound.tla, examples/wrong/default-bound], change: behavioral }
+  - { id: T2, version: 2, intent: "Each counter's tally equals the number of requests accepted for it.", semantics: { tla: "model/Spec.tla Exact [T2]" },
+      verified_by: [model.safety, service.lifecycle], change: behavioral }
+  - { id: Idempotency, version: 1, intent: "request_id is the idempotency key; a replay returns the recorded result.", semantics: { markdown: "harness/SERVICE.md" },
+      verified_by: [service.lifecycle], change: integration }
+  - { id: Durability, version: 1, intent: "An acknowledged request survives a crash and restart.", semantics: { python: "harness/lifecycle.py" }, timing: after acknowledgement,
+      verified_by: [service.lifecycle], change: integration }
+  - { id: M1, version: 1, intent: "Upgrading a version 1 service keeps every recorded result, replays old request ids, and keeps the reached bound.",
+      semantics: { yaml: "migrations/from-1.yaml", markdown: "harness/SERVICE.md#upgrading-from-version-1" }, 
+      migration: migrations/from-1.yaml, wrong: [examples/wrong-migrations/drops-refused, examples/wrong-migrations/renames-default], change: behavioral }
+
+migrations:                                                      # gate/migrate.py; the evidence for M1 is its report, not a judge run
+  - { from: tally/v1, spec: migrations/from-1.yaml }
+
+domain_vocabulary: [tally, WrongDefaultBound, harness/lifecycle.py]

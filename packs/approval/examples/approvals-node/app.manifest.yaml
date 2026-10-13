@@ -1,0 +1,3 @@
+# app.manifest.yaml — the agent's configuration. Only the keys in pack.yaml:candidate.manifest_allowlist.
+name: Change Board
+runtime: node              # service/run.mjs and cli/main.mjs under the judge's Node.js

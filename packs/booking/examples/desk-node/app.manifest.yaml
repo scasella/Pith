@@ -1,0 +1,5 @@
+# app.manifest.yaml — the agent's configuration. Only the keys in pack.yaml:candidate.manifest_allowlist.
+name: Front Desk Bookings
+runtime: node              # node: the judge starts `node service/run.mjs --port P --db PATH`
+profile: shipped           # the pack's Node integration (profiles/node/store.mjs: journal + the verified core translated to JavaScript)
+ui_entry: ui/index.html

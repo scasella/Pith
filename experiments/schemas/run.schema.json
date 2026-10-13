@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/scasella/Pith/experiments/schemas/run.schema.json",
+  "title": "pith.experiment-run/v1",
+  "description": "One run of the conditions experiment (experiments/protocol.yaml): what was planned, the exact agent, its budget and usage, and per stage what its own acceptance said, what the common external criteria said, and every intervention and setup failure. Failed and abandoned runs are recorded like any other.",
+  "type": "object",
+  "required": ["format", "protocol", "run_id", "dry_run", "planned", "agent", "budget", "usage", "stages", "outcome"],
+  "properties": {
+    "format": {"const": "pith.experiment-run/v1"},
+    "protocol": {"type": "string"},
+    "run_id": {"type": "string", "minLength": 1},
+    "dry_run": {"type": "boolean", "description": "true for scripted agents; such runs are never reported as results"},
+    "planned": {"type": "object", "required": ["model", "task", "condition", "repeat"],
+      "properties": {"model": {"type": "string"}, "task": {"type": "string"}, "condition": {"type": "string"}, "repeat": {"type": "integer", "minimum": 1}, "order": {"type": "integer"}}},
+    "agent": {"type": "object", "required": ["model", "provider", "harness"],
+      "properties": {"model": {"type": "string", "description": "the exact model identifier the provider served, not a marketing name"},
+                     "provider": {"type": "string"}, "harness": {"type": "string"}, "settings": {"type": "object"}}},
+    "budget": {"type": "object"},
+    "usage": {"type": "object", "properties": {"turns": {"type": ["integer", "null"]}, "tokens_in": {"type": ["integer", "null"]}, "tokens_out": {"type": ["integer", "null"]},
+                                               "wall_clock_minutes": {"type": ["number", "null"]}, "cost_usd": {"type": ["number", "null"]}}},
+    "stages": {"type": "object", "required": ["build"], "additionalProperties": false,
+      "properties": {"build": {"$ref": "#/$defs/stage"}, "change": {"$ref": "#/$defs/stage"}}},
+    "outcome": {"type": "object", "required": ["excluded"],
+      "properties": {"excluded": {"type": "boolean"}, "exclusion_reason": {"type": "string"}, "primary": {"type": ["boolean", "null"], "description": "informational; the analysis recomputes it from the stages"}}}
+  },
+  "$defs": {
+    "stage": {"type": "object", "required": ["attempts", "own_acceptance", "external", "interventions", "setup_failures", "abandoned"],
+      "properties": {
+        "attempts": {"type": "integer", "minimum": 0},
+        "own_acceptance": {"type": "object", "required": ["result"], "properties": {"result": {"enum": ["accepted", "refused", "none"]}, "detail": {"type": "string"}}},
+        "external": {"type": "object", "required": ["passed", "criteria"], "properties": {"passed": {"type": "boolean"}, "criteria": {"type": "object", "additionalProperties": {"type": "boolean"}}, "error": {"type": "string"}}},
+        "interventions": {"type": "array", "items": {"type": "object", "required": ["who", "what"],
+          "properties": {"who": {"enum": ["maintainer", "user", "none"]}, "what": {"type": "string"}, "why_instructions_were_not_enough": {"type": "string"}}}},
+        "setup_failures": {"type": "array", "items": {"type": "object", "required": ["what"], "properties": {"what": {"type": "string"}, "how_resolved": {"type": "string"}, "minutes_lost": {"type": "number"}}}},
+        "abandoned": {"type": "boolean"}, "abandon_reason": {"type": "string"},
+        "workspace_digest": {"type": ["string", "null"]}, "transcript_sha256": {"type": ["string", "null"]}
+      }}
+  }
+}

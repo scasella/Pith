@@ -1,0 +1,23 @@
+# spec/tcb.yaml — what a passing pith.quota judgement rests on, and what it does not cover. FROZEN.
+banned_in_core:                                   # checked by the core.tcb check (pack.yaml); the same list the other packs use
+  - '\bassume\b'
+  - '\{:axiom\}'
+  - '\{:verify\s+false\}'
+  - '\{:extern'
+  - 'decreases\s+\*'
+  - '\bexpect\b'
+  - '\{:only\}|\{:focus\}'
+assumptions:
+  - Dafny 4.11 verifier and Boogie/Z3 are sound for the constructs used
+  - the Dafny-to-Python translator preserves the verified semantics (the translation is reproduced on every judge, not trusted blindly, and the reviewed traces run against the core)
+  - spec/QuotaSpec.dfy captures the intended contract (validated by the reviewed traces in spec/TraceData.dfy, the known-wrong cores in spec/wrong/ and human review of INTENT.md, not by the verifier)
+  - harness/oracle.py states the library's domain, its error precedence and dump/load as harness/LIBRARY.md does; that code is reviewed, not verified
+  - the candidate's library behaves the same when the pack's driver and consumer programs use it as when any other program does (the library runs in the same process as the frozen driver and could, in principle, recognise it)
+  - the cross-module trait declarations ({:termination false}) are harmless because no obligation is recursive through a trait
+not_covered:
+  - the library is judged against the core only by test (lifecycle, boundary, property-based conformance); no proof covers the candidate's code
+  - Python atomicity across threads is tested by bursts on one key at one instant, not proven; Node.js atomicity is assumed from run-to-completion
+  - distributed quotas (several processes or hosts sharing one quota), wall-clock time sources, clock skew, leap seconds
+  - token buckets, leaky buckets, per-key limits, refunds, quota resets, priorities (outside the contract: INTENT.md)
+  - performance: the core is linear in the log and its retry search linear in the window; the candidate's complexity is not judged beyond LI3's bound on retained state
+  - liveness (that every call returns)

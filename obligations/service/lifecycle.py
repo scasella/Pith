@@ -27,6 +27,7 @@ def test_duplicate_create_rejected_and_service_still_usable(svc):
     assert c.authorize(1, 1, 100)[1]["decision"] == "AUTHORIZED"
 
 def test_replay_is_idempotent_and_conflicts_are_rejected(svc):
+    """Contract: Idempotency, Idempotent."""
     c = svc.client; c.create(1, 100)
     a = c.authorize(1, 1, 60)[1]; n = len(decided(c))
     b = c.authorize(1, 1, 60)[1]
@@ -34,6 +35,7 @@ def test_replay_is_idempotent_and_conflicts_are_rejected(svc):
     assert c.authorize(1, 1, 61)[0] in (400, 409) and c.account(1)[1]["holds"] == {"1": 60}
 
 def test_crash_after_commit_then_restart_retry_replays(svc):
+    """Contract: Durability, Idempotency."""
     c = svc.client; c.create(1, 100); c.authorize(1, 1, 60)
     svc.kill()
     c = svc.start().client
@@ -43,6 +45,7 @@ def test_crash_after_commit_then_restart_retry_replays(svc):
     assert [e["type"] for e in mine].count("auth.decided") == 1 and len([e for e in mine if e["type"] == "op.committed"]) == 1
 
 def test_restart_preserves_state_and_idempotency(svc):
+    """Contract: Durability, Idempotency."""
     c = svc.client; c.create(1, 100); c.create(2, 50); c.authorize(1, 1, 60); c.authorize(2, 2, 50); c.release(2, 2)
     c = svc.restart().client
     assert c.account(1)[1]["holds"] == {"1": 60} and c.account(2)[1]["holds"] == {}
@@ -50,6 +53,7 @@ def test_restart_preserves_state_and_idempotency(svc):
     assert c.authorize(1, 3, 40)[1]["decision"] == "AUTHORIZED" and c.authorize(1, 4, 1)[1]["decision"] == "DECLINED"
 
 def test_capture_is_exact_terminal_and_idempotent(svc):
+    """Contract: Idempotency."""
     c = svc.client; c.create(1, 100); c.authorize(1, 1, 60)
     r = c.capture(1, 1)[1]; assert r["captured"] is True and r["amount"] == 60 and r["replayed"] is False
     v = c.account(1)[1]; assert v["posted"] == 60 and v["holds"] == {} and v["status"]["1"] == "POST" and v["available"] == 40
@@ -60,6 +64,7 @@ def test_capture_is_exact_terminal_and_idempotent(svc):
     assert c.account(1)[1]["posted"] == 60 and c.capture(1, 1)[1]["replayed"] is True             # survives restart
 
 def test_event_contract(svc):
+    """Contract: EventContract."""
     c = svc.client; c.create(1, 100); c.authorize(1, 1, 60); c.authorize(1, 2, 60); c.release(1, 1); c.authorize(1, 3, 40); c.capture(1, 3)
     _, evs = c.events(); types = [e["type"] for e in evs]
     assert types == ["account.created", "op.committed", "auth.decided", "reservation.created", "op.committed",
@@ -78,6 +83,7 @@ def test_event_contract(svc):
     assert [x["reserved"] for x in commits] == [0, 60, 60, 0, 40, 0] and [x["posted"] for x in commits] == [0, 0, 0, 0, 0, 40]
 
 def test_concurrent_bursts_and_readers(svc):
+    """Contract: Durability, EventContract."""
     c = svc.client; c.create(1, 100); stop = threading.Event(); bad = []
     def reader():
         while not stop.is_set():
