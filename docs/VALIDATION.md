@@ -101,7 +101,9 @@ Releases: reservation `117f339033b4c2b38c036ce9d277fd487f128c30435a002b4e01fd6cb
 - the reservation pack matches the M2 baseline, with one more expected claim-text difference: the allowlist claim
   now names `include` and `subsystem` (`compare_m1.py`); evidence invalidation and reuse as before
   (`evidence_reuse.py`); one evaluator across 8 runs of the three packs (`generality.py`)
-- MATRIX_M4
+- wrong-candidate matrix (validation/matrix.py, 19 cases), re-run against the v0.9.0 reservation release: all 19
+  refused at their intended check, the same checks as v0.8.0 (the over-limit SPEC claim passes with a reviewer flag,
+  exit 0)
 
 # Validation record — Pith v0.8.0 (M3: three packs, one evaluator)
 
