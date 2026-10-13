@@ -19,7 +19,7 @@ candidates (the report records browser_sandbox, and release-readiness requires i
 as a separate unprivileged user inside an enforced isolation profile: see obligations/isolation/).
 Status: passed | failed | unavailable (browser could not start: a blocker, never a pass).
 """
-import json, os, pathlib, shutil, sys, time
+import json, os, pathlib, shutil, sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 VIEWPORTS = {"desktop": (1280, 800), "mobile": (390, 844)}
