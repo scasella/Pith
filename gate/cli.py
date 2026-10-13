@@ -15,6 +15,12 @@ One stable entry point for people, agents and wrappers (Spec Kit, CI, an agent h
                                                                        independent signed review of this release (gate/review.py sign-pack)
     python3 gate/cli.py adopt    --release DIR --project DIR --subsystem TEXT [--include PATH ...] [--name NAME] [--json]
                                                                        add a pack to one workflow of an existing project (docs/ADOPTING.md)
+    python3 gate/cli.py change   plan|classify ...                      what a change reaches and what it must re-establish (gate/change.py)
+    python3 gate/cli.py compose  check DIR                              check a composition contract (gate/compose.py)
+    python3 gate/cli.py migrate  run ...                                judge a migration on populated state (gate/migrate.py)
+    python3 gate/cli.py deploy   record|check ...                       bind evidence to a deployment (gate/deploy.py)
+    python3 gate/cli.py impact   impact|verify ...                      evidence invalidation (gate/evidence.py)
+      (these five pass their arguments through; with --json, where the tool takes it, stdout is one JSON document)
 
 Agent-specific integrations should be thin wrappers over these commands (integrations/).
 Format of the task packet: gate/schemas/task-packet.schema.json; categories: gate/packet.py.
@@ -28,6 +34,7 @@ sys.path.insert(0, str(HERE))
 import workspace as W, pack as PK, packet as PT
 
 EXIT_OK, EXIT_NOT_OK, EXIT_INCOMPLETE, EXIT_USAGE = 0, 1, 2, 3
+DELEGATED = {"change": "change.py", "compose": "compose.py", "migrate": "migrate.py", "deploy": "deploy.py", "impact": "evidence.py"}
 
 
 def emit(as_json, obj, text):
@@ -140,15 +147,20 @@ def pack_check(pack_dir, release_mode, reviews, keys, as_json, today=None):
         if not str(c.get("intent") or "").strip(): errors.append(f"{where}: no intent")
         if not c.get("semantics"): errors.append(f"{where}: no semantics (where the precise statement lives)")
         if c.get("change") not in ("presentation", "integration", "behavioral"): errors.append(f"{where}: change must be presentation, integration or behavioral")
-        if not c.get("verified_by") and c["id"] not in established: errors.append(f"{where}: verified by no check")
+        migs = {m.get("spec") for m in P.get("migrations", []) or []}
+        if c.get("migration") and c["migration"] not in migs: errors.append(f"{where}: migration {c['migration']} is not one of the pack's migrations")
+        if not c.get("verified_by") and c["id"] not in established and not c.get("migration"): errors.append(f"{where}: verified by no check and no migration")
         for s in (c.get("semantics") or {}).values():
-            f = str(s).split()[0]
+            f = str(s).split()[0].split("#")[0]
             if "/" in f and f.split("/")[0] not in P["candidate"]["owned_dirs"] and not (pack_dir / f).exists() and not (ROOT / f).exists():
                 errors.append(f"{where}: semantics names {f}, which does not exist")      # a candidate-generated file (gen/out/...) exists only in a build
         for w in c.get("wrong", []) or []:
             if not ((pack_dir / w).exists() or (ROOT / w).exists()): errors.append(f"{where}: wrong example {w} does not exist")
         if c.get("change") == "behavioral" and not c.get("wrong") and not any(c["id"] in x.get("establishes", []) and x.get("expect_exit") == "nonzero" for x in checks):
             warnings.append(f"{where}: behavioral, but no wrong candidate shows the pack rejects a violation of it")
+    for m in P.get("migrations", []) or []:
+        if not (pack_dir / str(m.get("spec"))).is_file(): errors.append(f"migration from {m.get('from')}: {m.get('spec')} does not exist")
+        elif str(m.get("spec")).split("/")[0] not in P["policy_dirs"]: errors.append(f"migration from {m.get('from')}: {m.get('spec')} is outside the policy dirs, so it is not part of the release")
     for c in checks:
         if c.get("status") and not c.get("inputs") and c["kind"] not in ("manifest_choice", "attestation"): warnings.append(f"check {c['id']}: no inputs, so evidence invalidation cannot see what it read")
         if c.get("cacheable") and any(str(g).split("/")[0] in P["candidate"]["owned_dirs"] for g in c.get("inputs", [])) and c["kind"] == "command":
@@ -297,6 +309,8 @@ Record each refusal the judge reported, its category and what was changed (code,
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
+    if argv[:1] and argv[0] in DELEGATED:                     # v0.10.0: the evolution tools, each with its own arguments
+        return subprocess.run([sys.executable, str(HERE / DELEGATED[argv[0]])] + argv[1:]).returncode
     if argv[:1] == ["verify"]:
         rest = argv[1:]; as_json = "--json" in rest; rest = [x for x in rest if x != "--json"]
         if rest[:1] == ["--"]: rest = rest[1:]
@@ -305,6 +319,7 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd", required=True)
     d = sub.add_parser("doctor"); d.add_argument("--pack", default=str(ROOT)); d.add_argument("--json", action="store_true")
     sub.add_parser("verify", help="-- <app_gate.py arguments>")
+    for name, mod in DELEGATED.items(): sub.add_parser(name, help=f"gate/{mod} (its own arguments)")
     k = sub.add_parser("packet"); k.add_argument("evidence"); k.add_argument("--json", action="store_true")
     pk = sub.add_parser("pack"); ps = pk.add_subparsers(dest="pcmd", required=True)
     n = ps.add_parser("new"); n.add_argument("name"); n.add_argument("--out", required=True)

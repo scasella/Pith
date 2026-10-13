@@ -1,0 +1,15 @@
+{
+  "format": 2,
+  "created": "2026-10-13T18:37:43Z",
+  "pack": {
+    "id": "demo.tally",
+    "version": "1.0.0"
+  },
+  "policy_dirs": [
+    "gate",
+    "model",
+    "harness"
+  ],
+  "files": 34,
+  "release_digest": "103143ba3bbbbe07cd9dbec50a325c37ddaa4b93a78839f336bdd8c7cb1e7970"
+}

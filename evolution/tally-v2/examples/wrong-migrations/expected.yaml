@@ -1,0 +1,10 @@
+# Known-wrong migrations: each is examples/basic with one defect in service/migrate.py (marked DEFECT). Each passes the
+# ordinary judge (its service is the conforming one) and must fail `gate/migrate.py run` at the verify step for exactly
+# the tests listed (validation/evolution.py).
+drops-refused:
+  failing_tests: [test_every_recorded_result_is_kept_and_replayed]
+  may_also_fail: [test_in_flight_request_is_decided_once]          # when the in-flight request was never recorded by version 1
+  contracts: [M1]
+renames-default:
+  failing_tests: [test_every_recorded_result_is_kept_and_replayed, test_version_1_tally_is_counter_default, test_old_request_ids_stay_bound_to_their_result, test_in_flight_request_is_decided_once]
+  contracts: [M1]

@@ -88,7 +88,7 @@ jobs:
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: each pack's release identity matches its seal, and a built release has the same identity
         run: |
-          for pk in packs/booking packs/approval; do
+          for pk in packs/booking packs/approval evolution/tally-v1 evolution/tally-v2; do
             id="$(python3 gate/release.py id --pack $pk)"
             test "$id" = "$(python3 -c "import json;print(json.load(open('$pk/release.seal.json'))['release_digest'])")"
             out="$RUNNER_TEMP/rel-$(basename $pk)"; python3 gate/release.py build --pack $pk --out "$out" >/dev/null
@@ -97,7 +97,7 @@ jobs:
       - name: the evaluator is domain-free across every pack
         run: python3 validation/domain_free.py
       - name: each pack is consistent (gate/cli.py pack check)
-        run: for pk in packs/booking packs/approval; do python3 gate/cli.py pack check $pk; done
+        run: for pk in packs/booking packs/approval evolution/tally-v1 evolution/tally-v2; do python3 gate/cli.py pack check $pk; done
       - name: booking pack examples (Python, Node.js, custom backends)
         run: |
           set -o pipefail
@@ -123,6 +123,12 @@ jobs:
           python3 gate/cli.py pack new demo --out "$D" && python3 gate/release.py seal --pack "$D" && python3 gate/cli.py pack check "$D"
           validation/judge_example.sh --pack "$D" "$D/examples/basic" "$RUNNER_TEMP/ev-scaffold-basic" | tail -1
           python3 validation/judge_wrong.py --pack "$D" "$RUNNER_TEMP"
+      - name: a composition contract tells a broken integration from a broken component (M5)
+        run: python3 gate/cli.py compose check compositions/ledger-receipts
+      - name: handoff, rewrite, contract upgrade with populated state, composition (M5 exit check)
+        run: |
+          python3 validation/evolution.py "$RUNNER_TEMP/evolution"
+          python3 validation/judge_wrong.py --pack evolution/tally-v2 "$RUNNER_TEMP"
       - name: one evaluator, three packs (M3 exit check)
         run: |
           set -o pipefail
@@ -131,7 +137,7 @@ jobs:
           python3 validation/generality.py "$RUNNER_TEMP"/ev-reservation-* "$RUNNER_TEMP"/ev-booking-* "$RUNNER_TEMP"/ev-approval-*
       - uses: actions/upload-artifact@v7
         if: always()
-        with: { name: evidence-packs, path: "${{ runner.temp }}/ev-*\n${{ runner.temp }}/wrong-*\n${{ runner.temp }}/adoption", retention-days: 14 }
+        with: { name: evidence-packs, path: "${{ runner.temp }}/ev-*\n${{ runner.temp }}/wrong-*\n${{ runner.temp }}/adoption\n${{ runner.temp }}/evolution", retention-days: 14 }
 
   isolated:
     # the supported isolation profile, end to end: container build, judge as root, candidate and browser as separate

@@ -1,0 +1,41 @@
+# A composition contract (format: docs/rfc/0004-safe-evolution.md § 3). Two components with separate state, one
+# obligation that spans both. `python3 gate/compose.py check compositions/ledger-receipts` model-checks the
+# integration in model/ against every component's local invariant, every permitted-effect rule and the joint
+# invariant, and requires each known-wrong integration to keep the local rules and break exactly the joint one.
+format: pith.composition/v1
+id: demo.ledger-receipts
+version: 1
+intent: >
+  A request is decided once. The ledger applies the effect (up to a capacity) and the receipt store records the
+  outcome the client is told. Separate stores, so nothing local stops them disagreeing; the composition says they agree.
+model:
+  dir: model
+  integration: Integration          # the module a candidate integration replaces
+  contract: Contract                # extends the integration and states the shared invariants
+  constants: { Reqs: "{r1, r2, r3}", Cap: 2 }
+components:
+  - id: ledger
+    module: Ledger
+    owns: [held]
+    invariants: [LedgerInv]
+    effects: ['\E r \in Reqs : LedgerReserve(r)']
+  - id: receipts
+    module: Receipts
+    owns: [receipt]
+    invariants: [ReceiptsInv]
+    effects: ['\E r \in Reqs, v \in {"ok", "refused"} : ReceiptWrite(r, v)']
+shared_invariants:
+  - id: ReceiptAgrees
+    components: [ledger, receipts]
+    intent: A receipt says "ok" exactly when the request's effect is in the ledger, and "refused" only when it is not.
+atomicity:
+  - transition: Reserve
+    components: [ledger, receipts]
+    requirement: the ledger decision and the receipt that reports it commit together or not at all
+assumptions:
+  - Transitions are atomic as modelled; an implementation establishes this (one transaction over both stores, or a
+    store that holds both), and the composition check does not.
+  - Requests are distinct; retries are replays of the recorded receipt and change neither store.
+wrong:
+  - dir: wrong/receipt-first
+    violates: [ReceiptAgrees]

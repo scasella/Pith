@@ -102,13 +102,31 @@ def write(out, E):
     return E
 
 
-def impact(prior, now_keys):
-    """Classify every prior record against keys computed for the workspace as it is now."""
-    rows = []
+def contract_changes(prior, now_contracts):
+    """{record id: "how it changed"} between the contract records a previous run was judged against and the release's
+    now. Empty when the previous evidence predates recorded contract versions (it cannot say)."""
+    before = prior.get("contracts")
+    if before is None or now_contracts is None: return {}
+    now = {c["id"]: {"version": c.get("version"), "change": c.get("change")} for c in now_contracts}
+    out = {}
+    for i in sorted(set(before) | set(now)):
+        if i not in now: out[i] = "removed"
+        elif i not in before: out[i] = "added"
+        elif before[i].get("version") != now[i]["version"]: out[i] = f"version {before[i].get('version')} -> {now[i]['version']}"
+    return out
+
+
+def impact(prior, now_keys, now_contracts=None):
+    """Classify every prior record against keys computed for the workspace as it is now. With the release's contract
+    records, a record that establishes a contract record whose version changed is invalidated even if its inputs did
+    not change: it is evidence for the old contract."""
+    rows = []; changed = contract_changes(prior, now_contracts)
     for r in prior["records"]:
         if r.get("key") is None: continue                 # evaluator built-ins carry no inputs
         k = now_keys.get(r["id"])
         if k is None: rows.append({"id": r["id"], "check": r["check"], "state": "no longer applies"}); continue
+        stale = [f"{c} {changed[c]}" for c in r.get("establishes") or [] if c in changed]
+        if k["key"] == r["key"] and stale: rows.append({"id": r["id"], "check": r["check"], "state": "invalidated", "why": "contract changed: " + ", ".join(stale)}); continue
         if k["key"] == r["key"]: rows.append({"id": r["id"], "check": r["check"], "state": "holds" if r["result"] == "pass" else f"unchanged ({r['result']})"}); continue
         changed = sorted(p for p in set(k["files"]) | set(r["files"]) if k["files"].get(p) != r["files"].get(p))
         why = []
@@ -116,8 +134,27 @@ def impact(prior, now_keys):
         if k["tools"] != r.get("tools"): why.append("toolchain changed")
         if k["own_key"] != r.get("own_key") and not why: why.append("check definition or evaluator changed")
         if k["own_key"] == r.get("own_key"): why.append("rests on invalidated evidence: " + ", ".join(d for d in k["deps"] if now_keys[d]["key"] != next((x["key"] for x in prior["records"] if x["id"] == d), None)))
+        if stale: why.append("contract changed: " + ", ".join(stale))
         rows.append({"id": r["id"], "check": r["check"], "state": "invalidated", "why": "; ".join(why)})
     return rows
+
+
+def current(cand, policy):
+    """Keys, checks, contract records and artifact files for `cand` judged by the release at `policy`, computed in a
+    throwaway workspace without running anything: what `impact` and gate/change.py compare a previous run against."""
+    here = pathlib.Path(__file__).resolve().parent; sys.path.insert(0, str(here))
+    import workspace as W, pack as PK, app_gate as G
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="impact-")); ws = None
+    try:
+        ws = W.assemble(cand, policy, tmp / "artifact")
+        P = PK.load(ws); M = G.read_manifest(ws)
+        concrete = PK.expand(P, ws, M, "preflight") + PK.expand(P, ws, M)
+        tc = G.toolchain(P, ws, G.tool_values(P)) if any(c.get("tools") for c in concrete) else {}
+        return {"pack": P, "manifest": M, "concrete": concrete, "keys": keys(concrete, ws, tc, evaluator_digest(ws)),
+                "artifact_files": W.files_matching(tmp / "artifact", ["**"])}
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+        if ws: shutil.rmtree(ws, ignore_errors=True)
 
 
 def main():
@@ -125,8 +162,7 @@ def main():
     i = sub.add_parser("impact"); i.add_argument("--evidence", required=True); i.add_argument("--candidate", default=None); i.add_argument("--policy-from", default=None); i.add_argument("--json", action="store_true")
     v = sub.add_parser("verify"); v.add_argument("evidence")
     a = ap.parse_args()
-    here = pathlib.Path(__file__).resolve().parent; sys.path.insert(0, str(here))
-    import workspace as W, pack as PK, app_gate as G
+    here = pathlib.Path(__file__).resolve().parent
     if a.cmd == "verify":
         E = load(a.evidence); S = json.loads((pathlib.Path(a.evidence) / "statement.intoto.json").read_text())
         ok = S["predicate"]["evidence_digest"] == E["digest"] and S["subject"][0]["digest"]["pith-tree-sha256"] == E["artifact_digest"]
@@ -134,17 +170,7 @@ def main():
     prior = load(a.evidence)
     policy = pathlib.Path(a.policy_from).resolve() if a.policy_from else here.parent
     cand = pathlib.Path(a.candidate).resolve() if a.candidate else here.parent
-    tmp = pathlib.Path(tempfile.mkdtemp(prefix="impact-"))
-    try:
-        ws = W.assemble(cand, policy, tmp / "artifact")
-        P = PK.load(ws); M = G.read_manifest(ws)
-        concrete = PK.expand(P, ws, M, "preflight") + PK.expand(P, ws, M)
-        tc = G.toolchain(P, ws, G.tool_values(P)) if any(c.get("tools") for c in concrete) else {}
-        rows = impact(prior, keys(concrete, ws, tc, evaluator_digest(ws)))
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
-        try: shutil.rmtree(ws, ignore_errors=True)
-        except NameError: pass
+    now = current(cand, policy); rows = impact(prior, now["keys"], now["pack"].get("contracts"))
     if a.json: print(json.dumps(rows, indent=1)); return
     for r in rows: print(f"{r['state']:>18}  {r['check']}" + (f"  — {r['why']}" if r.get("why") else ""))
     n = sum(r["state"] == "invalidated" for r in rows)

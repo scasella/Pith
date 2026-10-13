@@ -7,7 +7,7 @@
 format: pith.pack/v1
 pack:
   id: pith.booking
-  version: 0.9.0
+  version: 0.10.0
   title: Interval booking (half-open intervals, cancellation, atomic rescheduling) with a browser-delivered application and two backend stacks
   contract_version: interval-booking-core/v1
   intent: packs/booking/INTENT.md
@@ -32,6 +32,11 @@ toolchain:
   jsonschema: { python_package: jsonschema }
   playwright: { python_package: playwright }
   cryptography: { python_package: cryptography }
+
+change_routes:                                                   # the route a change to the candidate's own paths takes (gate/change.py; advisory)
+  - { paths: ["ui/**"], route: presentation, why: "the browser application: delivery and interaction checks" }
+  - { paths: ["service/**"], route: integration, why: "the service over the verified core: runtime assumptions and correspondence" }
+  - { paths: ["app.manifest.yaml"], route: integration, why: "selects the profile and included code" }
 
 parameters:                                                      # every manifest key's domain and what evidence covers it (gate/cli.py pack check)
   name: { domain: "free text", evidence: none (report label) }

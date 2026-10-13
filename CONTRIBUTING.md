@@ -36,7 +36,8 @@ python3 validation/domain_free.py
 python3 -m pytest validation/test_packet.py -q              # failure categories, counterexamples, the packet, include rules
 python3 validation/packets.py ../evidence-packets           # one run per failure category; every packet schema-valid
 python3 validation/adoption.py ../evidence-adoption         # the existing-project journey (packs/approval/examples/adopt-handbook)
-for p in . packs/booking packs/approval; do python3 gate/cli.py pack check $p; done
+for p in . packs/booking packs/approval evolution/tally-v1 evolution/tally-v2; do python3 gate/cli.py pack check $p; done
+python3 validation/evolution.py ../evidence-evolution          # handoff, rewrite, contract upgrade with state, composition (M5)
 ```
 
 ## Style

@@ -17,7 +17,7 @@ layer must satisfy (TLA+ invariants, black-box harnesses, a UI contract with int
 evaluator that runs the candidate as a separate, unprivileged process and never trusts its output. An agent clones the repository, reads
 `AGENT.md`, and builds the design model, service, and user interface. The gate decides when it is done.
 
-> Status: research prototype, v0.9.0. The method and the judge have been through five external reviews, one
+> Status: research prototype, v0.10.0. The method and the judge have been through five external reviews, one
 > unassisted agent build and two reference-assisted agent builds (see `docs/VALIDATION.md`). It is not a payment system; no funds move. Read
 > `INTENT.md` for what the core means and `kernel/tcb.yaml` for what a green result rests on.
 
@@ -40,6 +40,8 @@ packs/         two more contract packs judged by the same evaluator: booking/ (h
                separation of duties, revision-bound approvals; a TLA+ model; a command-line app)
 examples/      conforming builds (two reference, two corrected agent builds, one archived) and known-wrong fixtures
 templates/     the draft-pack scaffold (`gate/cli.py pack new`)
+evolution/     a contract upgrade with its migration (tally/v1 -> tally/v2), used by the safe-evolution demonstrations
+compositions/  composition contracts: components, owned state, shared invariants (gate/compose.py)
 integrations/  thin wrappers over the CLI (GitHub Spec Kit)
 docs/          validation record, adoption guide, RFCs, research background, the hybrid-spec essay this grew out of
 ```
@@ -109,6 +111,14 @@ adopt` writes the manifest (`include`: the project's code the pack's entrypoints
 an adoption record, and every report states that nothing outside the judged paths is covered. Guide:
 `docs/ADOPTING.md`; worked example: `packs/approval/examples/adopt-handbook`.
 
+**Changes, upgrades and deployments.** Before a change, `python3 gate/cli.py change plan --evidence ../evidence-001
+--paths ui/index.html` says which checks read those paths, the contract records they establish, the route
+(presentation, integration or behavioral) and what must be re-established; after it, `change classify` says what the
+change actually reached. Both are advisory and say when they are ambiguous. A release that changes the contract can
+ship a migration that `gate/migrate.py` judges on state the previously accepted artifact really produced;
+`gate/compose.py` checks a composition contract (shared invariants across components with separate state); and
+`gate/deploy.py` binds evidence to a deployment and reports drift (`docs/rfc/0004-safe-evolution.md`).
+
 ## What a green result means, and does not
 
 `behavioral_assurance=passed` means: the core's obligations are proved (Dafny, include closure verified,
@@ -137,6 +147,7 @@ isolation is observed by a probe, not proven, and covers the threats in `gate/is
 - `docs/rfc/0001-contract-packs-and-evidence.md` — the contract-pack format, check kinds and evidence model
 - `docs/rfc/0002-generality.md` — three packs on one evaluator: what changed for them, and which M3 criteria are not met
 - `docs/rfc/0003-adoption-and-agent-feedback.md` — task packets, failure categories, the CLI, the author workflow, existing projects; which M4 criteria are not met
+- `docs/rfc/0004-safe-evolution.md` — change classification, composition contracts, migrations with populated state, deployment records; the M5 exit demonstrations
 - `docs/PACK-AUTHORING.md` — how to write a pack without changing the evaluator (scaffold, checks, independent review)
 - `docs/ADOPTING.md` — adding Pith to one workflow of an existing project, and how to record a trial
 - `docs/VALIDATION.md` — every gate run behind this release, including the reviewers' bypass candidates being refused

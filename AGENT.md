@@ -106,6 +106,15 @@ missing. Read `kernel/core/claims.json`: `scope.does_not_cover` and
 - Adapter events must be hash-chained and every `op.committed` must carry `state_after` (see the sqlite
   profile and `gen/out/events.schema.json`); the monitor checks continuity, not just event atoms.
 
+## Changing an accepted application
+
+Before you change an application that was already accepted, run `python3 gate/cli.py change plan --evidence <its
+evidence> --paths <what you will edit>`: it names the checks that read those paths, the contract records at stake, the
+route (presentation, integration, behavioral) and what must be re-established. Afterwards `change classify` says what
+the change actually reached; rerun with `--reuse <its evidence>` so only that is re-checked. A behavioral route means
+the contract itself must change: stop and report it, because only the pack's maintainers can make that change. The
+reports are advisory; when they say `ambiguous`, say so in your report rather than picking the convenient reading.
+
 ## Rules the gate cannot check, which you follow anyway
 
 - Never compute a decision or availability outside the core and the adapter; never define a core type by hand.

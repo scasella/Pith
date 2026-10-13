@@ -119,3 +119,26 @@ python3 gate/cli.py pack check packs/<name> --release --reviewer-key reviewer.pu
 ```
 
 Any change to the pack changes its digest and invalidates the review.
+
+## 8. Changing a released pack: routes and migrations
+
+Give every contract record a `change` route and map the candidate's paths onto routes, so `gate/change.py` can tell a
+developer what a change reaches before they make it:
+
+```yaml
+change_routes:
+  - { paths: ["ui/**"], route: presentation, why: "the browser application: delivery and interaction checks" }
+  - { paths: ["service/**"], route: integration, why: "the service: correspondence to the model" }
+```
+
+A new release that changes what the pack promises bumps the changed records' `version` (evidence for the old version
+is then invalidated, `gate/evidence.py impact`) and, when deployments carry state, ships a migration: a spec in a
+policy dir (format `pith.migration/v1`: the mapping from old state to new, how old retries and in-flight requests
+behave, the rollback policy, and the `populate`, `migrate` and `verify` commands), declared under `migrations:` and
+named by the record it establishes (`migration:`). `populate` drives the old release's service to produce real state;
+`verify` judges the new service on it; the candidate supplies `migrate`. Ship known-wrong migrations too: a migration
+that drops history usually passes the ordinary judge. `evolution/tally-v2` is the worked example and
+`docs/rfc/0004-safe-evolution.md` § 4 the reference.
+
+Where your pack is one component of a larger workflow, state the composition rather than assuming it:
+`compositions/<name>/composition.yaml` and `python3 gate/cli.py compose check` (§ 3 of the same RFC).

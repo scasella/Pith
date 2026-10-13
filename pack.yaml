@@ -11,7 +11,7 @@
 format: pith.pack/v1
 pack:
   id: pith.reservation
-  version: 0.9.0
+  version: 0.10.0
   title: Reservation and capture (authorization holds, release, posting) with a browser-delivered application
   contract_version: authorization-and-posting-core/v2          # = kernel/gate/manifest.yaml:name
   intent: INTENT.md                                              # reviewed prose; not an oracle
@@ -37,6 +37,11 @@ toolchain:                                                       # recorded in e
   cryptography: { python_package: cryptography }
   tlc: { command: "java -cp {TLA2TOOLS} tlc2.TLC -h; java -version", regex: 'TLC2 Version [^\n]*|TLC - [^\n]*Version [^\n]*' }
   java: { command: "java -version", regex: 'version "([^"]+)"', group: 1 }
+
+change_routes:                                                   # the route a change to the candidate's own paths takes (gate/change.py; advisory)
+  - { paths: ["ui/**", "app/**"], route: presentation, why: "the browser application and its SPEC: delivery and interaction checks" }
+  - { paths: ["design/**", "service/**", "adapter/**", "gen/**"], route: integration, why: "design, service and generated interface: runtime assumptions and correspondence" }
+  - { paths: ["app.manifest.yaml"], route: integration, why: "selects the profile, entry points and included code" }
 
 parameters:                                                      # every manifest key's domain and what evidence covers it (gate/cli.py pack check)
   name: { domain: "free text", evidence: none (report label) }

@@ -127,7 +127,11 @@ def judge(candidate, policy_src, out, mode, expected_release, review, reviewer_k
                            "artifact_digest": claims["artifact_digest"], "gate_mode": mode, "authority": claims["authority"],
                            "isolation": (claims.get("isolation") or {}).get("status"), "toolchain": claims["toolchain"],
                            "statuses": {s: claims.get(s) for s in statuses}, "release_ready": claims["release_ready"],
-                           "reused_from": str(reuse) if reuse else None, "records": records})
+                           "reused_from": str(reuse) if reuse else None, "records": records,
+                           # what a later change is compared against (gate/change.py): each contract record's version and
+                           # route, and every judged file's digest
+                           "contracts": {c["id"]: {"version": c.get("version"), "change": c.get("change")} for c in (P or {}).get("contracts", [])},
+                           "artifact_files": W.files_matching(out / "artifact", ["**"])})
         claims["evidence_digest"] = E["digest"]
         claims["task_packet"] = "task-packet.json"
         (out / "app-claims.json").write_text(json.dumps(claims, indent=2))

@@ -10,7 +10,7 @@
 format: pith.pack/v1
 pack:
   id: pith.approval
-  version: 0.9.0
+  version: 0.10.0
   title: Document approval workflow (roles, separation of duties, revision-bound approvals) with a command-line client
   contract_version: approval-workflow/v1
   intent: packs/approval/INTENT.md
@@ -34,6 +34,11 @@ toolchain:
   node: { command: "node --version" }
   hypothesis: { python_package: hypothesis }
   jsonschema: { python_package: jsonschema }
+
+change_routes:                                                   # the route a change to the candidate's own paths takes (gate/change.py; advisory)
+  - { paths: ["cli/**"], route: presentation, why: "the command-line client: delivery and interaction checks" }
+  - { paths: ["service/**"], route: integration, why: "the candidate-written service: correspondence to the reference model" }
+  - { paths: ["app.manifest.yaml"], route: integration, why: "selects the runtime and included code" }
 
 parameters:                                                      # every manifest key's domain and what evidence covers it (gate/cli.py pack check)
   name: { domain: "free text", evidence: none (report label) }

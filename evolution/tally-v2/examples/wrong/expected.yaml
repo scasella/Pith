@@ -1,0 +1,7 @@
+# Known-wrong applications: each is a conforming example with one defect (marked DEFECT), and where it must be refused.
+# validation/judge_wrong.py --pack <this pack> checks both; category is the task packet's (gate/packet.py).
+default-bound:
+  refused_at: service.lifecycle
+  failing_tests: [test_each_counter_has_its_own_bound, test_concurrent_requests_never_pass_a_bound]
+  category: violation
+  contracts: [T1]

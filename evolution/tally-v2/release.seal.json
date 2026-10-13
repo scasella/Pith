@@ -1,0 +1,16 @@
+{
+  "format": 2,
+  "created": "2026-10-13T18:37:43Z",
+  "pack": {
+    "id": "demo.tally",
+    "version": "2.0.0"
+  },
+  "policy_dirs": [
+    "gate",
+    "model",
+    "harness",
+    "migrations"
+  ],
+  "files": 37,
+  "release_digest": "f3fd8dba1625afbc696d55501492baf1f20d4c8d5f1a4c04903ac925c48ed59f"
+}
