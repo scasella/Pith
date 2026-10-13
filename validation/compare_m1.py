@@ -13,6 +13,11 @@ Differences that are expected, and why, are listed in EXPECTED below; anything e
 import json, pathlib, re, sys
 
 HEX = re.compile(r"\b[0-9a-f]{16,64}\b")
+SANDBOX = re.compile(r"sandboxed=(True|False)")
+# Properties of the machine, not of the judge: whether Chromium's sandbox could run where the judge ran, which
+# decides the claim's sandboxed= flag and whether "browser" is missing for release_ready. The baseline was
+# recorded on a host without it; CI has it. They are masked so the comparison is about the judge.
+ENVIRONMENT = {"sandboxed=": "masked in claim text", "browser": "dropped from release_ready_missing"}
 EXPECTED = {
     # gate/ + pack.yaml are policy now, and the release has a different file count; the claim names them
     ("policy", "frozen files intact"): "claim text names the release's policy dirs and file count",
@@ -25,13 +30,13 @@ def fingerprint(c):
     checks = []
     for x in c["checks"]:
         key = (x["area"], x["check"])
-        claim = None if key in EXPECTED else HEX.sub("<hex>", x["claim"])
+        claim = None if key in EXPECTED else SANDBOX.sub("sandboxed=<env>", HEX.sub("<hex>", x["claim"]))
         checks.append([x["area"], x["check"], x["result"], claim])
     wf = (c.get("delivery_detail") or {}).get("workflows", {})
     return {"checks": checks,
             "statuses": {s: c.get(s) for s in ("behavioral_assurance", "application_delivery", "human_approval")},
             "failing_delivery": sorted(k for k, v in wf.items() if not v["ok"]),
-            "release_ready": c.get("release_ready"), "release_ready_missing": c.get("release_ready_missing")}
+            "release_ready": c.get("release_ready"), "release_ready_missing": [m for m in c.get("release_ready_missing") or [] if m != "browser"]}
 
 
 def collect(root):
@@ -63,7 +68,7 @@ def main():
                 if k != "checks": print(f"          {k}: m1={want[k]} now={got[k]}")
         else:
             print(f"same    {name}: {len(want['checks'])} checks, statuses, delivery failures {want['failing_delivery'] or 'none'}, release_ready_missing {want['release_ready_missing']}")
-    print(f"expected differences (claim text only): {sorted(' · '.join(k) for k in EXPECTED)}")
+    print(f"expected differences (claim text only): {sorted(' · '.join(k) for k in EXPECTED)}; environment-dependent, masked: {ENVIRONMENT}")
     sys.exit(1 if bad else 0)
 
 

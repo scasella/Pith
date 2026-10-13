@@ -173,7 +173,7 @@
     "ring3",
     "application delivery",
     "pass",
-    "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile']; interaction obligations ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] passed under injected response faults (sandboxed=False, browser user=judge); SPEC structurally complete (lint is structural, not semantic)"
+    "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile']; interaction obligations ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] passed under injected response faults (sandboxed=<env>, browser user=judge); SPEC structurally complete (lint is structural, not semantic)"
    ],
    [
     "ring3",
@@ -197,8 +197,7 @@
   "release_ready": false,
   "release_ready_missing": [
    "human_approval",
-   "isolation",
-   "browser"
+   "isolation"
   ]
  },
  "ev-build-b": {
@@ -369,7 +368,7 @@
     "ring3",
     "application delivery",
     "pass",
-    "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile']; interaction obligations ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] passed under injected response faults (sandboxed=False, browser user=judge); SPEC structurally complete (lint is structural, not semantic)"
+    "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile']; interaction obligations ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] passed under injected response faults (sandboxed=<env>, browser user=judge); SPEC structurally complete (lint is structural, not semantic)"
    ],
    [
     "ring3",
@@ -393,8 +392,7 @@
   "release_ready": false,
   "release_ready_missing": [
    "human_approval",
-   "isolation",
-   "browser"
+   "isolation"
   ]
  },
  "ev-club-desk": {
@@ -571,7 +569,7 @@
     "ring3",
     "application delivery",
     "pass",
-    "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile']; interaction obligations ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] passed under injected response faults (sandboxed=False, browser user=judge); SPEC structurally complete (lint is structural, not semantic)"
+    "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile']; interaction obligations ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] passed under injected response faults (sandboxed=<env>, browser user=judge); SPEC structurally complete (lint is structural, not semantic)"
    ],
    [
     "ring3",
@@ -595,8 +593,7 @@
   "release_ready": false,
   "release_ready_missing": [
    "human_approval",
-   "isolation",
-   "browser"
+   "isolation"
   ]
  },
  "ev-office-desk": {
@@ -773,7 +770,7 @@
     "ring3",
     "application delivery",
     "pass",
-    "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile']; interaction obligations ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] passed under injected response faults (sandboxed=False, browser user=judge); SPEC structurally complete (lint is structural, not semantic)"
+    "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile']; interaction obligations ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] passed under injected response faults (sandboxed=<env>, browser user=judge); SPEC structurally complete (lint is structural, not semantic)"
    ],
    [
     "ring3",
@@ -797,8 +794,7 @@
   "release_ready": false,
   "release_ready_missing": [
    "human_approval",
-   "isolation",
-   "browser"
+   "isolation"
   ]
  },
  "wrong-club-desk": {
@@ -975,7 +971,7 @@
     "ring3",
     "application delivery",
     "fail",
-    "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile']; interaction obligations ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] passed under injected response faults (sandboxed=False, browser user=judge); SPEC structurally complete (lint is structural, not semantic)"
+    "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile']; interaction obligations ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] passed under injected response faults (sandboxed=<env>, browser user=judge); SPEC structurally complete (lint is structural, not semantic)"
    ],
    [
     "ring3",
@@ -1005,8 +1001,7 @@
   "release_ready_missing": [
    "application_delivery",
    "human_approval",
-   "isolation",
-   "browser"
+   "isolation"
   ]
  },
  "wrong-office-desk": {
@@ -1183,7 +1178,7 @@
     "ring3",
     "application delivery",
     "fail",
-    "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile']; interaction obligations ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] passed under injected response faults (sandboxed=False, browser user=judge); SPEC structurally complete (lint is structural, not semantic)"
+    "real-browser workflows ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'] + replay display passed at ['desktop', 'mobile']; interaction obligations ['I1', 'I2', 'I3', 'I4', 'I5', 'I6'] passed under injected response faults (sandboxed=<env>, browser user=judge); SPEC structurally complete (lint is structural, not semantic)"
    ],
    [
     "ring3",
@@ -1215,8 +1210,7 @@
   "release_ready_missing": [
    "application_delivery",
    "human_approval",
-   "isolation",
-   "browser"
+   "isolation"
   ]
  }
 }

@@ -14,6 +14,8 @@ status, failing delivery obligations, `release_ready` and `release_ready_missing
 - the two expected claim-text differences: `frozen files intact` names the new release layout (75 files under
   gate/, kernel/, obligations/, profiles/ + pack.yaml), and `isolation` lists `write policy (profiles/)`, a pack
   policy dir the v0.6.0 probe did not try, and the README's new path
+- masked as properties of the machine, not the judge: the delivery claim's `sandboxed=` flag and `browser` in
+  `release_ready_missing` (the baseline host cannot run Chromium's sandbox; CI can)
 
 ### the evaluator is domain-free (validation/domain_free.py)
 - no pack vocabulary (pack.yaml:domain_vocabulary), contract record id or check id occurs anywhere in gate/
