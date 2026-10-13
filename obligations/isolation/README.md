@@ -40,8 +40,11 @@ Playwright's Chromium. The launcher adds the runtime restrictions:
 | evidence private to the judge | only writable mount, mode 0700, root-owned | probe: `read/write evidence directory` denied |
 | candidate unprivileged | uid 10001, no groups, `no-new-privileges`, capabilities dropped | probe: `runs as root` denied |
 | browser unprivileged | uid 10002 via `browser_as.py` | report: `browser_user` |
-| bounded resources | `--memory`, `--cpus`, `--pids-limit`, `--ulimit fsize`, per-process rlimits | recorded, not probed |
+| bounded resources | `--memory`, `--cpus`, `--pids-limit`, a 4 GiB `/tmp` tmpfs, per-candidate rlimits (incl. `RLIMIT_FSIZE`) | recorded, not probed |
 | no review credentials | reviewer keys are never mounted; verify attestations afterwards with `gate/review.py` | probe: `SEED_PROTECTED_PATHS` |
+
+There is deliberately no container-wide `--ulimit fsize`: .NET (Dafny) reserves its executable memory as a
+large memfd and dies with SIGXFSZ under any file-size limit. The candidate's own processes get `RLIMIT_FSIZE`.
 
 Evidence files are written by root inside the container; with rootful docker they are root-owned on the host.
 

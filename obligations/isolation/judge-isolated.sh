@@ -23,7 +23,7 @@ TAG="pith-judge:$(sha256sum "$PRISTINE/obligations/isolation/Containerfile" | cu
 [ -e "$OUT" ] && { echo "refused: evidence directory $OUT exists; use a fresh one" >&2; exit 1; }
 mkdir -p "$OUT"; OUT="$(cd "$OUT" && pwd)"
 exec "$ENGINE" run --rm --network none --read-only --tmpfs /tmp:rw,exec,size=4g \
-  --memory 6g --cpus 2 --pids-limit 1024 --ulimit fsize=2147483648 \
+  --memory 6g --cpus 2 --pids-limit 1024 \
   --cap-drop ALL --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add KILL \
   --security-opt no-new-privileges \
   -v "$PRISTINE":/pith:ro -v "$CAND":/candidate:ro -v "$OUT":/evidence \

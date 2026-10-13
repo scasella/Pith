@@ -69,7 +69,7 @@ jobs:
           python3 - "$RUNNER_TEMP/ev-isolated/run/app-claims.json" <<'PY'
           import json, sys
           c = json.load(open(sys.argv[1])); i = c["isolation"]
-          print(json.dumps(i["observed"], indent=1)); print("missing for release_ready:", c["release_ready_missing"])
+          print(json.dumps(i["observed"], indent=1)); print("missing for release_ready:", c.get("release_ready_missing"), "failed checks:", [x for x in c["checks"] if x["result"] == "fail"])
           assert i["status"] == "enforced", i["reachable_from_candidate"]
           assert c["behavioral_assurance"].startswith("passed") and c["application_delivery"] == "passed", c.get("delivery_detail")
           assert c["delivery_detail"]["browser"]["browser_user"] == "uid 10002"
@@ -80,7 +80,7 @@ jobs:
         if: failure()
         run: |
           TAG="pith-judge:$(sha256sum obligations/isolation/Containerfile | cut -c1-16)"
-          docker run --rm --network none --read-only --tmpfs /tmp:rw,exec,size=4g --memory 6g --cpus 2 --pids-limit 1024 --ulimit fsize=2147483648 --cap-drop ALL --cap-add CHOWN --cap-add SETUID --cap-add SETGID \
+          docker run --rm --network none --read-only --tmpfs /tmp:rw,exec,size=4g --memory 6g --cpus 2 --pids-limit 1024 --cap-drop ALL --cap-add CHOWN --cap-add SETUID --cap-add SETGID \
             --cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add KILL --security-opt no-new-privileges -v "$PWD":/pith:ro "$TAG" sh -c '
             set -x; id; echo "HOME=$HOME DAFNY=$DAFNY"; ls -la /opt/tools /opt/tools/dafny | head -30
             "$DAFNY" --version; echo "rc=$?"

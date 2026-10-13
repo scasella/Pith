@@ -26,27 +26,27 @@ case("altered evaluator configuration (manifest adds kernel.gate)", A, "manifest
      lambda d: (d / "app.manifest.yaml").write_text((d / "app.manifest.yaml").read_text() + "kernel:\n  gate: ./pass.py\n"))
 case("frozen harness weakened", A, "frozen files intact",
      lambda d: sed(d, "obligations/boundary/harness.py", 'rep = Monitor().run(evs); assert rep["alerts"] == [], rep["alerts"]', 'rep = Monitor().run(evs)'))
-case("frozen policy.yaml edited", A, "frozen files intact", lambda d: sed(d, "gate/policy.yaml", "adapter_harness: obligations/adapter/harness.py", "adapter_harness: obligations/adapter/nothing.py"))
+case("frozen policy.yaml edited", A, "frozen files intact", lambda d: sed(d, "gate/policy.yaml", "lifecycle: obligations/service/lifecycle.py", "lifecycle: obligations/service/nothing.py"))
 case("design hands the core a constant availability of 0", A, "design model (safety)", lambda d: shutil.copy(d / "obligations/design/WrongZeroAvail.tla", d / "design/Design.tla") and sed(d, "design/Design.tla", "MODULE WrongZeroAvail", "MODULE Design"))
 case("design that stutters forever", A, "design coverage (CovDecided)", lambda d: shutil.copy(d / "obligations/design/WrongStutter.tla", d / "design/Design.tla") and sed(d, "design/Design.tla", "MODULE WrongStutter", "MODULE Design"))
 case("design without retries (idempotency vacuous)", A, "design coverage (CovRetry)", lambda d: sed(d, "design/Design.tla", "Begin(r) \\/ Commit(r) \\/ Resend(r) \\/ Release(r)", "Begin(r) \\/ Commit(r) \\/ Release(r)"))
 case("design reads availability at receipt (stale snapshot)", A, "design model (safety)", lambda d: (
      sed(d, "design/Design.tla", "VARIABLES phase, responses, tries", "VARIABLES phase, responses, tries, snapshot"),
-     sed(d, "design/Design.tla", "vars == <<status, held, phase, responses, tries>>", "vars == <<status, held, phase, responses, tries, snapshot>>"),
+     sed(d, "design/Design.tla", "vars == <<status, held, posted, phase, responses, tries>>", "vars == <<status, held, posted, phase, responses, tries, snapshot>>"),
      sed(d, "design/Design.tla", "designVars == <<phase, responses, tries>>", "designVars == <<phase, responses, tries, snapshot>>"),
      sed(d, "design/Design.tla", "/\\ tries = [r \\in Reqs |-> 0]", "/\\ tries = [r \\in Reqs |-> 0] /\\ snapshot = [r \\in Reqs |-> 0]"),
-     sed(d, "design/Design.tla", "/\\ UNCHANGED <<status, held, responses>>\n\nCommit", "/\\ snapshot' = [snapshot EXCEPT ![r] = Available] /\\ UNCHANGED <<status, held, responses>>\n\nCommit"),
+     sed(d, "design/Design.tla", "/\\ UNCHANGED <<status, held, posted, responses>>\n\nCommit", "/\\ snapshot' = [snapshot EXCEPT ![r] = Available] /\\ UNCHANGED <<status, held, posted, responses>>\n\nCommit"),
      sed(d, "design/Design.tla", "(CoreDecide(r, Available) \\/ CoreReplay(r))", "(CoreDecide(r, snapshot[r]) \\/ CoreReplay(r))"),
      sed(d, "design/Design.tla", "/\\ UNCHANGED tries\n\n\\* The client", "/\\ UNCHANGED <<tries, snapshot>>\n\n\\* The client"),
-     sed(d, "design/Design.tla", "/\\ UNCHANGED <<status, held, responses, tries>>", "/\\ UNCHANGED <<status, held, responses, tries, snapshot>>")))
-case("custom adapter accepts negative amounts", B, "adapter harness", lambda d: sed(d, "adapter/jsonrepo.py", "core.validate_amount(amount)\n        with self.lock:\n            doc = self._read()\n            if str(acct_id) not in doc[\"accounts\"]: raise core.UnknownAccount(acct_id)\n            a = _dec", "int(amount)\n        with self.lock:\n            doc = self._read()\n            if str(acct_id) not in doc[\"accounts\"]: raise core.UnknownAccount(acct_id)\n            a = _dec"))
-case("custom adapter accepts a conflicting replay", B, "adapter harness", lambda d: sed(d, "adapter/jsonrepo.py", 'if rec["amount"] != amount: raise core.ConflictingReplay', 'if False: raise core.ConflictingReplay'))
-case("custom adapter loses state on restart (ignores path)", B, "adapter harness", lambda d: sed(d, "adapter/jsonrepo.py", 'self.path = path or os.path.join', 'self.path = os.path.join'))
-case("custom adapter omits op.committed", B, "adapter harness", lambda d: sed(d, "adapter/jsonrepo.py", 'self._emit(doc, {"type": "op.committed", "account_id": acct_id, "request_id": req_id, "op": "authorize"})', 'pass'))
+     sed(d, "design/Design.tla", "/\\ UNCHANGED <<status, held, posted, responses, tries>>", "/\\ UNCHANGED <<status, held, posted, responses, tries, snapshot>>")))
+case("custom adapter accepts negative amounts", B, "lifecycle harness", lambda d: sed(d, "adapter/jsonrepo.py", 'core.validate_id(req_id, "request_id"), core.validate_amount(amount)', 'core.validate_id(req_id, "request_id"), int(amount)'))
+case("custom adapter accepts a conflicting replay", B, "lifecycle harness", lambda d: sed(d, "adapter/jsonrepo.py", 'if rec["amount"] != amount: raise core.ConflictingReplay', 'if False: raise core.ConflictingReplay'))
+case("custom adapter loses state on restart (ignores path)", B, "lifecycle harness", lambda d: sed(d, "adapter/jsonrepo.py", 'self.path = path or os.path.join', 'self.path = os.path.join'))
+case("custom adapter omits op.committed", B, "lifecycle harness", lambda d: sed(d, "adapter/jsonrepo.py", "def _done(self, doc, acct_id, req_id, op, a):\n", "def _done(self, doc, acct_id, req_id, op, a):\n        return\n"))
 case("custom adapter emits the wrong hold amount", B, "boundary harness", lambda d: sed(d, "adapter/jsonrepo.py", '{"type": "reservation.created", "account_id": acct_id, "request_id": req_id, "amount": amount}', '{"type": "reservation.created", "account_id": acct_id, "request_id": req_id, "amount": amount + 1}'))
-case("custom adapter drops the reservation event (lost event)", B, "adapter harness", lambda d: sed(d, "adapter/jsonrepo.py", 'if d.is_Authorized: self._emit(doc, {"type": "reservation.created"', 'if False: self._emit(doc, {"type": "reservation.created"'))
+case("custom adapter drops the reservation event (lost event)", B, "lifecycle harness", lambda d: sed(d, "adapter/jsonrepo.py", 'if d.is_Authorized: self._emit(doc, {"type": "reservation.created"', 'if False: self._emit(doc, {"type": "reservation.created"'))
 case("service skips request validation", A, "boundary harness", lambda d: sed(d, "service/app.py", "err = next(validator.iter_errors(body), None)\n            if err: raise InvalidRequest", "err = None\n            if err: raise InvalidRequest"))
-case("service always declines (never calls the adapter)", A, "boundary harness", lambda d: sed(d, "service/app.py", 'return self._send(200, repo.authorize(int(parts[1]), b["request_id"], b["amount"]))', 'return self._send(200, {"request_id": b["request_id"], "decision": "DECLINED", "available_at_decision": 0, "replayed": False})'))
+case("service always declines (never calls the adapter)", A, "lifecycle harness", lambda d: sed(d, "service/app.py", 'return self._send(200, repo.authorize(int(parts[1]), b["request_id"], b["amount"]))', 'return self._send(200, {"request_id": b["request_id"], "decision": "DECLINED", "available_at_decision": 0, "replayed": False})'))
 case("generated schema hand-edited", A, "generated artifacts current", lambda d: sed(d, "gen/out/openapi.yaml", "minimum: 1", "minimum: 0"))
 case("absent UI", A, "application delivery", lambda d: (d / "ui/index.html").unlink(), expect_exit=2)
 case("empty SPEC.md", A, "application delivery", lambda d: (d / "app/SPEC.md").write_text("# nothing\n"), expect_exit=2)

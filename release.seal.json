@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created": "2026-10-13T13:20:11Z",
+  "created": "2026-10-13T13:22:58Z",
   "policy_dirs": [
     "kernel",
     "obligations",
@@ -8,5 +8,5 @@
     "profiles"
   ],
   "files": 69,
-  "release_digest": "955e2646406238c1e7ffec009d3b52847694b6b6b9794e6489df8d64579577c8"
+  "release_digest": "512e9c778ffd78fad9c8b8822339d74ddd086f3a0eb429cf9cdc5721e65a53ee"
 }
