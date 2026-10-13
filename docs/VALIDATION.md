@@ -32,7 +32,9 @@ as before; CI runs the same steps and the enforced `isolated` run.
   expected record; `pack check` stage `draft`; `domain_free.py`: gate/ is free of 6 packs' 149 terms and ids
 
 ### unchanged results from v0.10.0
-- MATRIX_M6
+- wrong-candidate matrix (validation/matrix.py, 19 cases), re-run against the final v0.11.0 reservation release
+  (with M3's final state merged in): all 19 refused at their intended check, the same checks as v0.10.0 (the
+  over-limit SPEC claim passes with a reviewer flag, exit 0)
 - every v0.10.0 check above re-run in CI on this release (jobs `judge` and `packs`)
 
 # Validation record — Pith v0.10.0 (M5: safe evolution)
