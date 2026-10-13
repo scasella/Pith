@@ -34,12 +34,14 @@ def why(r): return r["outcome"] == "REFUSED" and r["reason"]
 
 
 def test_actors_are_registered_with_roles(svc):
+    """Contract: A2."""
     c = svc.client
     assert c.actor("alice", ["approver"])[0] == 409
     assert {a["id"]: sorted(a["roles"]) for a in c.actors()[1]["actors"]} == {a: sorted(r) for a, r in ROLES.items()}
 
 
 def test_the_happy_path_needs_two_distinct_approvers_then_a_publisher(svc):
+    """Contract: A3, A5."""
     c = svc.client
     assert ok(do(c, "create", "memo", "alice")) and ok(do(c, "submit", "memo", "alice", 1))
     r = do(c, "approve", "memo", "bob", 1); assert ok(r) and r["document"]["status"] == "in_review" and r["document"]["current_votes"] == ["bob"]
@@ -51,6 +53,7 @@ def test_the_happy_path_needs_two_distinct_approvers_then_a_publisher(svc):
 
 
 def test_separation_of_duties_is_per_revision(svc):
+    """Contract: A1."""
     c = svc.client
     do(c, "create", "spec", "alice"); do(c, "submit", "spec", "alice", 1)
     assert why(do(c, "approve", "spec", "alice", 1)) == "SEPARATION_OF_DUTIES" and why(do(c, "reject", "spec", "alice", 1)) == "SEPARATION_OF_DUTIES"
@@ -62,6 +65,7 @@ def test_separation_of_duties_is_per_revision(svc):
 
 
 def test_approvals_are_bound_to_a_revision_and_stale_ones_never_count(svc):
+    """Contract: A3."""
     c = svc.client
     do(c, "create", "plan", "alice"); do(c, "submit", "plan", "alice", 1); do(c, "approve", "plan", "bob", 1)
     do(c, "edit", "plan", "alice"); do(c, "submit", "plan", "alice", 2)
@@ -75,6 +79,7 @@ def test_approvals_are_bound_to_a_revision_and_stale_ones_never_count(svc):
 
 
 def test_rejection_and_roles(svc):
+    """Contract: A2."""
     c = svc.client
     assert why(do(c, "create", "x", "carol")) == "ROLE" and c.document("x")[0] == 404
     assert why(do(c, "create", "y", "nobody")) == "ROLE"
@@ -87,6 +92,7 @@ def test_rejection_and_roles(svc):
 
 
 def test_replays_are_idempotent_and_conflicting_reuse_is_rejected(svc):
+    """Contract: Idempotency."""
     c = svc.client
     do(c, "create", "doc", "alice", rq=101); do(c, "submit", "doc", "alice", 1, rq=102)
     a = do(c, "approve", "doc", "bob", 1, rq=103); n = len(c.events()[1])
@@ -99,6 +105,7 @@ def test_replays_are_idempotent_and_conflicting_reuse_is_rejected(svc):
 
 
 def test_crash_after_commit_then_restart_and_retry_replays(svc):
+    """Contract: Durability, Idempotency."""
     c = svc.client
     do(c, "create", "rfc", "alice", rq=201); do(c, "submit", "rfc", "alice", 1, rq=202); do(c, "approve", "rfc", "bob", 1, rq=203)
     svc.kill(); c = svc.start().client
@@ -109,6 +116,7 @@ def test_crash_after_commit_then_restart_and_retry_replays(svc):
 
 
 def test_restart_preserves_documents_actors_and_history(svc):
+    """Contract: Durability."""
     c = svc.client
     do(c, "create", "a1", "alice"); do(c, "submit", "a1", "alice", 1); do(c, "approve", "a1", "bob", 1); do(c, "edit", "a1", "bob", body="second")
     view, actors = c.document("a1")[1], c.actors()[1]
@@ -118,6 +126,7 @@ def test_restart_preserves_documents_actors_and_history(svc):
 
 
 def test_concurrent_approvals_reach_the_quorum_exactly_once(svc):
+    """Contract: Atomicity, A3."""
     c = svc.client
     for k in range(6):
         doc = f"q{k}"; do(c, "create", doc, "alice"); do(c, "submit", doc, "alice", 1)
@@ -128,6 +137,7 @@ def test_concurrent_approvals_reach_the_quorum_exactly_once(svc):
 
 
 def test_concurrent_edits_and_approvals_never_approve_a_superseded_revision(svc):
+    """Contract: Atomicity, A3."""
     c = svc.client
     for k in range(8):
         doc = f"r{k}"; do(c, "create", doc, "alice"); do(c, "submit", doc, "alice", 1); do(c, "approve", doc, "carol", 1)
@@ -139,6 +149,7 @@ def test_concurrent_edits_and_approvals_never_approve_a_superseded_revision(svc)
 
 
 def test_every_command_commits_once(svc):
+    """Contract: Atomicity."""
     c = svc.client
     for rq, (op, a, r) in enumerate([("create", "alice", None), ("submit", "alice", 1), ("approve", "alice", 1), ("approve", "bob", 1)], start=301):
         do(c, op, "ev", a, r, rq=rq)

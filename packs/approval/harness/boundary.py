@@ -19,6 +19,7 @@ def svc():
 
 
 def test_every_response_matches_its_schema(svc):
+    """Contract: BoundaryConformance."""
     c = svc.client
     ok("actors", c.actors()[1])
     code, r = c.create(1, "d1", "alice"); assert code == 200; ok("result", r)
@@ -34,6 +35,7 @@ BAD = [-1, 2 ** 53, 1.5, "1", True, None, [], {}]
 
 @pytest.mark.parametrize("bad", BAD, ids=[repr(b) for b in BAD])
 def test_out_of_domain_values_are_refused_without_effect(svc, bad):
+    """Contract: BoundaryConformance."""
     c = svc.client; c.create(900, "b1", "alice"); n = len(c.events()[1]); view = c.document("b1")[1]
     for path, body in (("/documents", {"request_id": bad, "id": "b2", "actor": "alice", "title": "t", "body": "b"}),
                        ("/documents/b1/submit", {"request_id": 901, "actor": "alice", "revision": bad}),
@@ -44,6 +46,7 @@ def test_out_of_domain_values_are_refused_without_effect(svc, bad):
 
 @pytest.mark.parametrize("bad", ["", "UPPER", "has space", "../x", "a" * 65, 7, None, True])
 def test_bad_ids_are_refused_without_effect(svc, bad):
+    """Contract: BoundaryConformance."""
     c = svc.client; n = len(c.events()[1])
     assert c._req("POST", "/documents", {"request_id": 950, "id": bad, "actor": "alice", "title": "t", "body": "b"})[0] == 400
     assert c._req("POST", "/actors", {"id": bad, "roles": ["approver"]})[0] == 400
@@ -52,6 +55,7 @@ def test_bad_ids_are_refused_without_effect(svc, bad):
 
 
 def test_malformed_requests_and_unknown_documents(svc):
+    """Contract: BoundaryConformance."""
     c = svc.client; c.create(960, "m1", "alice"); n = len(c.events()[1])
     for path in ("/actors", "/documents", "/documents/m1/edit", "/documents/m1/approve"):
         for raw in ("{", "[]", "null", "3"): assert c.raw_post(path, raw) == 400, (path, raw)

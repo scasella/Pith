@@ -10,7 +10,7 @@
 format: pith.pack/v1
 pack:
   id: pith.approval
-  version: 0.8.0
+  version: 0.11.0
   title: Document approval workflow (roles, separation of duties, revision-bound approvals) with a command-line client
   contract_version: approval-workflow/v1
   intent: packs/approval/INTENT.md
@@ -20,7 +20,9 @@ policy_dirs: [model, harness, delivery]                          # frozen pack c
 
 candidate:
   owned_dirs: [service, cli]                                     # plus app.manifest.yaml
-  manifest_allowlist: [name, runtime]
+  # include/subsystem (v0.9.0): an existing project adopting the pack names its own code the entrypoints use, and the
+  # subsystem the evidence covers (docs/ADOPTING.md); the rest of that project is not judged
+  manifest_allowlist: [name, runtime, include, subsystem]
   runtimes: [python, node]                                       # what the candidate's code runs on (recorded in the isolation scope)
 
 tools:
@@ -32,6 +34,16 @@ toolchain:
   node: { command: "node --version" }
   hypothesis: { python_package: hypothesis }
   jsonschema: { python_package: jsonschema }
+
+change_routes:                                                   # the route a change to the candidate's own paths takes (gate/change.py; advisory)
+  - { paths: ["cli/**"], route: presentation, why: "the command-line client: delivery and interaction checks" }
+  - { paths: ["service/**"], route: integration, why: "the candidate-written service: correspondence to the reference model" }
+  - { paths: ["app.manifest.yaml"], route: integration, why: "selects the runtime and included code" }
+
+parameters:                                                      # every manifest key's domain and what evidence covers it (gate/cli.py pack check)
+  name: { domain: "free text", evidence: none (report label) }
+  include: { domain: "relative paths inside the candidate, not policy (gate/workspace.py)", evidence: "judged only through the entrypoints: every check that starts the service or runs the CLI" }
+  subsystem: { domain: "free text", evidence: none (names the covered subsystem in the report) }
 
 pytest: "{python} -m pytest -q -p no:cacheprovider --noconftest -c /dev/null --rootdir={root}"
 
@@ -74,6 +86,7 @@ preflight:
 checks:
   # ---- the model (pack content: evidence about the release, reusable across candidates) ----
   - id: model.safety
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
     area: model
     name: workflow model checked
     kind: tlc
@@ -93,6 +106,7 @@ checks:
     assumptions: model/assumptions.yaml
 
   - id: model.adequacy.stale
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
     area: model
     name: the model rejects counting approvals of superseded revisions
     kind: tlc
@@ -111,6 +125,7 @@ checks:
     cacheable: true
 
   - id: model.adequacy.self
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
     area: model
     name: the model rejects self-approval
     kind: tlc
@@ -165,6 +180,7 @@ checks:
     cacheable: true
 
   - id: model.adequacy.publish
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
     area: model
     name: the model rejects publishing a document still in review
     kind: tlc
@@ -237,6 +253,7 @@ checks:
     cacheable: true
 
   - id: model.refines
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
     area: model
     name: reference model equals the spec
     kind: command
@@ -251,6 +268,7 @@ checks:
     depends_on: [model.safety]
 
   - id: model.traces
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
     area: model
     name: reviewed traces
     kind: command

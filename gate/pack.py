@@ -11,6 +11,8 @@ FORMAT = "pith.pack/v1"
 KINDS = {"command", "files_present", "source_rules", "tlc", "regenerated", "manifest_choice", "manifest_commands", "adapter", "attestation"}
 METHODS = {"proof", "model-check", "test", "browser", "review", "structural", "policy"}
 STATUS_RULES = {"all_pass", "from_check"}
+ROUTES = ("presentation", "integration", "behavioral")              # gate/change.py
+CATEGORIES = ("violation", "not_exercised", "evidence_missing", "toolchain_unavailable", "contract_change", "infrastructure")   # = gate/packet.py
 
 
 class PackError(Exception):
@@ -46,6 +48,9 @@ def validate(P, root):
             need(isinstance(c["each"], dict) and len(set(c["each"]) & {"list", "glob"}) == 1, f"{c['id']}: each needs exactly one of list, glob")
         if c["kind"] == "command" and "expect_exit" in c:
             need(c["expect_exit"] in ("zero", "nonzero"), f"{c['id']}: expect_exit must be zero or nonzero")
+        if "failure_category" in c:
+            need(c["failure_category"] in CATEGORIES, f"{c['id']}: failure_category must be one of {CATEGORIES}")
+        need(c.get("about", "candidate") in ("candidate", "release"), f"{c['id']}: about must be candidate or release")
         if c["kind"] == "adapter":
             need(pathlib.PurePosixPath(c["adapter"]).parts[0] in P["policy_dirs"], f"{c['id']}: an adapter must be pack policy code")
         seen.add(c["id"])
@@ -59,6 +64,10 @@ def validate(P, root):
         for v in c.get("verified_by", []): need(v in seen, f"contract {c['id']}: verified_by {v} is not a check")
     for c in P["checks"]:
         for e in c.get("establishes", []): need(e in ids, f"{c['id']}: establishes {e}, which has no contract record")
+    for c in P.get("contracts", []):
+        need(c.get("change") in (None, *ROUTES), f"contract {c['id']}: change must be one of {ROUTES}")
+    for r in P.get("change_routes", []):
+        need(isinstance(r.get("paths"), list) and r["paths"] and r.get("route") in ROUTES, f"change_routes: each entry needs paths and a route in {ROUTES}")
 
 
 def expand(P, root, manifest, section="checks"):

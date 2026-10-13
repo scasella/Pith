@@ -9,7 +9,7 @@
 format: pith.pack/v1
 pack:
   id: pith.quota
-  version: 0.1.0
+  version: 0.1.1
   title: Sliding-window quotas (half-open windows, exact retry hints, a caller-supplied clock) delivered as a Python or Node.js library
   contract_version: sliding-window-quota/v1
   intent: packs/quota/INTENT.md
@@ -21,6 +21,14 @@ candidate:
   owned_dirs: [lib]                                              # plus app.manifest.yaml
   manifest_allowlist: [name, runtime]
   runtimes: [python, node]                                       # what the candidate's code runs on (recorded in the isolation scope)
+
+parameters:                                                      # every manifest key's domain and what evidence covers it (gate/cli.py pack check)
+  name: { domain: "free text", evidence: none (report label) }
+  runtime: { domain: "python | node (preflight runtime)", evidence: "every library check runs the chosen implementation through the pack's driver" }
+
+change_routes:                                                   # the route a change to the candidate's own paths takes (gate/change.py; advisory)
+  - { paths: ["lib/**"], route: integration, why: "the candidate-written library: correspondence to the oracle and the lifecycle harness" }
+  - { paths: ["app.manifest.yaml"], route: integration, why: "selects the runtime" }
 
 tools:
   DAFNY: { env: DAFNY, default: dafny }

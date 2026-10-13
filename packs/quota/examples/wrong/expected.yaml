@@ -2,28 +2,41 @@
 # reach (validation/judge_wrong.py --pack packs/quota). Each is a conforming example (../sliding-log-py or
 # ../tally-node) with ONE defect, marked DEFECT in its source. A refused candidate must be refused at exactly
 # `refused_at`, by exactly the `failing_tests` (pytest function names; the reviewed traces are one parametrized test);
-# a delivery defect must pass behavioral assurance and fail exactly `must_fail`.
+# a delivery defect must pass behavioral assurance and fail exactly `must_fail`. Since v0.9.0 the task packet must put
+# the first failure in `category` and name at least `contracts` (gate/packet.py).
 fixed-window:
   source: sliding-log-py counting only the current fixed bucket, the library twin of spec/wrong/fixed_window.dfy
   refused_at: library.lifecycle
   failing_tests: [test_reviewed_traces, test_window_is_half_open_at_every_boundary, test_no_window_ever_holds_more_than_the_limit,
                   test_dump_and_load_carry_the_whole_state, test_decisions_do_not_depend_on_the_wall_clock]
+  category: violation
+  contracts: [WINDOW]
 closed-window:
   source: tally-node whose grants still count at t + window, the library twin of spec/wrong/closed_window.dfy
   refused_at: library.lifecycle
   failing_tests: [test_reviewed_traces, test_window_is_half_open_at_every_boundary, test_no_window_ever_holds_more_than_the_limit,
                   test_dump_and_load_carry_the_whole_state, test_decisions_do_not_depend_on_the_wall_clock, test_extreme_values]
+  category: violation
+  contracts: [WINDOW]
 shared-state:
   source: tally-node whose tallies live in one module-level table shared by every limiter
   refused_at: library.lifecycle
   failing_tests: [test_limiters_are_independent, test_dump_and_load_carry_the_whole_state, test_dump_is_a_snapshot]
+  category: violation
+  contracts: [InstanceIsolation]
 unlocked:
   source: sliding-log-py without its lock, so two threads can both see room for a key's last unit
   refused_at: library.lifecycle
   failing_tests: [test_one_limiter_shared_by_threads_grants_exactly_the_limit]
+  category: violation
+  contracts: [Atomicity]
 flat-errors:
   source: tally-node whose InvalidArgument is not a LimiterError and does not name the argument
   must_fail: [LW3]
+  category: violation
+  contracts: [LW3]
 never-prunes:
   source: sliding-log-py whose dump carries every grant ever made
   must_fail: [LI3]
+  category: violation
+  contracts: [LI3]

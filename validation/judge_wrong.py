@@ -9,6 +9,9 @@ Two kinds of expectation:
   refused_at: <check id>                 the run is refused at exactly that check (the first blocking failure), and
   failing_tests: [names]                 the failing tests named in its output are exactly these, plus at most
   may_also_fail: [names]                 these, where whether a concurrent test observes the defect depends on scheduling
+and, for either (v0.9.0), what the task packet must say about the first failure:
+  category: <category>                   gate/packet.py's category of the first failure
+  contracts: [ids]                       contract records the packet must name for it (at least these)
 """
 import json, pathlib, re, subprocess, sys
 import yaml
@@ -39,5 +42,11 @@ for name in names:
         ok = c["behavioral_assurance"] == "refused" and first.get("id") == want["refused_at"] and need <= set(tests) and extra <= set(want.get("may_also_fail", []))
         print(f"{'ok  ' if ok else 'FAIL'} {name}: assurance={c['behavioral_assurance']} refused at {first.get('id')} (expected {want['refused_at']}); failing tests {tests}")
         if not ok and want.get("failing_tests"): print(f"       expected tests {sorted(want['failing_tests'])}" + (f", possibly also {sorted(want['may_also_fail'])}" if want.get("may_also_fail") else ""))
+    if "category" in want or "contracts" in want:
+        f = (json.loads((out / "task-packet.json").read_text()) if (out / "task-packet.json").exists() else {}).get("first_failure") or {}
+        named = {x["id"] for x in f.get("contracts", [])}
+        pok = f.get("category") == want.get("category", f.get("category")) and set(want.get("contracts", [])) <= named
+        print(f"{'ok  ' if pok else 'FAIL'} {name} task packet: category {f.get('category')} (expected {want.get('category')}); contracts {sorted(named)} ⊇ {want.get('contracts', [])}")
+        ok = ok and pok
     bad += not ok
 sys.exit(1 if bad else 0)

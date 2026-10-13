@@ -67,6 +67,13 @@ CLI, with no human evaluation). What the evaluator had to learn for them, and wh
 browser containment moved out of the reservation pack, per-runtime limits. Every run records the evaluator's
 digest, and `validation/generality.py` checks it is the same across all three packs.
 
+From v0.9.0 every failure is categorised (`violation`, `not_exercised`, `evidence_missing`, `toolchain_unavailable`,
+`contract_change`, `infrastructure`, with the basis for the inference) and every run ends with a task packet
+(`gate/packet.py`); an exception or timeout inside a check is a refusal in category `infrastructure`, never a crash
+without evidence. `gate/cli.py` is the one command-line and JSON interface. A pack may let an existing project name
+its own code (`include`), which is copied into the judged artifact and judged only through the pack's entrypoints;
+every run states what it covered (`coverage`). `docs/rfc/0003-adoption-and-agent-feedback.md`.
+
 The rings below are the reservation pack's structure (`area` in `pack.yaml`), not the evaluator's.
 
 ## The interface is a layer too
@@ -121,13 +128,27 @@ because it narrows the earlier wording:
 - **Cross-kernel terminality needed stating.** "Post is terminal" is a property of every kernel's frame
   conditions, not of Capture alone; `PostingSpec.dfy` states it as a predicate with a lemma per operation,
   and `P4` restates it over the composed model.
-- **Kernels over disjoint state would compose more loosely.** An idempotency-receipt store, for example,
-  would share no invariant with authorization and could be composed through the design model alone. That
-  case is not yet built; it is the next thing to test.
+- **Disjoint state does not mean no shared invariant.** v0.5.0 guessed that an idempotency-receipt store would
+  share no invariant with authorization and could be composed loosely. v0.10.0 built the case
+  (`compositions/ledger-receipts`, `gate/compose.py`, `docs/rfc/0004-safe-evolution.md` § 3) and the guess was
+  wrong: a receipt store and an effect store, each owning its own state, still owe each other "the receipt and the
+  effect agree". A known-wrong integration that records the receipt before applying the effect keeps every local
+  rule of both components and breaks that joint invariant, and the composition check finds it. A composition is
+  now stated, not assumed: owned state, permitted effects, shared invariants, atomicity, assumptions.
 
 The honest summary: proven cores compose, but the unit of proof is the shared state, and the unit of
 composition is the design model. The project's claim is true in the model and narrower in the proofs than
 v0.4 implied.
+
+## Change is a layer too
+
+v0.10.0 (`docs/rfc/0004-safe-evolution.md`) treats change as something the release describes rather than something
+evidence silently survives. Every contract record names its change route and a pack names routes for the
+candidate's paths; `gate/change.py` turns a planned or made change into a report of what it reaches and what must be
+re-established, and never claims authority. Evidence records each contract record's version, so evidence for an old
+contract is invalidated by a contract upgrade even where its inputs did not change, and `--reuse` never crosses
+releases. A contract upgrade ships a migration that is judged on state the previously accepted artifact produced,
+not on an empty database. A deployment record binds the evidence to what is deployed and says what it cannot see.
 
 ## What this is not
 

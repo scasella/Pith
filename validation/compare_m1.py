@@ -23,6 +23,8 @@ EXPECTED = {
     ("policy", "frozen files intact"): "claim text names the release's policy dirs and file count",
     # the probe now also tries the pack's profiles/ dir (pack.yaml:policy_dirs); README path moved to gate/isolation/
     ("policy", "isolation"): "claim text: probed dirs and README path",
+    # v0.9.0 (M4): the pack allows two more manifest keys (include, subsystem) for existing-project adoption
+    ("policy", "manifest allowlisted"): "claim text lists the allowlist, which gained include and subsystem",
 }
 
 
@@ -57,6 +59,7 @@ def main():
     for name, want in base.items():
         got = now.get(name)
         if got is None: print(f"MISSING {name}: not judged in {root}"); bad += 1; continue
+        want = dict(want, checks=[[a, n, r, None if (a, n) in EXPECTED else cl] for a, n, r, cl in want["checks"]])   # an expected difference is masked on both sides
         diffs = [k for k in want if want[k] != got[k]]
         if diffs:
             bad += 1; print(f"DIFF    {name}: {diffs}")

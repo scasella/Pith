@@ -1,5 +1,101 @@
 # Changelog
 
+## v0.11.0 — 2026-10-13
+M6 of the roadmap: what a community-ready release needs that can be built before the community exists. RFC:
+`docs/rfc/0005-community-release.md`.
+
+- **Governance** (`GOVERNANCE.md`): three roles (behavioral semantics, evaluator security, integration and developer
+  experience) and what each must not approve; independent review of every pack release and acceptance-policy change;
+  supported versions, deprecation and retirement; keys, attestations and revocation; what happens when unsoundness is
+  found. It opens by saying that one maintainer currently holds every role.
+- **Compatibility** (`COMPATIBILITY.md`): versioning for the project, packs, contract records and releases; the
+  stable interfaces by format identifier; how they may change (new identifier, old one read for two minor releases).
+- **Catalog and revocations**: `catalog.yaml` (three supported packs; the outside author's quota pack and two demonstration releases listed as `demonstration`), held to its packs
+  by `gate/catalog.py check` in CI; the stage is derived from `pack check`, so `released` cannot be claimed without an
+  independent review. `revocations.yaml` (append-only, empty), `catalog.py revoked`, and `gate/deploy.py check
+  --revocations`.
+- **The conditions experiment** (`experiments/`, `docs/EXPERIMENTS.md`): protocol (prose, core with conventional
+  tests, full Pith; full crossing with rotated order; one budget; outcome measured after a substantial change), common
+  external criteria that know nothing of Pith, the run-record schema, `harness.py plan|validate|analyze|dryrun`.
+  Dry-run in CI with scripted agents; **not run with real models**.
+- **Validation**: `validation/governance.py` (catalog, a claimed stage refused, revocation end to end, the experiment
+  harness end to end); CI job `packs` runs it. `gate/cli.py catalog`.
+- **Not met** (RFC 0005 § 7): a second maintainer, independent pack reviews, real-model experiments, external
+  review. All six catalog entries are `draft`.
+- **Brought in from M3's final state** (the independent trace review, `packs/quota` by an outside author): the quota
+  pack (0.1.1) gains what the v0.9.0 to v0.11.0 formats ask of a pack (`parameters`, `change_routes`, the task-packet
+  category and contract records for each known-wrong library) with no change to its checks, and a catalog entry
+  (`draft`, status `demonstration` until its author says it is supported). The `tlc` kind keeps both the action-property match and the
+  `toolchain_unavailable` category.
+- **Task packets name the records of every failing test**: a pytest check's packet took the record ids from the last
+  3000 characters of output, so when several tests failed the first one's could be cut off (CI saw booking's
+  `closed-intervals` packet miss `HalfOpen` when the concurrent-burst test also failed). The `command` kind now reports
+  the ids named in the head of each failing test over the whole output, and the packet adds them to those in the tail.
+
+Release digests: reservation `b6a58ad409fd80070f39c35e402dd3fb46e659be8b123c11b73b4f65e083ffa7`, booking
+`4b2171324020b247ee1675d207f7778e8a30fc1d21143e26c8b0b7a3d65de774`, approval
+`a0c27100b0d0c7838041e6e822238883ebb072e46f0ba813c8b1da89c2f8118f`, quota
+`b10e8147eade371f29522ef47d170e39ed1eef40c7e38308e8ee5c3883fea8bc`; demonstrations tally 1.0.0
+`94e8781945f07514f989abc1e3e9b52cb434301dbcd6e98ddb544ae47ee294b4`, tally 2.0.0
+`e7bf373c80b4a359a02e1242f1ffe76aee54f6c3c772c34b865c48d7c7c434b3`.
+
+## v0.10.0 — 2026-10-13
+M5 of the roadmap: safe evolution. Applications change and upgrade without silently inheriting obsolete claims.
+RFC: `docs/rfc/0004-safe-evolution.md`.
+
+- **Change classification** (`gate/change.py plan|classify`, `pith.change-impact/v1`): before a change, which checks
+  read the paths, the contract records at stake, the route and what must be re-established; after it, what changed
+  (files and contract records), which evidence holds and which is invalidated. Never authoritative; ambiguity is
+  listed. Every pack declares `change_routes` for the candidate's paths.
+- **Composition contracts** (`gate/compose.py`, `pith.composition/v1`): owned state, permitted effects, local and
+  shared invariants, atomicity, assumptions; TLC checks the integration and requires each known-wrong integration to
+  keep the local rules and break exactly the shared invariant. `compositions/ledger-receipts`: separate stores still
+  owe "the receipt and the effect agree" (this corrects a guess in `ARCHITECTURE.md`).
+- **Migrations** (`gate/migrate.py`, `pith.migration/v1`): judged on state the previously accepted artifact's own
+  service produced, including a request in flight; the candidate's migration must refuse unrecognised state and be
+  re-runnable; the new service is judged on the migrated state; rollback policy stated. `evolution/tally-v1` →
+  `tally-v2` is the contract upgrade (T1, T2 version 2, M1 added, forward-only), with two applications (one a rewrite
+  on a journal) and two known-wrong migrations that pass the ordinary judge.
+- **Deployment records** (`gate/deploy.py record|check`, `pith.deployment/v1`): artifact, release, evidence and
+  contract identity, toolchain, runtime and configuration digests; `check` reports drift. Monitoring scope stated.
+- **Evaluator**: evidence records `contracts` (record versions and routes) and `artifact_files`; `impact`
+  invalidates evidence for a changed contract record; `evidence.current()`; `pack.py` validates routes; `pack check`
+  validates `migrations` and accepts a migration as a record's verifier. `gate/cli.py change|compose|migrate|deploy|impact`.
+- **Validation**: `validation/evolution.py` (agent handoff, substantial rewrite, contract upgrade with populated
+  state, composed workflow), in CI job `packs`; `domain_free.py` scans the evolution packs and compositions.
+- **Not done** (RFC 0004 § 8): the reservation pack's two-kernel composition is not yet restated as a composition
+  contract; none of the three main packs has had a contract upgrade; the handoff's agents are scripted.
+Release digests: reservation `a43a0626f59a8e5ca4a150b5966938ef001d78b037c5a027d5f93fc9ba079957`, booking
+`d3158a1352189fcb39c8a0439cc31bc3c5fa173aa8ee6a1e675154cef35779a0`, approval
+`92a7fa52d8f70354e958080efd713c5d92b1df2b0552425240c7d30cc13be19e`; demonstrations tally 1.0.0
+`103143ba3bbbbe07cd9dbec50a325c37ddaa4b93a78839f336bdd8c7cb1e7970`, tally 2.0.0
+`f3fd8dba1625afbc696d55501492baf1f20d4c8d5f1a4c04903ac925c48ed59f`.
+
+## v0.9.0 — 2026-10-13
+M4 of the roadmap: self-service adoption. RFC: `docs/rfc/0003-adoption-and-agent-feedback.md`; guide:
+`docs/ADOPTING.md`.
+
+- **Task packets** (`TASK.md`, `task-packet.json`, `pith.task-packet/v1`) after every run: the first failure, its
+  category, the contract records it bears on, a minimal counterexample, what may be edited, and the rerun commands.
+- **Six failure categories** (violation, not_exercised, evidence_missing, toolchain_unavailable, contract_change,
+  infrastructure) on every failed check, with the basis. Pack-side `about: release` and `failure_category`; adapters
+  report categories and failing obligations; harness tests name their contract records. An exception or timeout in a
+  check is now a refusal with evidence, not a traceback.
+- **CLI** (`gate/cli.py`, `./pith`): `doctor`, `verify`, `packet`, `pack new`, `pack check`, `adopt`; `--json` and
+  stable exit codes. `integrations/spec-kit/` is a thin wrapper.
+- **Contract authors**: `templates/pack` (a judgeable draft pack, judged in CI), `pack check` (consistency and
+  adequacy; manifest keys need a declared domain and evidence, `parameters:`), and a pack release review signed by
+  a non-maintainer (`gate/review.py sign-pack`); the stage is derived.
+- **Existing projects**: manifest `include` and `subsystem`, the `coverage` statement in every report, `adopt`, and
+  `packs/approval/examples/adopt-handbook` with its known-wrong twin `adopt-handbook-stale`.
+- **Validation**: every known-wrong application of the three packs gets its expected category and contract records;
+  `validation/packets.py` (one run per category), `validation/adoption.py`, `validation/test_packet.py`.
+- **Not met** (RFC 0003 § 8): external developers completing a fresh-seed build and an existing-project adoption from
+  the published instructions; no pack has had an independent release review.
+Release digests: reservation `117f339033b4c2b38c036ce9d277fd487f128c30435a002b4e01fd6cb12fce35`, booking
+`ae8c1b06dcf3d6eb794cf039494625339df78f048a503f969e565393175e1598`, approval
+`78a7bd4575d9f54abf9a1c0f5eaf2291744ed6d66b120efea52c0a4c175d598b`.
+
 ## v0.8.0 — 2026-10-13
 M3 of the roadmap: generality. Two structurally different packs judged by the same evaluator as the reservation
 pack. RFC: `docs/rfc/0002-generality.md`; authoring guide: `docs/PACK-AUTHORING.md`.

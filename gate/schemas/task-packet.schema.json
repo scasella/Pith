@@ -1,0 +1,43 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/scasella/Pith/blob/main/gate/schemas/task-packet.schema.json",
+ "title": "pith.task-packet/v1",
+ "$comment": "The task packet the evaluator writes next to app-claims.json after every run (gate/packet.py). FROZEN with the evaluator.",
+ "type": "object",
+ "required": ["format", "pack", "release_digest", "artifact_digest", "gate_mode", "state", "statuses", "done_when", "first_failure", "other_failures",
+              "not_yours", "editable", "frozen", "rerun", "evidence"],
+ "properties": {
+  "format": {"const": "pith.task-packet/v1"},
+  "pack": {"type": "object", "required": ["id", "version"], "properties": {"id": {"type": "string"}, "version": {"type": "string"}}},
+  "release_digest": {"type": "string"},
+  "artifact_digest": {"type": "string"},
+  "gate_mode": {"type": "string"},
+  "state": {"enum": ["done", "refused", "failing"]},
+  "statuses": {"type": "object"},
+  "done_when": {"type": "string"},
+  "first_failure": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/failure"}]},
+  "other_failures": {"type": "array", "items": {"type": "object", "required": ["check", "category"], "properties": {"category": {"$ref": "#/$defs/category"}}}},
+  "not_yours": {"type": "array", "items": {"type": "string"}},
+  "coverage": {"oneOf": [{"type": "null"}, {"type": "object", "required": ["included", "judged_paths", "statement"]}]},
+  "editable": {"type": "object", "required": ["dirs", "manifest", "manifest_keys"]},
+  "frozen": {"type": "array", "items": {"type": "string"}},
+  "rerun": {"type": "object", "required": ["full", "focused", "impact"], "properties": {"full": {"type": "string"}, "focused": {"type": ["string", "null"]}, "impact": {"type": "string"}}},
+  "evidence": {"type": "object", "required": ["claims", "records"]},
+  "next": {"type": "string"}
+ },
+ "$defs": {
+  "category": {"enum": ["violation", "not_exercised", "evidence_missing", "toolchain_unavailable", "contract_change", "infrastructure"]},
+  "failure": {
+   "type": "object",
+   "required": ["check", "name", "category", "category_basis", "blocking", "contracts", "contracts_basis", "counterexample", "why", "next"],
+   "properties": {
+    "check": {"type": "string"}, "name": {"type": "string"}, "category": {"$ref": "#/$defs/category"}, "category_basis": {"type": "string"},
+    "blocking": {"type": "boolean"},
+    "contracts": {"type": "array", "items": {"type": "object", "required": ["id", "intent"], "properties": {"id": {"type": "string"}}}},
+    "contracts_basis": {"type": "string"},
+    "counterexample": {"oneOf": [{"type": "null"}, {"type": "object", "required": ["source", "text"]}]},
+    "why": {"type": "string"}, "next": {"type": "string"}
+   }
+  }
+ }
+}

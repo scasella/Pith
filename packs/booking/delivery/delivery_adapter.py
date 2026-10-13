@@ -2,7 +2,8 @@
 delivery/delivery_adapter.py — pith.booking's delivery adapter. FROZEN.
 
 Called by the evaluator (kind `adapter`): run(ctx) -> {status: passed | failed | incomplete, problems, claim, detail,
-reviewer_context, release_conditions}. Delivery here means a page in a real browser (browser_workflows.py) that
+reviewer_context, release_conditions, failing, failure_category} (the last two since v0.9.0: an unavailable browser is a
+missing tool, not a failure of the page). Delivery here means a page in a real browser (browser_workflows.py) that
 completes BW1–BW6 and keeps BI1–BI3 under injected faults; the release condition on browser containment is the
 evaluator's (gate/browser.py contained).
 """
@@ -36,4 +37,6 @@ def run(ctx):
                      f"(sandboxed={b.get('browser_sandbox')}, browser user={b.get('browser_user')})",
             "detail": {"workflows": results, "browser": {k: b.get(k) for k in ("status", "browser_sandbox", "browser_user", "chromium_version", "detail")}, "problems": problems},
             "reviewer_context": {"required_evaluations": [e["id"] for e in D["required_evaluations"]]},
-            "release_conditions": [("browser", contained, "Chromium sandbox, or a separate unprivileged browser user under the enforced isolation profile")]}
+            "release_conditions": [("browser", contained, "Chromium sandbox, or a separate unprivileged browser user under the enforced isolation profile")],
+            "failing": sorted(k for k, v in results.items() if not v["ok"]),
+            "failure_category": None if not problems else ("toolchain_unavailable" if b["status"] == "unavailable" else "violation")}

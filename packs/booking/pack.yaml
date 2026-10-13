@@ -7,7 +7,7 @@
 format: pith.pack/v1
 pack:
   id: pith.booking
-  version: 0.8.0
+  version: 0.11.0
   title: Interval booking (half-open intervals, cancellation, atomic rescheduling) with a browser-delivered application and two backend stacks
   contract_version: interval-booking-core/v1
   intent: packs/booking/INTENT.md
@@ -17,7 +17,9 @@ policy_dirs: [spec, profiles, harness, delivery]                 # frozen pack c
 
 candidate:
   owned_dirs: [service, ui]                                      # plus app.manifest.yaml
-  manifest_allowlist: [name, runtime, profile, ui_entry]
+  # include/subsystem (v0.9.0): an existing project adopting the pack names its own code the entrypoints use, and the
+  # subsystem the evidence covers (docs/ADOPTING.md); the rest of that project is not judged
+  manifest_allowlist: [name, runtime, profile, ui_entry, include, subsystem]
   runtimes: [python, node]                                       # what the candidate's code runs on (recorded in the isolation scope)
 
 tools:
@@ -30,6 +32,17 @@ toolchain:
   jsonschema: { python_package: jsonschema }
   playwright: { python_package: playwright }
   cryptography: { python_package: cryptography }
+
+change_routes:                                                   # the route a change to the candidate's own paths takes (gate/change.py; advisory)
+  - { paths: ["ui/**"], route: presentation, why: "the browser application: delivery and interaction checks" }
+  - { paths: ["service/**"], route: integration, why: "the service over the verified core: runtime assumptions and correspondence" }
+  - { paths: ["app.manifest.yaml"], route: integration, why: "selects the profile and included code" }
+
+parameters:                                                      # every manifest key's domain and what evidence covers it (gate/cli.py pack check)
+  name: { domain: "free text", evidence: none (report label) }
+  ui_entry: { domain: "a path under ui/", evidence: [delivery] }
+  include: { domain: "relative paths inside the candidate, not policy (gate/workspace.py)", evidence: "judged only through the entrypoints: every check that starts the service" }
+  subsystem: { domain: "free text", evidence: none (names the covered subsystem in the report) }
 
 pytest: "{python} -m pytest -q -p no:cacheprovider --noconftest -c /dev/null --rootdir={root}"
 
@@ -83,6 +96,7 @@ preflight:
 checks:
   # ---- the verified core (pack content: evidence about the release, reusable across candidates) ----
   - id: core.tcb
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
     area: proof
     name: core stays inside the trusted base
     kind: source_rules
@@ -95,6 +109,7 @@ checks:
     inputs: ["spec/**"]
 
   - id: core.verify
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
     area: proof
     name: core verified against the contract
     kind: command
@@ -111,6 +126,7 @@ checks:
     assumptions: spec/tcb.yaml
 
   - id: core.adequacy
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
     area: proof
     name: "the contract rejects {item}"
     kind: command
@@ -126,6 +142,7 @@ checks:
     cacheable: true
 
   - id: core.traces
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
     area: proof
     name: reviewed traces
     kind: command
@@ -140,6 +157,7 @@ checks:
     depends_on: [core.verify]
 
   - id: translation.python
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
     area: profile
     name: Python translation reproduced
     kind: regenerated
@@ -156,6 +174,7 @@ checks:
     depends_on: [core.verify]
 
   - id: translation.node
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
     area: profile
     name: JavaScript translation reproduced
     kind: regenerated
@@ -172,6 +191,7 @@ checks:
 
   # ---- the integration profile the candidate chose ----
   - id: profile.python
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
     area: profile
     name: shipped Python profile tests
     kind: command
@@ -187,6 +207,7 @@ checks:
     establishes: [Atomicity, Durability]
 
   - id: profile.node
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
     area: profile
     name: shipped Node.js profile tests
     kind: command

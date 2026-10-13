@@ -11,7 +11,7 @@
 format: pith.pack/v1
 pack:
   id: pith.reservation
-  version: 0.8.0
+  version: 0.11.0
   title: Reservation and capture (authorization holds, release, posting) with a browser-delivered application
   contract_version: authorization-and-posting-core/v2          # = kernel/gate/manifest.yaml:name
   intent: INTENT.md                                              # reviewed prose; not an oracle
@@ -21,7 +21,9 @@ policy_dirs: [kernel, obligations, profiles]                     # frozen pack c
 
 candidate:
   owned_dirs: [design, service, app, ui, adapter, gen]           # plus app.manifest.yaml: together the deployment artifact
-  manifest_allowlist: [name, profile, extra_tests, ui_entry]
+  # include/subsystem (v0.9.0): an existing project adopting the pack names its own code the entrypoints use, and the
+  # subsystem the evidence covers (docs/ADOPTING.md); the rest of that project is not judged
+  manifest_allowlist: [name, profile, extra_tests, ui_entry, include, subsystem]
 
 tools:                                                           # substituted into commands as {NAME}; read from the environment
   DAFNY: { env: DAFNY, default: dafny }
@@ -35,6 +37,18 @@ toolchain:                                                       # recorded in e
   cryptography: { python_package: cryptography }
   tlc: { command: "java -cp {TLA2TOOLS} tlc2.TLC -h; java -version", regex: 'TLC2 Version [^\n]*|TLC - [^\n]*Version [^\n]*' }
   java: { command: "java -version", regex: 'version "([^"]+)"', group: 1 }
+
+change_routes:                                                   # the route a change to the candidate's own paths takes (gate/change.py; advisory)
+  - { paths: ["ui/**", "app/**"], route: presentation, why: "the browser application and its SPEC: delivery and interaction checks" }
+  - { paths: ["design/**", "service/**", "adapter/**", "gen/**"], route: integration, why: "design, service and generated interface: runtime assumptions and correspondence" }
+  - { paths: ["app.manifest.yaml"], route: integration, why: "selects the profile, entry points and included code" }
+
+parameters:                                                      # every manifest key's domain and what evidence covers it (gate/cli.py pack check)
+  name: { domain: "free text", evidence: none (report label) }
+  extra_tests: { domain: "shell commands", evidence: none (supplementary, reported only; establishes nothing) }
+  ui_entry: { domain: "a path under ui/", evidence: [delivery] }
+  include: { domain: "relative paths inside the candidate, not policy (gate/workspace.py)", evidence: "judged only through the entrypoints: every check that starts the service" }
+  subsystem: { domain: "free text", evidence: none (names the covered subsystem in the report) }
 
 pytest: "{python} -m pytest -q -p no:cacheprovider --noconftest -c /dev/null --rootdir={root}"
 
@@ -82,6 +96,7 @@ preflight:
 
 checks:
   - id: kernel
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
     area: ring0
     name: kernel gate
     kind: command
@@ -168,6 +183,7 @@ checks:
     establishes: [INV1, P2, P3, P4, PostedExact, DecideCorrect, Idempotent, Consistent]
 
   - id: design.coverage
+    failure_category: not_exercised                              # an unreached behaviour was not judged, not violated
     area: ring1
     name: "design coverage ({item})"
     kind: tlc
@@ -242,6 +258,7 @@ checks:
     inputs: ["service/**"]
 
   - id: profile.tests
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
     area: ring1
     name: shipped profile tests
     kind: command
