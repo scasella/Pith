@@ -39,7 +39,8 @@ module QuotaCore {
     }
   }
 
-  // Appending a grant that fits at `now`, at `now` >= every earlier grant, keeps every window of every key safe.
+  // Appending a grant that fits at `now`, at `now` >= every earlier grant, keeps every window of every key within
+  // that key's limit.
   lemma GrantKeepsWindowsSafe(c: Config, log: seq<Entry>, k: string, cost: nat, now: nat)
     requires WindowSafe(c, log)
     requires forall i :: 0 <= i < |log| ==> log[i].t <= now
@@ -47,7 +48,7 @@ module QuotaCore {
     ensures WindowSafe(c, log + [Entry(k, now, cost)])
   {
     var e := Entry(k, now, cost);
-    forall k2: string, t: nat ensures Used(log + [e], k2, t, c.window) <= c.limit {
+    forall k2: string, t: nat ensures Used(log + [e], k2, t, c.window) <= LimitOf(c, k2) {
       UsedAppend(log, e, k2, t, c.window);
       if Counts(e, k2, t, c.window) {
         assert k2 == k && now <= t;
@@ -77,7 +78,7 @@ module QuotaCore {
 
   // The least r >= 1 at which the request fits, given that nothing else is granted meanwhile.
   method EarliestFit(c: Config, log: seq<Entry>, k: string, cost: nat, now: nat) returns (r: nat)
-    requires ValidConfig(c) && cost <= c.limit
+    requires ValidConfig(c) && cost <= LimitOf(c, k)
     requires forall i :: 0 <= i < |log| ==> log[i].t <= now
     ensures r >= 1 && FitsAfter(c, log, k, cost, now, r)
     ensures forall q :: 1 <= q < r ==> !FitsAfter(c, log, k, cost, now, q)
@@ -85,7 +86,7 @@ module QuotaCore {
     UsedExpires(log, k, now, c.window);
     r := 1;
     var u := ComputeUsed(log, k, now + r, c.window);
-    while u + cost > c.limit
+    while u + cost > LimitOf(c, k)
       invariant 1 <= r <= c.window
       invariant u == Used(log, k, now + r, c.window)
       invariant forall q :: 1 <= q < r ==> !FitsAfter(c, log, k, cost, now, q)
@@ -97,7 +98,7 @@ module QuotaCore {
     }
   }
 
-  class Core extends Acquirer, Peeker {
+  class Core extends Acquirer, Peeker, LimitReporter {
 
     constructor () {}
 
@@ -110,26 +111,27 @@ module QuotaCore {
       ensures d.Granted? <==> now >= s.clock && FitsAt(c, s.log, k, cost, now)
       ensures d.Granted? ==> s'.log == s.log + [Entry(k, now, cost)]
       ensures d.Denied? ==> s'.log == s.log
-      ensures d.Granted? ==> d.remaining == c.limit - Used(s.log, k, now, c.window) - cost
-      ensures d.Denied? ==> d.remaining == c.limit - Used(s.log, k, now, c.window)
-      ensures d.Denied? ==> (d.retryAfter.None? <==> cost > c.limit)
+      ensures d.Granted? ==> d.remaining == LimitOf(c, k) - Used(s.log, k, now, c.window) - cost
+      ensures d.Denied? ==> d.remaining == LimitOf(c, k) - Used(s.log, k, now, c.window)
+      ensures d.Denied? ==> (d.retryAfter.None? <==> cost > LimitOf(c, k))
       ensures d.Denied? && d.retryAfter.Some? ==>
                 d.retryAfter.value >= 1 && FitsAfter(c, s.log, k, cost, now, d.retryAfter.value) &&
                 forall r :: 1 <= r < d.retryAfter.value ==> !FitsAfter(c, s.log, k, cost, now, r)
     {
       if now < s.clock { return Regressed, s; }
+      var lim := LimitOf(c, k);
       var u := ComputeUsed(s.log, k, now, c.window);
-      assert u <= c.limit;                                       // WindowSafe at (k, now)
-      if u + cost <= c.limit {
+      assert u <= lim;                                           // WindowSafe at (k, now)
+      if u + cost <= lim {
         GrantKeepsWindowsSafe(c, s.log, k, cost, now);
-        d := Granted(c.limit - u - cost);
+        d := Granted(lim - u - cost);
         s' := State(now, s.log + [Entry(k, now, cost)]);
-      } else if cost > c.limit {
-        d := Denied(c.limit - u, None);
+      } else if cost > lim {
+        d := Denied(lim - u, None);
         s' := State(now, s.log);
       } else {
         var r := EarliestFit(c, s.log, k, cost, now);
-        d := Denied(c.limit - u, Some(r));
+        d := Denied(lim - u, Some(r));
         s' := State(now, s.log);
       }
     }
@@ -140,12 +142,19 @@ module QuotaCore {
       ensures regressed <==> now < s.clock
       ensures regressed ==> s' == s
       ensures !regressed ==> s' == State(now, s.log)
-      ensures !regressed ==> remaining == c.limit - Used(s.log, k, now, c.window)
+      ensures !regressed ==> remaining == LimitOf(c, k) - Used(s.log, k, now, c.window)
     {
       if now < s.clock { return true, 0, s; }
       var u := ComputeUsed(s.log, k, now, c.window);
-      assert u <= c.limit;
-      return false, c.limit - u, State(now, s.log);
+      assert u <= LimitOf(c, k);
+      return false, LimitOf(c, k) - u, State(now, s.log);
+    }
+
+    method LimitFor(c: Config, k: string) returns (l: nat)
+      requires ValidConfig(c)
+      ensures l == LimitOf(c, k)
+    {
+      l := LimitOf(c, k);
     }
   }
 }

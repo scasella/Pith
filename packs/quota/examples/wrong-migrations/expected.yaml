@@ -1,0 +1,20 @@
+# Known-wrong migrations of stored version 1 dumps: each is an OVERLAY on packs/quota/examples/sliding-log-py (only
+# lib/migrate.py differs, with the defect marked DEFECT). The library is the conforming one, so each passes the ordinary
+# judge; each must fail `gate/migrate.py run` at the verify step for exactly the tests listed (validation/upgrades.py).
+clock-from-log:
+  base: packs/quota/examples/sliding-log-py
+  source: rebuilds each dump's clock from its newest grant ("the clock is just a cache"), forgetting the peeks and denials made after it
+  failing_tests: [test_earlier_instants_still_regress]
+  contracts: [MIG1]
+  judged: true
+closed-expiry:
+  base: packs/quota/examples/sliding-log-py
+  source: re-prunes "expired" grants counting the window closed at both ends, so it drops grants in their last counting instant
+  failing_tests: [test_every_migrated_dump_continues_with_version_1_decisions, test_migrated_limiter_dumps_and_loads_again, test_per_key_limits_work_after_the_upgrade]
+  contracts: [MIG1]
+counts-only:
+  base: packs/quota/examples/sliding-log-py
+  source: keeps only each key's count, stamped at the dump's clock, and loses the instants its grants expire at
+  failing_tests: [test_every_migrated_dump_continues_with_version_1_decisions, test_per_key_limits_work_after_the_upgrade]
+  contracts: [MIG1]
+  judged: true

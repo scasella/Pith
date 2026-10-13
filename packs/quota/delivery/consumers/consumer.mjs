@@ -28,6 +28,8 @@ if (cmd === "silent") {
   const text = lim.dump();
   const lim2 = Limiter.load(text);
   r.push(lim2.peek("alice", { now: 70 }), dec(lim2.acquire("alice", { now: 70, cost: 3 })), lim.peek("alice", { now: 69 }));
+  const plans = new Limiter({ limit: 3, window: 60, limits: { vip: 10 } });
+  r.push(plans.limitFor("vip"), plans.limitFor("alice"), dec(plans.acquire("vip", { now: 10, cost: 5 })), dec(plans.acquire("alice", { now: 10, cost: 5 })));
   out(r);
 } else if (cmd === "backoff") {
   const w = JSON.parse(process.argv[3]); const lim = new Limiter({ limit: w.limit, window: w.window }); let t = 0; const r = [];
@@ -46,7 +48,8 @@ if (cmd === "silent") {
   const lim = new Limiter({ limit: 2, window: 10 }); lim.acquire("k", { now: 50 }); const r = {};
   const tries = { limit: () => new Limiter({ limit: 0, window: 10 }), window: () => new Limiter({ limit: 1, window: -3 }),
                   key: () => lim.acquire("no spaces", { now: 60 }), cost: () => lim.acquire("k", { now: 60, cost: 0 }),
-                  now: () => lim.acquire("k", { now: -1 }), text: () => Limiter.load("not a dump"), regression: () => lim.acquire("k", { now: 49 }) };
+                  now: () => lim.acquire("k", { now: -1 }), text: () => Limiter.load("not a dump"), regression: () => lim.acquire("k", { now: 49 }),
+                  limits: () => new Limiter({ limit: 1, window: 10, limits: { vip: 0 } }) };
   for (const [name, f] of Object.entries(tries)) {
     try { f(); r[name] = { raised: null }; }
     catch (e) {
@@ -58,7 +61,7 @@ if (cmd === "silent") {
   }
   out(r);
 } else if (cmd === "persist-a") {
-  const w = JSON.parse(process.argv[3]); const lim = new Limiter({ limit: w.limit, window: w.window });
+  const w = JSON.parse(process.argv[3]); const lim = new Limiter({ limit: w.limit, window: w.window, limits: w.limits });
   const decisions = calls(lim, w.before); out({ decisions, dump: lim.dump() });
 } else if (cmd === "persist-b") {
   const w = JSON.parse(process.argv[4]); const lim = Limiter.load(process.argv[3]);

@@ -36,9 +36,10 @@ for (const s of prog.steps) {
   try {
     const lim = lims.get(s.id);
     switch (s.op) {
-      case "new": lims.set(s.id, new L.Limiter({ limit: s.limit, window: s.window })); r = { ok: null }; break;
+      case "new": lims.set(s.id, new L.Limiter("limits" in s ? { limit: s.limit, window: s.window, limits: s.limits } : { limit: s.limit, window: s.window })); r = { ok: null }; break;
       case "acquire": r = { ok: decision(lim.acquire(s.key, "cost" in s ? { now: s.now, cost: s.cost } : { now: s.now })) }; break;
       case "peek": r = { ok: lim.peek(s.key, { now: s.now }) }; break;
+      case "limit_for": r = { ok: und(lim.limitFor(s.key)) }; break;
       case "dump": { const t = lim.dump(); dumps.set(s.id, t); r = { ok: { type: typeof t === "string" ? "str" : typeof t, text: typeof t === "string" ? t : null } }; break; }
       case "load": {
         let t = "from" in s ? dumps.get(s.from) : s.text;

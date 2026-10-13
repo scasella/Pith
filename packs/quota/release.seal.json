@@ -1,16 +1,17 @@
 {
   "format": 2,
-  "created": "2026-10-13T19:26:41Z",
+  "created": "2026-10-13T22:22:59Z",
   "pack": {
     "id": "pith.quota",
-    "version": "0.1.1"
+    "version": "0.2.0"
   },
   "policy_dirs": [
     "gate",
     "spec",
     "harness",
-    "delivery"
+    "delivery",
+    "migrations"
   ],
-  "files": 54,
-  "release_digest": "b10e8147eade371f29522ef47d170e39ed1eef40c7e38308e8ee5c3883fea8bc"
+  "files": 59,
+  "release_digest": "492425a27b1c24a0c417f1d161bc0fa8f9eb0809db8dcbc085c02e41fd5448ee"
 }

@@ -9,7 +9,7 @@ module CoreTraces {
 
   method {:test} AllTracesHoldForTheCore() {
     var all := All();
-    expect |all| == 8;
+    expect |all| == 10;
     var i := 0;
     while i < |all| {
       var core := new Core();

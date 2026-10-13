@@ -1,13 +1,18 @@
 // QuotaSpec.dfy — the sliding-window quota contract. This file is the oracle; cores may not edit it.
 // Obligation tags in square brackets are named by the pack's contract records (pack.yaml:contracts).
 //
-// One limiter has a configuration (a limit and a window length, both whole positive numbers), a clock (the latest
-// instant any call has named) and a log of grants. Time is an INPUT: every call names its instant `now`, a whole
-// number on an abstract line (the library never reads a wall clock). Keys are independent quotas sharing one clock.
+// One limiter has a configuration (a default limit, a window length, and limits of their own for some named keys, all
+// whole positive numbers), a clock (the latest instant any call has named) and a log of grants. Time is an INPUT:
+// every call names its instant `now`, a whole number on an abstract line (the library never reads a wall clock). Keys
+// are independent quotas sharing one clock; each key is held to its own limit (LimitOf).
 module QuotaSpec {
 
-  datatype Config = Config(limit: nat, window: nat)
-  predicate ValidConfig(c: Config) { c.limit >= 1 && c.window >= 1 }
+  // `limit` is the default: every key that `limits` does not name has it. Version 1 had only the default.
+  datatype Config = Config(limit: nat, window: nat, limits: map<string, nat>)
+  predicate ValidConfig(c: Config) { c.limit >= 1 && c.window >= 1 && forall k :: k in c.limits ==> c.limits[k] >= 1 }
+
+  // [KEYLIMIT] the limit of key k: its own when the configuration names one, the default otherwise.
+  function LimitOf(c: Config, k: string): nat { if k in c.limits then c.limits[k] else c.limit }
 
   datatype Entry = Entry(key: string, t: nat, cost: nat)                 // one grant: who, when, how much
   datatype State = State(clock: nat, log: seq<Entry>)
@@ -29,15 +34,15 @@ module QuotaSpec {
     else Used(log[..|log| - 1], k, t, w) + (if Counts(log[|log| - 1], k, t, w) then log[|log| - 1].cost else 0)
   }
 
-  predicate FitsAt(c: Config, log: seq<Entry>, k: string, cost: nat, t: nat) { Used(log, k, t, c.window) + cost <= c.limit }
+  predicate FitsAt(c: Config, log: seq<Entry>, k: string, cost: nat, t: nat) { Used(log, k, t, c.window) + cost <= LimitOf(c, k) }
   // [Q4] the same request would fit r instants after `now`, if nothing else were granted meanwhile
   predicate FitsAfter(c: Config, log: seq<Entry>, k: string, cost: nat, now: nat, r: nat) { FitsAt(c, log, k, cost, now + r) }
 
   // ---- state invariant ---------------------------------------------------------------------------------------------
 
   // [Q0] in EVERY window of the configured length, at every instant (not only at instants where a call was made),
-  // what each key was granted is within the limit.
-  ghost predicate WindowSafe(c: Config, log: seq<Entry>) { forall k: string, t: nat :: Used(log, k, t, c.window) <= c.limit }
+  // what each key was granted is within that key's limit.
+  ghost predicate WindowSafe(c: Config, log: seq<Entry>) { forall k: string, t: nat :: Used(log, k, t, c.window) <= LimitOf(c, k) }
 
   ghost predicate Valid(c: Config, s: State)
   {
@@ -58,9 +63,9 @@ module QuotaSpec {
       ensures d.Granted? <==> now >= s.clock && FitsAt(c, s.log, k, cost, now)               // [Q1] granted exactly when it fits
       ensures d.Granted? ==> s'.log == s.log + [Entry(k, now, cost)]                          // [Q2] a grant records exactly itself
       ensures d.Denied? ==> s'.log == s.log                                                   // [Q2] a denial consumes nothing
-      ensures d.Granted? ==> d.remaining == c.limit - Used(s.log, k, now, c.window) - cost    // [Q3] what is left after the grant
-      ensures d.Denied? ==> d.remaining == c.limit - Used(s.log, k, now, c.window)            // [Q3] what is left now
-      ensures d.Denied? ==> (d.retryAfter.None? <==> cost > c.limit)                         // [Q4] never grantable: no retry hint
+      ensures d.Granted? ==> d.remaining == LimitOf(c, k) - Used(s.log, k, now, c.window) - cost  // [Q3] what is left after the grant
+      ensures d.Denied? ==> d.remaining == LimitOf(c, k) - Used(s.log, k, now, c.window)         // [Q3] what is left now
+      ensures d.Denied? ==> (d.retryAfter.None? <==> cost > LimitOf(c, k))                    // [Q4] never grantable: no retry hint
       ensures d.Denied? && d.retryAfter.Some? ==>                                             // [Q4] the earliest instant it would fit
                 d.retryAfter.value >= 1 && FitsAfter(c, s.log, k, cost, now, d.retryAfter.value) &&
                 forall r :: 1 <= r < d.retryAfter.value ==> !FitsAfter(c, s.log, k, cost, now, r)
@@ -74,6 +79,13 @@ module QuotaSpec {
       ensures regressed <==> now < s.clock                                                    // [CLOCK]
       ensures regressed ==> s' == s                                                           // [CLOCK]
       ensures !regressed ==> s' == State(now, s.log)                                          // [Q5] a peek grants nothing, advances the clock
-      ensures !regressed ==> remaining == c.limit - Used(s.log, k, now, c.window)            // [Q5]
+      ensures !regressed ==> remaining == LimitOf(c, k) - Used(s.log, k, now, c.window)       // [Q5]
+  }
+
+  trait {:termination false} LimitReporter {
+    // The limit key k has under this configuration. Reads no state: it neither needs nor moves the clock.
+    method LimitFor(c: Config, k: string) returns (l: nat)
+      requires ValidConfig(c)
+      ensures l == LimitOf(c, k)                                                              // [KEYLIMIT]
   }
 }

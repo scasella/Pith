@@ -66,8 +66,9 @@ def print_traces():
     src = (SPEC / "TraceData.dfy").read_text()
     for block in re.split(r"\n\s*// (?=T\d)", src)[1:]:
         lines = block.splitlines(); print(f"### {lines[0]}\n")
-        m = re.search(r'Trace\("(\w+)", Config\((\d+), (\d+)\)', block)
-        print(f"`{m.group(1)}` — limit {m.group(2)}, window {m.group(3)}\n\n| key | cost | now | the contract requires | why |\n|---|---|---|---|---|")
+        m = re.search(r'Trace\("(\w+)", Config\((\d+), (\d+), map\[([^\]]*)\]\)', block)
+        own = f", own limits {m.group(4)}" if m.group(4) else ""
+        print(f"`{m.group(1)}` — limit {m.group(2)}, window {m.group(3)}{own}\n\n| key | cost | now | the contract requires | why |\n|---|---|---|---|---|")
         for s in re.finditer(r'Step\("(\w+)", (\d+), (\d+), ([^)]*\)?)\)[,\s]*(?://\s*(.*))?', block):
             print(f"| {s.group(1)} | {s.group(2)} | {s.group(3)} | `{s.group(4)}` | {s.group(5) or ''} |")
         print()
