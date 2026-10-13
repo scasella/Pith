@@ -20,7 +20,8 @@ One stable entry point for people, agents and wrappers (Spec Kit, CI, an agent h
     python3 gate/cli.py migrate  run ...                                judge a migration on populated state (gate/migrate.py)
     python3 gate/cli.py deploy   record|check ...                       bind evidence to a deployment (gate/deploy.py)
     python3 gate/cli.py impact   impact|verify ...                      evidence invalidation (gate/evidence.py)
-      (these five pass their arguments through; with --json, where the tool takes it, stdout is one JSON document)
+    python3 gate/cli.py catalog  check|revoked|pin ...                  the catalog of maintained packs, and revocations (gate/catalog.py)
+      (these six pass their arguments through; with --json, where the tool takes it, stdout is one JSON document)
 
 Agent-specific integrations should be thin wrappers over these commands (integrations/).
 Format of the task packet: gate/schemas/task-packet.schema.json; categories: gate/packet.py.
@@ -34,7 +35,7 @@ sys.path.insert(0, str(HERE))
 import workspace as W, pack as PK, packet as PT
 
 EXIT_OK, EXIT_NOT_OK, EXIT_INCOMPLETE, EXIT_USAGE = 0, 1, 2, 3
-DELEGATED = {"change": "change.py", "compose": "compose.py", "migrate": "migrate.py", "deploy": "deploy.py", "impact": "evidence.py"}
+DELEGATED = {"change": "change.py", "compose": "compose.py", "migrate": "migrate.py", "deploy": "deploy.py", "impact": "evidence.py", "catalog": "catalog.py"}
 
 
 def emit(as_json, obj, text):

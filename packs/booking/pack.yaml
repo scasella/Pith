@@ -7,7 +7,7 @@
 format: pith.pack/v1
 pack:
   id: pith.booking
-  version: 0.10.0
+  version: 0.11.0
   title: Interval booking (half-open intervals, cancellation, atomic rescheduling) with a browser-delivered application and two backend stacks
   contract_version: interval-booking-core/v1
   intent: packs/booking/INTENT.md

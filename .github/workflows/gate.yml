@@ -129,6 +129,10 @@ jobs:
         run: |
           python3 validation/evolution.py "$RUNNER_TEMP/evolution"
           python3 validation/judge_wrong.py --pack evolution/tally-v2 "$RUNNER_TEMP"
+      - name: the catalog matches its packs; revocation and the experiment harness work end to end (M6)
+        run: |
+          python3 gate/catalog.py check
+          python3 validation/governance.py "$RUNNER_TEMP/governance"
       - name: one evaluator, three packs (M3 exit check)
         run: |
           set -o pipefail
@@ -137,7 +141,7 @@ jobs:
           python3 validation/generality.py "$RUNNER_TEMP"/ev-reservation-* "$RUNNER_TEMP"/ev-booking-* "$RUNNER_TEMP"/ev-approval-*
       - uses: actions/upload-artifact@v7
         if: always()
-        with: { name: evidence-packs, path: "${{ runner.temp }}/ev-*\n${{ runner.temp }}/wrong-*\n${{ runner.temp }}/adoption\n${{ runner.temp }}/evolution", retention-days: 14 }
+        with: { name: evidence-packs, path: "${{ runner.temp }}/ev-*\n${{ runner.temp }}/wrong-*\n${{ runner.temp }}/adoption\n${{ runner.temp }}/evolution\n${{ runner.temp }}/governance", retention-days: 14 }
 
   isolated:
     # the supported isolation profile, end to end: container build, judge as root, candidate and browser as separate

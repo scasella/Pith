@@ -6,7 +6,7 @@ Evidence says what was checked about one artifact under one release. A deploymen
 where the artifact runs, so an operator (or a later run of `check`) can tell whether what is deployed is what was judged:
 
     python3 gate/deploy.py record --evidence EV --release RELEASE --candidate DIR [--config KEY=VALUE ...] --out deployment.json
-    python3 gate/deploy.py check  --record deployment.json --release RELEASE --deployed DIR [--config KEY=VALUE ...] [--json]
+    python3 gate/deploy.py check  --record deployment.json --release RELEASE --deployed DIR [--config KEY=VALUE ...] [--revocations FILE] [--json]
 
 `record` refuses unless the evidence verifies, the release is the one the evidence names, the candidate is the judged
 artifact (same artifact digest), and every status the pack declares is at its ready value (or --allow-not-ready, which
@@ -99,6 +99,12 @@ def check(a):
         now = config(a.config)
         for k in sorted(set(now) | set(D.get("config") or {})):
             if now.get(k) != (D.get("config") or {}).get(k): diffs.append({"what": f"config.{k}", "detail": "missing" if k not in now else ("not recorded" if k not in (D.get("config") or {}) else "value differs")})
+    if a.revocations:
+        import catalog as CAT
+        R = CAT.load_revocations(a.revocations)
+        for kind, d in (("releases", D.get("release_digest")), ("evaluators", D.get("evaluator_digest"))):
+            e = CAT.revoked_digests(R, kind).get(d)
+            if e: diffs.append({"what": f"revoked {kind[:-1]}", "detail": f"{e.get('reason')} ({e.get('advisory')}); effect: {e.get('effect')}"})
     rep = {"format": "pith.deployment-check/v1", "ok": not diffs, "record": D.get("digest"), "differences": diffs, "monitoring": MONITORING,
            "covered": "the deployed artifact is the judged one under the recorded release" if not diffs else "the deployment runs something the evidence does not cover"}
     if a.json: print(json.dumps(rep, indent=1))
@@ -116,6 +122,7 @@ def main():
     c = sub.add_parser("check")
     for k in ("--record", "--release", "--deployed"): c.add_argument(k, required=True)
     c.add_argument("--config", action="append"); c.add_argument("--json", action="store_true")
+    c.add_argument("--revocations", default=None, help="revocations.yaml: a deployment resting on a revoked release or evaluator is not covered")
     a = ap.parse_args()
     (record if a.cmd == "record" else check)(a)
 

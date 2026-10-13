@@ -1,6 +1,6 @@
 {
   "format": 2,
-  "created": "2026-10-13T18:37:43Z",
+  "created": "2026-10-13T18:41:21Z",
   "pack": {
     "id": "demo.tally",
     "version": "2.0.0"
@@ -11,6 +11,6 @@
     "harness",
     "migrations"
   ],
-  "files": 37,
-  "release_digest": "f3fd8dba1625afbc696d55501492baf1f20d4c8d5f1a4c04903ac925c48ed59f"
+  "files": 38,
+  "release_digest": "ff211e59c159108fab04d9aafef2d270ca6b36d49213bc73205d68d5bfedccba"
 }

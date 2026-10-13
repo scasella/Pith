@@ -21,6 +21,9 @@ Issues and pull requests are welcome. Please read `ARCHITECTURE.md` first.
 - A harness test names the contract records it bears on in its docstring (`"""Contract: A3."""`); a known-wrong
   fixture's `expected.yaml` entry names the packet `category` and `contracts` it must produce.
 - Keep the judge honest: a check that cannot fail is removed, not kept.
+- Who approves what, and what "independent review" means here, is in `GOVERNANCE.md`; which interfaces must not
+  break, and how they may change, in `COMPATIBILITY.md`. After a reseal, `python3 gate/catalog.py pin` updates the
+  catalog's digests and `python3 gate/catalog.py check` must pass.
 
 ## Running the checks locally
 
@@ -38,6 +41,7 @@ python3 validation/packets.py ../evidence-packets           # one run per failur
 python3 validation/adoption.py ../evidence-adoption         # the existing-project journey (packs/approval/examples/adopt-handbook)
 for p in . packs/booking packs/approval evolution/tally-v1 evolution/tally-v2; do python3 gate/cli.py pack check $p; done
 python3 validation/evolution.py ../evidence-evolution          # handoff, rewrite, contract upgrade with state, composition (M5)
+python3 gate/catalog.py check && python3 validation/governance.py ../evidence-governance   # catalog, revocation, experiment harness (M6)
 ```
 
 ## Style

@@ -17,7 +17,7 @@ layer must satisfy (TLA+ invariants, black-box harnesses, a UI contract with int
 evaluator that runs the candidate as a separate, unprivileged process and never trusts its output. An agent clones the repository, reads
 `AGENT.md`, and builds the design model, service, and user interface. The gate decides when it is done.
 
-> Status: research prototype, v0.10.0. The method and the judge have been through five external reviews, one
+> Status: research prototype, v0.11.0. The method and the judge have been through five external reviews, one
 > unassisted agent build and two reference-assisted agent builds (see `docs/VALIDATION.md`). It is not a payment system; no funds move. Read
 > `INTENT.md` for what the core means and `kernel/tcb.yaml` for what a green result rests on.
 
@@ -42,6 +42,8 @@ examples/      conforming builds (two reference, two corrected agent builds, one
 templates/     the draft-pack scaffold (`gate/cli.py pack new`)
 evolution/     a contract upgrade with its migration (tally/v1 -> tally/v2), used by the safe-evolution demonstrations
 compositions/  composition contracts: components, owned state, shared invariants (gate/compose.py)
+experiments/   the conditions experiment: protocol, external criteria, run records, analysis (docs/EXPERIMENTS.md)
+catalog.yaml   the packs this project maintains, held to their packs in CI; revocations.yaml: what no longer stands
 integrations/  thin wrappers over the CLI (GitHub Spec Kit)
 docs/          validation record, adoption guide, RFCs, research background, the hybrid-spec essay this grew out of
 ```
@@ -119,6 +121,13 @@ ship a migration that `gate/migrate.py` judges on state the previously accepted 
 `gate/compose.py` checks a composition contract (shared invariants across components with separate state); and
 `gate/deploy.py` binds evidence to a deployment and reports drift (`docs/rfc/0004-safe-evolution.md`).
 
+**Maintaining packs.** `GOVERNANCE.md` says who may approve what (no one reviews their own pack's release),
+how keys, attestations and releases are revoked, and what happens when unsoundness is found; `COMPATIBILITY.md`
+says which formats and commands other tools may rely on; `catalog.yaml` lists the maintained packs, and their stage
+(`draft` until an independent reviewer signs a release) is derived, never claimed (`docs/rfc/0005-community-release.md`).
+Whether any of this helps is an empirical question: `docs/EXPERIMENTS.md` is the experiment that would answer it,
+built and dry-run, not yet run with real models.
+
 ## What a green result means, and does not
 
 `behavioral_assurance=passed` means: the core's obligations are proved (Dafny, include closure verified,
@@ -148,6 +157,9 @@ isolation is observed by a probe, not proven, and covers the threats in `gate/is
 - `docs/rfc/0002-generality.md` — three packs on one evaluator: what changed for them, and which M3 criteria are not met
 - `docs/rfc/0003-adoption-and-agent-feedback.md` — task packets, failure categories, the CLI, the author workflow, existing projects; which M4 criteria are not met
 - `docs/rfc/0004-safe-evolution.md` — change classification, composition contracts, migrations with populated state, deployment records; the M5 exit demonstrations
+- `docs/rfc/0005-community-release.md` — governance, compatibility, the catalog, revocation, the experiment harness; which M6 criteria are not met and what the maintainer has to do next
+- `GOVERNANCE.md`, `COMPATIBILITY.md` — roles and approvals; stable interfaces and how they change
+- `docs/EXPERIMENTS.md` — the conditions experiment (prose vs. core with tests vs. Pith), how to run it, and that it has not been run
 - `docs/PACK-AUTHORING.md` — how to write a pack without changing the evaluator (scaffold, checks, independent review)
 - `docs/ADOPTING.md` — adding Pith to one workflow of an existing project, and how to record a trial
 - `docs/VALIDATION.md` — every gate run behind this release, including the reviewers' bypass candidates being refused

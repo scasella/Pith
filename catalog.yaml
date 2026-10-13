@@ -1,0 +1,89 @@
+# The catalog of packs this project maintains (format pith.catalog/v1; GOVERNANCE.md § The catalog).
+# An entry is a statement about a pack, never a certification that an application using it is correct.
+# `python3 gate/catalog.py check` holds every entry to its pack in CI; `gate/catalog.py pin` rewrites release_digest
+# after a reseal. `stage` is derived by `gate/cli.py pack check` and cannot be claimed: every pack is `draft` until a
+# reviewer who is not one of its maintainers signs a release review (none has yet).
+format: pith.catalog/v1
+packs:
+  - id: pith.reservation
+    path: .
+    version: 0.11.0
+    status: supported
+    stage: draft
+    release_digest: 6a20c4ccec8b17b737dfab2a7a48d6a71938d6f4ad77ff17bb4f3b49f20bc064
+    scope: >
+      authorization against a limit with reservations, release and capture (posting), over a proven Dafny core; an
+      agent-written TLA+ design, service and browser application around it
+    assumptions: kernel/tcb.yaml
+    examples: [examples/build-a, examples/build-b, examples/club-desk, examples/office-desk]
+    wrong: [examples/wrong/club-desk, examples/wrong/office-desk]
+    profiles: [sqlite (shipped), custom (judged black-box)]
+    reference_implementations: [examples/build-a, examples/build-b]
+    evidence: "CI job judge: every example judged with the pristine release, the known-wrong fixtures, the M2 baseline, the wrong-candidate matrix (docs/VALIDATION.md)"
+    upgrade_policy: "no contract upgrade has shipped; a behavioral change follows INTENT.md and ships a migration (docs/rfc/0004-safe-evolution.md)"
+    maintainers: [scasella]
+    reviews: []
+  - id: pith.booking
+    path: packs/booking
+    version: 0.11.0
+    status: supported
+    stage: draft
+    release_digest: 6ac2b05a0672df3cb0a34379f9294c3beaeeca1798d6cdac65552caa1adc0fa5
+    scope: interval booking with half-open intervals, cancellation and atomic rescheduling, over a verified Dafny core
+    assumptions: spec/tcb.yaml
+    examples: [examples/calendar-py, examples/desk-node, examples/custom-py]
+    wrong: [examples/wrong/closed-intervals, examples/wrong/check-then-insert, examples/wrong/move-loses-booking, examples/wrong/receipt-overwritten]
+    profiles: [python (SQLite), node (journal), custom]
+    reference_implementations: [examples/calendar-py, examples/desk-node]
+    evidence: "CI job packs: examples, known-wrong applications, generality across packs"
+    upgrade_policy: "no contract upgrade has shipped; a behavioral change ships a migration (docs/rfc/0004-safe-evolution.md)"
+    maintainers: [scasella]
+    reviews: []
+  - id: pith.approval
+    path: packs/approval
+    version: 0.11.0
+    status: supported
+    stage: draft
+    release_digest: 3b94e5846842d59b8dd357991034d95bca781c5046bb0ebc4ba19fa3e8678960
+    scope: document approval with roles, per-revision separation of duties, revision-bound approvals and a two-approver quorum
+    assumptions: model/assumptions.yaml
+    examples: [examples/approvals-py, examples/approvals-node, examples/adopt-handbook]
+    wrong: [examples/wrong/stale-approvals-counted, examples/wrong/self-approval, examples/wrong/unknown-as-refused, examples/wrong/adopt-handbook-stale]
+    profiles: [any runtime the pack lists (python, node); the candidate writes the whole service]
+    reference_implementations: [examples/approvals-py, examples/approvals-node]
+    evidence: "CI job packs: examples, known-wrong applications, the existing-project adoption"
+    upgrade_policy: "no contract upgrade has shipped; a behavioral change ships a migration (docs/rfc/0004-safe-evolution.md)"
+    maintainers: [scasella]
+    reviews: []
+  - id: demo.tally
+    path: evolution/tally-v1
+    version: 1.0.0
+    status: demonstration
+    stage: draft
+    release_digest: 7234ae64b8802540f8b8b8cc024cb2050b6953e8e3666c3ec88deb4ceff3b7e4
+    scope: "one bounded tally with idempotent requests: the scaffold's example contract, the 'before' of the evolution demonstrations"
+    assumptions: harness/SERVICE.md
+    examples: [examples/basic]
+    wrong: [examples/wrong/no-limit]
+    profiles: [python (SQLite)]
+    reference_implementations: [examples/basic]
+    evidence: "CI job packs: validation/evolution.py"
+    upgrade_policy: "superseded by demo.tally 2.0.0 with a forward-only migration (evolution/tally-v2/migrations/from-1.yaml)"
+    maintainers: [scasella]
+    reviews: []
+  - id: demo.tally
+    path: evolution/tally-v2
+    version: 2.0.0
+    status: demonstration
+    stage: draft
+    release_digest: ff211e59c159108fab04d9aafef2d270ca6b36d49213bc73205d68d5bfedccba
+    scope: "a bounded tally per named counter, upgraded from 1.0.0 with its state: the 'after' of the evolution demonstrations"
+    assumptions: harness/SERVICE.md
+    examples: [examples/basic, examples/journal]
+    wrong: [examples/wrong/default-bound, examples/wrong-migrations/drops-refused, examples/wrong-migrations/renames-default]
+    profiles: [python (SQLite), python (journal)]
+    reference_implementations: [examples/basic]
+    evidence: "CI job packs: validation/evolution.py, the experiment harness dry run"
+    upgrade_policy: "rollback is not supported: forward repair only (migrations/from-1.yaml)"
+    maintainers: [scasella]
+    reviews: []

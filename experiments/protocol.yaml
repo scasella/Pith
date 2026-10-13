@@ -1,0 +1,59 @@
+# The experiment protocol (format pith.experiment-protocol/v1). docs/EXPERIMENTS.md explains it; experiments/harness.py
+# plans runs from it, validates run records against experiments/schemas/run.schema.json and analyses them.
+# Changing this file after the first real run is a protocol change: record it in `amendments` with the date and why.
+format: pith.experiment-protocol/v1
+id: pith-conditions-1
+question: >
+  Does the full Pith workflow raise the proportion of users who obtain an accepted, usable application and then make
+  a substantial change without maintainer repair, over good infrastructure with conventional tests alone, and over
+  ordinary prose-driven development?
+
+conditions:                                   # what the agent is given; every condition is scored by the same external criteria
+  prose:
+    gets: "the task statement (tasks/counters/<stage>.md) and an empty workspace"
+    own_acceptance: none                      # the agent decides when it is done
+  core-tests:
+    gets: "the task statement, a trusted core module with conventional unit tests, and a reference service skeleton (tasks/counters/core-tests/)"
+    own_acceptance: "the conventional tests pass (python -m pytest)"
+  pith:
+    gets: "the task statement and a Pith workspace: the pack's release (evolution/tally-v1, then evolution/tally-v2), AGENT.md, task packets"
+    own_acceptance: "the pinned judge: every status ready (gate/app_gate.py); at the change stage also gate/migrate.py run"
+
+tasks:                                        # each task is a build followed by a substantial change to what was built
+  counters:
+    build: tasks/counters/build.md            # a bounded tally service with idempotent requests (tally/v1)
+    change: tasks/counters/change.md          # named counters, migrating a populated version 1 deployment (tally/v2)
+    external: external/counters_check.py      # common criteria C1-C5 (build), D1-D6 + regressions (change)
+
+models: []                                    # exact model identifiers, filled in when runs are planned; the dry run uses scripted agents
+repeats: 3                                    # per model x task x condition cell
+rotation: full-crossing-rotated-order    # every model x task x condition x repeat is run; the order of the three conditions in each cell is rotated (latin square), so no condition always runs first
+budget:                                       # the same for every condition; recorded per run, and exceeding it ends the run as abandoned
+  max_turns: 200
+  max_wall_clock_minutes: 120
+  max_cost_usd: 20
+
+primary_outcome:
+  name: accepted-usable-and-changed-without-repair
+  definition: >
+    the build stage passes every external build criterion AND the change stage passes every external change criterion
+    (including the regressions and the migration of populated state) AND no maintainer intervened at either stage.
+    Abandoned runs (budget exhausted, agent gave up, setup never completed) count as failures and are reported.
+supporting_measures:
+  - semantic_regressions        # external build criteria that passed at build and fail after the change
+  - false_acceptance            # the condition's own acceptance said done, the external criteria disagree
+  - false_rejection             # the condition's own acceptance refused, the external criteria pass
+  - interventions               # by whom (maintainer | user | none) and why the instructions were not enough
+  - setup_failures
+  - repair_cycles               # attempts after the first own-acceptance failure
+  - agent_usage                 # turns, tokens in/out, wall clock
+  - evaluation_cost             # judge wall clock and machine; the experiment's own cost is reported, not hidden
+  - authoring_cost              # hours spent on the pack and its maintenance, from the pack's maintainers (amortisation)
+
+publication:
+  - every planned run is published, including failed, abandoned and excluded ones, with the reason for any exclusion
+  - transcripts are kept (digest in the run record) and released where the participants agree
+  - a holdout of the external criteria (experiments/external/holdout/, maintained by someone outside the pack's
+    maintainers) supplements, never replaces, the visible criteria; it does not exist yet
+
+amendments: []
