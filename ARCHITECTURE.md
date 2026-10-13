@@ -135,6 +135,9 @@ because it narrows the earlier wording:
   effect agree". A known-wrong integration that records the receipt before applying the effect keeps every local
   rule of both components and breaks that joint invariant, and the composition check finds it. A composition is
   now stated, not assumed: owned state, permitted effects, shared invariants, atomicity, assumptions.
+  v0.12.0 restated the reservation pack's own two kernels in that form (`compositions/reservation-kernels`: `INV1`
+  and `CaptureAgrees` shared, `Decide` and `Capture` atomic across both) and checked with TLC that it has the same
+  behaviours as the design obligations it restates.
 
 The honest summary: proven cores compose, but the unit of proof is the shared state, and the unit of
 composition is the design model. The project's claim is true in the model and narrower in the proofs than
@@ -149,6 +152,8 @@ re-established, and never claims authority. Evidence records each contract recor
 contract is invalidated by a contract upgrade even where its inputs did not change, and `--reuse` never crosses
 releases. A contract upgrade ships a migration that is judged on state the previously accepted artifact produced,
 not on an empty database. A deployment record binds the evidence to what is deployed and says what it cannot see.
+v0.12.0 (`docs/rfc/0006-upgrading-the-main-packs.md`) did this for real on all four main packs, each judged from the
+release it actually published (`validation/upgrades.py`).
 
 ## What this is not
 

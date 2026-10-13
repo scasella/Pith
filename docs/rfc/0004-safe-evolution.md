@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Implemented in v0.10.0 (roadmap milestone M5). § 8 says which M5 exit criteria are met. |
+| Status | Implemented in v0.10.0 (roadmap milestone M5). § 8 says which M5 exit criteria are met; the criteria it left open were closed in v0.12.0 (RFC 0006). |
 | Applies to | `gate/change.py`, `gate/compose.py`, `gate/migrate.py`, `gate/deploy.py`, `gate/evidence.py`, every pack's `pack.yaml` (`change_routes`, `migrations`), `compositions/`, `evolution/`, `validation/evolution.py` |
 | Builds on | RFC 0001 (packs and evidence), RFC 0002 (generality), RFC 0003 (adoption and agent feedback). Nothing in their formats is withdrawn. |
 
@@ -170,10 +170,10 @@ Run in CI (job `packs`). Each expectation is recorded in `evolution-record.json`
 | Criterion | State |
 |---|---|
 | Changes classified before implementation; machine-readable change-impact reports; ambiguity not presented as authority | **Met** (`change.py plan`/`classify`, `pith.change-impact/v1`, `authoritative: false`, ambiguity listed). |
-| Composition specified, with a broken integration that keeps local rules and breaks the joint contract | **Met for one demonstration** (`compositions/ledger-receipts`). The reservation pack's two-kernel composition is not yet restated in this format. |
-| Migrations as behavioural transformations: mapping, populated state, old retries, rollback stated | **Met for one contract upgrade** (tally/v1 → v2, two applications, two known-wrong migrations). The three main packs have not had a contract upgrade yet, so none ships a migration. |
+| Composition specified, with a broken integration that keeps local rules and breaks the joint contract | **Met** (`compositions/ledger-receipts`; since v0.12.0 also the reservation pack's two kernels, `compositions/reservation-kernels`, checked against its design obligations: RFC 0006 § 2). |
+| Migrations as behavioural transformations: mapping, populated state, old retries, rollback stated | **Met** (tally/v1 → v2; since v0.12.0 a contract upgrade with a migration on each of the four main packs, judged from their published v0.11.0 releases: RFC 0006 § 4, § 5). |
 | Evidence bound to deployment; monitoring scoped | **Met** (`deploy.py record`/`check`). |
-| **Exit gate:** agent handoff, substantial rewrite, contract upgrade with populated state, composed workflow, without stale evidence or erased history | **Met in the repository, scripted** (`validation/evolution.py`, CI). The agents in the handoff are scripted edits, not model runs; M6's experiment harness is where real agents are measured. |
+| **Exit gate:** agent handoff, substantial rewrite, contract upgrade with populated state, composed workflow, without stale evidence or erased history | **Met in the repository** (`validation/evolution.py`, CI, scripted). Since v0.12.0 the handoff has also been done once by two model agents and recorded (`evolution/handoff`, re-checked by `validation/handoff.py`: RFC 0006 § 6); one run, not a measurement, which remains M6's experiment harness's job. |
 
 ## 9. Limits
 

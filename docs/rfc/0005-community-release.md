@@ -95,7 +95,7 @@ The roadmap's proposed 1.0 bar, for the record: three structurally different see
 maintained non-payment packs (three families exist; none is independently maintained); a supported isolated evaluator
 and stable contract and evidence interfaces (yes, and written down); demonstrated implementation variation and at
 least one existing-project adoption (variation yes; adoption only the repository's own example, not an external
-team's); working change, migration and evidence-invalidation processes (yes, demonstrated on one contract upgrade);
+team's); working change, migration and evidence-invalidation processes (yes, demonstrated on one contract upgrade; since v0.12.0 on all four main packs, RFC 0006);
 published multi-model experiments and external review of the evaluator and the pack-release process (no).
 
 ## 8. What the maintainer has to do next

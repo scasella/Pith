@@ -80,7 +80,25 @@ kept byte for byte).
 
 <!-- BOOKING -->
 
-<!-- APPROVAL -->
+### Approval (0.11.0 → 0.12.0, `approval-workflow/v1` → `approval-workflow/v2`)
+
+**A quorum per document.** Version 1 approved a document at two distinct approvals of its current revision. A create
+now takes an optional `quorum` (an integer from 2 to 5, 2 when absent); it is fixed for the document's life and an
+edit restarts review against the same quorum. Records: `A3` 1 → 2 (its quorum, not two), `BoundaryConformance` 1 → 2
+(the API changed), new `A9` (the quorum is chosen at creation and never changes; `QuorumFixed` in the TLA+ model).
+The model now chooses the quorum at `Init` over `{2, 3}` with a fourth approver; two new known-wrong designs
+(`WrongConstantQuorum` violates `BoundToRevision`, `WrongQuorumChanges` violates `QuorumFixed`); the refinement check,
+three new traces (T12 to T14), lifecycle and boundary tests cover it.
+
+`MIG1` (`migrations/from-v1.yaml`): every version 1 document becomes quorum 2 and keeps its revisions, status and every
+approval ever recorded, stale ones included; every recorded result is kept and replayed (an old approval retried is a
+replay, not `ALREADY_APPROVED`); the request in flight at the SIGKILL is decided at most once. Rollback forward-only:
+version 1 cannot represent another quorum. The spec's migrate step is a frozen dispatcher that picks the Python or
+Node.js entrypoint from the candidate's manifest; the existing-project example migrates its review tables and leaves
+the project's own tables alone. Known-wrong migrations: `drops-stale-approvals` (judges superseded approvals dead data;
+passes the ordinary judge), `drops-request-ledger` (clears the idempotency ledger; passes the ordinary judge) and
+`creates-not-requalified` (leaves recorded creates without a quorum, so an old create retried is a conflict).
+The trace review of M3 (`docs/reviews/m3-trace-review.md`) does not cover T12 to T14.
 
 <!-- QUOTA -->
 
