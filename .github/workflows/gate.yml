@@ -76,6 +76,16 @@ jobs:
           assert c["release_ready_missing"] == ["human_approval"], c["release_ready_missing"]
           PY
           exit $code
+      - name: diagnose the isolation image (on failure)
+        if: failure()
+        run: |
+          TAG="pith-judge:$(sha256sum obligations/isolation/Containerfile | cut -c1-16)"
+          docker run --rm --network none --read-only --tmpfs /tmp:rw,exec,size=4g --cap-drop ALL --cap-add CHOWN --cap-add SETUID --cap-add SETGID \
+            --cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add KILL --security-opt no-new-privileges -v "$PWD":/pith:ro "$TAG" sh -c '
+            set -x; id; echo "HOME=$HOME DAFNY=$DAFNY"; ls -la /opt/tools /opt/tools/dafny | head -30
+            "$DAFNY" --version; echo "rc=$?"
+            cd /tmp && printf "lemma L() ensures 1 + 1 == 2 {}\n" > t.dfy && "$DAFNY" verify t.dfy; echo "rc=$?"
+            java -version; python -c "import playwright, yaml; print(\"py ok\")"' 2>&1 | tail -60
       - uses: actions/upload-artifact@v7
         if: always()
         with: { name: evidence-isolated, path: "${{ runner.temp }}/ev-isolated", retention-days: 14 }
