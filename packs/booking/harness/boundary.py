@@ -21,6 +21,7 @@ def svc():
 
 
 def test_every_response_matches_its_schema(svc):
+    """Contract: BoundaryConformance."""
     c = svc.client
     code, r = c.create(1, "Room A"); assert code == 201; ok("resource", r)
     for args in ((1, 1, 600, 660), (1, 2, 630, 690), (1, 3, 700, 700), (1, 1, 600, 660)):
@@ -36,6 +37,7 @@ BAD = [-1, 2 ** 53, 1.5, "1", True, None, [], {}]
 
 @pytest.mark.parametrize("bad", BAD, ids=[repr(b) for b in BAD])
 def test_out_of_domain_values_are_refused_without_effect(svc, bad):
+    """Contract: BoundaryConformance."""
     c = svc.client; c.create(500, "Room")
     before = (len(c.events()[1]), c.resource(500)[1])
     for path, body in (("/resources", {"id": bad, "name": "x"}), ("/resources/500/bookings", {"request_id": bad, "start": 0, "end": 10}),
@@ -45,6 +47,7 @@ def test_out_of_domain_values_are_refused_without_effect(svc, bad):
 
 
 def test_malformed_and_incomplete_requests_are_refused_without_effect(svc):
+    """Contract: BoundaryConformance."""
     c = svc.client; c.create(600, "Room"); c.book(600, 60001, 0, 60)
     n = len(c.events()[1])
     for path in ("/resources", "/resources/600/bookings", "/bookings/60001/cancel", "/bookings/60001/reschedule"):
@@ -56,10 +59,12 @@ def test_malformed_and_incomplete_requests_are_refused_without_effect(svc):
 
 
 def test_unknown_targets_are_404_without_effect(svc):
+    """Contract: BoundaryConformance."""
     c = svc.client; n = len(c.events()[1])
     assert c.book(424242, 70001, 0, 10)[0] == 404 and c.cancel(424242, 70002)[0] == 404 and c.move(424242, 70003, 0, 10)[0] == 404
     assert c.resource(424242)[0] == 404 and c.booking(424242)[0] == 404 and len(c.events()[1]) == n
 
 
 def test_the_application_is_served(svc):
+    """Contract: BoundaryConformance."""
     code, body = svc.client.ui(); assert code == 200 and b"<" in body

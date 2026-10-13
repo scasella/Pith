@@ -67,6 +67,13 @@ CLI, with no human evaluation). What the evaluator had to learn for them, and wh
 browser containment moved out of the reservation pack, per-runtime limits. Every run records the evaluator's
 digest, and `validation/generality.py` checks it is the same across all three packs.
 
+From v0.9.0 every failure is categorised (`violation`, `not_exercised`, `evidence_missing`, `toolchain_unavailable`,
+`contract_change`, `infrastructure`, with the basis for the inference) and every run ends with a task packet
+(`gate/packet.py`); an exception or timeout inside a check is a refusal in category `infrastructure`, never a crash
+without evidence. `gate/cli.py` is the one command-line and JSON interface. A pack may let an existing project name
+its own code (`include`), which is copied into the judged artifact and judged only through the pack's entrypoints;
+every run states what it covered (`coverage`). `docs/rfc/0003-adoption-and-agent-feedback.md`.
+
 The rings below are the reservation pack's structure (`area` in `pack.yaml`), not the evaluator's.
 
 ## The interface is a layer too

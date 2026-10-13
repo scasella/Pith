@@ -38,6 +38,7 @@ def shape(v):
 @settings(max_examples=80, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(st.sampled_from(["alice", "bob", "carol"]), st.lists(cmd, min_size=1, max_size=20))
 def test_service_agrees_with_the_reference(svc, creator, seq):
+    """Contract: ModelConformance."""
     c = svc.client; doc = f"c{next(N)}"; rq = lambda: 10_000_000 + next(N)
     code, r = c.create(rq(), doc, creator); why, d = R.create(creator, ROLES)
     assert code == 200 and (r["outcome"], r["reason"]) == (("OK", None) if why is None else ("REFUSED", why)), f"create by {creator}: service {r}"

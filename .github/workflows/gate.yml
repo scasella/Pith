@@ -48,6 +48,14 @@ jobs:
           done
       - name: known-wrong fixtures are refused for exactly their defects
         run: python3 validation/judge_wrong.py "$RUNNER_TEMP"
+      - name: failure categories and task packets (M4)
+        run: |
+          python3 -m pytest validation/test_packet.py -q -p no:cacheprovider
+          python3 validation/packets.py "$RUNNER_TEMP/packets"
+      - name: the machine is ready, and the pack is consistent (gate/cli.py doctor, pack check)
+        run: |
+          python3 gate/cli.py doctor
+          python3 gate/cli.py pack check .
       - name: same scoped results as the v0.6.0 judge (M2 exit check)
         run: python3 validation/compare_m1.py compare "$RUNNER_TEMP"
       - name: evidence is invalidated by exactly what changed, and reused only where sound
@@ -88,6 +96,8 @@ jobs:
           done
       - name: the evaluator is domain-free across every pack
         run: python3 validation/domain_free.py
+      - name: each pack is consistent (gate/cli.py pack check)
+        run: for pk in packs/booking packs/approval; do python3 gate/cli.py pack check $pk; done
       - name: booking pack examples (Python, Node.js, custom backends)
         run: |
           set -o pipefail
@@ -99,11 +109,20 @@ jobs:
       - name: approval pack examples (Python and Node.js stacks)
         run: |
           set -o pipefail
-          for ex in approvals-py approvals-node; do
+          for ex in approvals-py approvals-node adopt-handbook; do
             validation/judge_example.sh --pack packs/approval "packs/approval/examples/$ex" "$RUNNER_TEMP/ev-approval-$ex" | tail -1
           done
       - name: approval pack known-wrong apps are refused for exactly their defects
         run: python3 validation/judge_wrong.py --pack packs/approval "$RUNNER_TEMP"
+      - name: an existing project adopts a pack (M4; docs/ADOPTING.md)
+        run: python3 validation/adoption.py "$RUNNER_TEMP/adoption"
+      - name: a scaffolded draft pack is judgeable as it comes (gate/cli.py pack new)
+        run: |
+          set -o pipefail
+          D="$RUNNER_TEMP/scaffold/demo"
+          python3 gate/cli.py pack new demo --out "$D" && python3 gate/release.py seal --pack "$D" && python3 gate/cli.py pack check "$D"
+          validation/judge_example.sh --pack "$D" "$D/examples/basic" "$RUNNER_TEMP/ev-scaffold-basic" | tail -1
+          python3 validation/judge_wrong.py --pack "$D" "$RUNNER_TEMP"
       - name: one evaluator, three packs (M3 exit check)
         run: |
           set -o pipefail
@@ -112,7 +131,7 @@ jobs:
           python3 validation/generality.py "$RUNNER_TEMP"/ev-reservation-* "$RUNNER_TEMP"/ev-booking-* "$RUNNER_TEMP"/ev-approval-*
       - uses: actions/upload-artifact@v7
         if: always()
-        with: { name: evidence-packs, path: "${{ runner.temp }}/ev-*\n${{ runner.temp }}/wrong-*", retention-days: 14 }
+        with: { name: evidence-packs, path: "${{ runner.temp }}/ev-*\n${{ runner.temp }}/wrong-*\n${{ runner.temp }}/adoption", retention-days: 14 }
 
   isolated:
     # the supported isolation profile, end to end: container build, judge as root, candidate and browser as separate

@@ -11,6 +11,7 @@ FORMAT = "pith.pack/v1"
 KINDS = {"command", "files_present", "source_rules", "tlc", "regenerated", "manifest_choice", "manifest_commands", "adapter", "attestation"}
 METHODS = {"proof", "model-check", "test", "browser", "review", "structural", "policy"}
 STATUS_RULES = {"all_pass", "from_check"}
+CATEGORIES = ("violation", "not_exercised", "evidence_missing", "toolchain_unavailable", "contract_change", "infrastructure")   # = gate/packet.py
 
 
 class PackError(Exception):
@@ -46,6 +47,9 @@ def validate(P, root):
             need(isinstance(c["each"], dict) and len(set(c["each"]) & {"list", "glob"}) == 1, f"{c['id']}: each needs exactly one of list, glob")
         if c["kind"] == "command" and "expect_exit" in c:
             need(c["expect_exit"] in ("zero", "nonzero"), f"{c['id']}: expect_exit must be zero or nonzero")
+        if "failure_category" in c:
+            need(c["failure_category"] in CATEGORIES, f"{c['id']}: failure_category must be one of {CATEGORIES}")
+        need(c.get("about", "candidate") in ("candidate", "release"), f"{c['id']}: about must be candidate or release")
         if c["kind"] == "adapter":
             need(pathlib.PurePosixPath(c["adapter"]).parts[0] in P["policy_dirs"], f"{c['id']}: an adapter must be pack policy code")
         seen.add(c["id"])

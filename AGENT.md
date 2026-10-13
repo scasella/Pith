@@ -20,6 +20,21 @@ with `--policy-from <pristine release> --expected-release <pinned digest>` by th
 additionally needs a signed human review (`gate/review.py`) that you cannot produce. Nothing else counts,
 including your own assessment of the code.
 
+**When the gate refuses, read `TASK.md` in the evidence directory first** (`task-packet.json` is the same, as
+JSON). It names the first failure, its category, the contract records it bears on, a minimal counterexample, what you
+may edit and the exact rerun command. The category says whose problem it is:
+
+| Category | Yours? | Do |
+|---|---|---|
+| `violation` | yes | reproduce the counterexample, fix the cause in your files, rerun |
+| `not_exercised` | yes | your design or app never reached the behaviour; make it reach it (never stub the check) |
+| `evidence_missing` | yes | add the missing file or artifact the packet names |
+| `contract_change` | no | you edited something frozen, or need behaviour the contract does not allow: restore it and report the change you need |
+| `toolchain_unavailable` | no | a tool is missing on this machine: `python3 gate/cli.py doctor` says which and how to install it |
+| `infrastructure` | no | rerun once; if it repeats, report it with the packet; do not change your code to work around it |
+
+`python3 gate/cli.py doctor` before the first run tells you whether the machine has every tool the pack needs.
+
 Each run also writes `evidence.json`: one record per check, with the files it read. After an edit,
 `python3 gate/evidence.py impact --evidence <previous evidence dir>` tells you which results still hold and which
 your edit invalidated, and `python3 gate/app_gate.py --out <fresh dir> --reuse <previous evidence dir>` skips the
@@ -97,3 +112,4 @@ missing. Read `kernel/core/claims.json`: `scope.does_not_cover` and
 - If an obligation is satisfied without being exercised, say so in your report.
 - Never weaken a check to make it pass; report a harness assertion you believe is wrong, with the failing example.
 - Finish with: the gate output (and mode), every assumption not already in `kernel/tcb.yaml`, and anything frozen you believe is wrong.
+- Never count a `toolchain_unavailable` or `infrastructure` refusal as done, and never claim a check passed that was blocked.

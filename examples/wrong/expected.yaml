@@ -1,7 +1,8 @@
 # examples/wrong/expected.yaml — known-wrong release fixtures and the verdict the pristine gate must reach.
 # Checked by validation/judge_wrong.py (and CI). Each fixture must pass behavioral assurance (its protected platform
 # and service are intact; the defects are in the interface) and FAIL application delivery on EXACTLY these
-# interaction obligations — no fewer (the defect is caught) and no more (it is caught for the right reason).
+# interaction obligations — no fewer (the defect is caught) and no more (it is caught for the right reason). Since
+# v0.9.0 the task packet must put the first failure in `category` and name at least `contracts` (gate/packet.py).
 club-desk:
   source: "Club Desk as submitted for the 2026-10-13 review; UI logic unchanged, contract markup added (ui.contract-markup.diff)"
   must_fail: [I2, I4, I5, I6]
@@ -10,6 +11,8 @@ club-desk:
     I4: "High-priority finding 2: a received AUTHORIZED receipt is overwritten with ERROR when the refresh fails"
     I5: "High-priority finding 2: 'The service did not return a decision' for every failure class"
     I6: "Related finding: receipt scope is missing on account switches"
+  category: violation
+  contracts: [I2, I4, I5, I6]
 office-desk:
   source: "Office Desk as submitted for the 2026-10-13 review; UI logic unchanged, contract markup added (ui.contract-markup.diff)"
   must_fail: [I1, I2, I3, I4, I5, I6]
@@ -20,3 +23,5 @@ office-desk:
     I4: "High-priority finding 2: a received AUTHORIZED receipt is overwritten with ERROR when the refresh fails"
     I5: "High-priority finding 2: every failure class shown as ERROR"
     I6: "Related finding: receipt scope is missing on account switches"
+  category: violation
+  contracts: [I1, I2, I3, I4, I5, I6]

@@ -27,6 +27,12 @@ How judging works, and why:
   * Statuses are reported separately; release_ready requires each at its pack-declared value plus an authoritative
     pinned run, an enforced isolation profile and the adapters' own conditions. Exit 0 iff the pack's completion
     status passed; 2 if it did not; 1 on refusal.
+  * Every failure carries a category (violation, not_exercised, evidence_missing, toolchain_unavailable,
+    contract_change, infrastructure) and the basis for it, and every run ends with a task packet (task-packet.json,
+    TASK.md): the first failure, its contract records, a minimal counterexample, what may be edited, how to rerun
+    (gate/packet.py). An exception or a timeout inside a check is a refusal in category infrastructure, never a crash.
+  * Coverage is stated: the judged paths (the pack's agent-owned dirs, plus any `include` paths an adopting project
+    names when the pack allows it) and that nothing else in the candidate's repository is covered.
 """
 import argparse, importlib.metadata, json, os, platform, re, subprocess, sys, time, pathlib
 import yaml
@@ -34,7 +40,7 @@ import yaml
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(HERE))
-import workspace as W, pack as PK, evidence as EV, kinds as K, sandbox as SB
+import workspace as W, pack as PK, evidence as EV, kinds as K, sandbox as SB, packet as PT
 
 PROBE_HOSTS = ["1.1.1.1:443", "github.com:443"]
 
@@ -47,6 +53,14 @@ def sh(cmd, cwd, env=None, timeout=900):
 def read_manifest(root): return yaml.safe_load((pathlib.Path(root) / W.MANIFEST).read_text()) if (pathlib.Path(root) / W.MANIFEST).exists() else {}
 
 
+def _raw_pack(root):
+    """The pack as written, for the task packet of a run refused before the pack was validated (a frozen file edited)."""
+    try:
+        P = yaml.safe_load((pathlib.Path(root) / W.PACK_FILE).read_text())
+        return P if isinstance(P, dict) and isinstance(P.get("pack"), dict) else {}
+    except Exception: return {}
+
+
 def tool_values(P): return {n: os.environ.get(t["env"], t.get("default", "")) for n, t in (P.get("tools") or {}).items()}
 
 
@@ -57,10 +71,10 @@ def toolchain(P, root, tools):
     tc = {"python": platform.python_version()}
     for name, t in (P.get("toolchain") or {}).items():
         if "python_package" in t: tc[name] = ver(t["python_package"]); continue
-        o = sh(K.fmt(t["command"], **tools), root)[1]
+        code, o = sh(K.fmt(t["command"], **tools), root)
         if t.get("regex"):
             m = re.search(t["regex"], o); tc[name] = (m.group(t.get("group", 0)).strip() if m else "unknown")
-        else: tc[name] = o.strip()
+        else: tc[name] = o.strip() if code == 0 else "unavailable"          # v0.9.0: a failing version command is not a version
     return tc
 
 
@@ -115,7 +129,10 @@ def judge(candidate, policy_src, out, mode, expected_release, review, reviewer_k
                            "statuses": {s: claims.get(s) for s in statuses}, "release_ready": claims["release_ready"],
                            "reused_from": str(reuse) if reuse else None, "records": records})
         claims["evidence_digest"] = E["digest"]
+        claims["task_packet"] = "task-packet.json"
         (out / "app-claims.json").write_text(json.dumps(claims, indent=2))
+        PK_ = P or _raw_pack(root)
+        if PK_: PT.write(out, PT.build(claims, records, PK_, mode, candidate, policy_src, out, claims["toolchain"], claims["release_digest"] or ""))
         try: (candidate / "app-claims.json").write_text(json.dumps(claims, indent=2))
         except Exception: pass
         (out / "README.txt").write_text("Evidence applies ONLY to artifact/ (the copy that was judged) and release_digest.\n"
@@ -127,6 +144,7 @@ def judge(candidate, policy_src, out, mode, expected_release, review, reviewer_k
             "Unavailable tools are blockers, never passes. Prior evidence is reused only where a record says reused_from.\n")
         import shutil; shutil.rmtree(root, ignore_errors=True)
         print("app-claims.json: " + " | ".join(f"{s}={claims.get(s)}" for s in statuses) + f" | release_ready={claims['release_ready']} | gate_mode={mode} | evidence={out}")
+        if PK_: print(f"task packet: {out / 'TASK.md'} (task-packet.json: first failure, its category and contract records, what to edit, how to rerun)")
 
     def refuse_exit(spec=None):
         if statuses:       # the status the failing check contributes to is refused; evaluator checks refuse refusal_status
@@ -134,12 +152,14 @@ def judge(candidate, policy_src, out, mode, expected_release, review, reviewer_k
             for s in statuses: claims[s] = claims.get(s) or "not evaluated"
         finish(); sys.exit(1)
 
-    def check(area, name, ok, claim, why=None, blocking=True, spec=None, res=None, reused=None):
+    def check(area, name, ok, claim, why=None, blocking=True, spec=None, res=None, reused=None, exc=None):
+        cat = None if ok else PT.classify(name, spec["kind"] if spec else "evaluator", spec, res.category if res else None, why, claims.get("toolchain") or {}, exc)
         claims["checks"].append({"area": area, "check": name, "result": "pass" if ok else "fail", "claim": claim, **({"why": why} if (why and not ok) else {}),
-                                 **({"id": spec["id"]} if spec else {}), **({"reused_from": reused} if reused else {})})
+                                 **({"id": spec["id"]} if spec else {}), **({"reused_from": reused} if reused else {}), **({"category": cat[0]} if cat else {})})
         print((f"[ok] {area} · {name}: {claim}" + (" (reused)" if reused else "")) if ok else f"[REFUSED] {area} · {name}: {why or claim}")
         rec = {"id": spec["id"] if spec else f"evaluator.{re.sub(r'[^a-z]+', '-', name.lower()).strip('-')}", "check": name, "area": area,
-               "result": "pass" if ok else "fail", "claim": claim, **({"why": why[-600:]} if (why and not ok) else {}), "blocking": blocking}
+               "result": "pass" if ok else "fail", "claim": claim, **({"why": why[-3000:]} if (why and not ok) else {}), "blocking": blocking,
+               **({"category": cat[0], "category_basis": cat[1]} if cat else {}), **({"failing_contracts": res.failing_contracts} if (res and res.failing_contracts) else {})}
         if spec:
             k = keys.get(spec["id"], {})
             rec.update({"kind": spec["kind"], "method": spec["method"], "contributes_to": spec.get("status"), "establishes": spec.get("establishes", []),
@@ -174,6 +194,15 @@ def judge(candidate, policy_src, out, mode, expected_release, review, reviewer_k
     M = read_manifest(root) or {}
     bad = sorted(set(M) - set(P["candidate"]["manifest_allowlist"]))
     check("policy", "manifest allowlisted", not bad, f"manifest keys within {P['candidate']['manifest_allowlist']}", f"disallowed keys: {bad}")
+    inc = M.get("include") or []
+    if inc:
+        problems = W.include_problems(inc, policy_dirs, candidate)
+        check("policy", "included paths", not problems, f"existing project: {inc} judged as part of the artifact (only through the pack's entrypoints)", "; ".join(problems))
+    claims["coverage"] = {"subsystem": M.get("subsystem") or M.get("name"), "owned_dirs": P["candidate"]["owned_dirs"], "included": inc,
+                          "judged_paths": sorted({p.relative_to(out / "artifact").parts[0] for p in (out / "artifact").rglob("*") if p.is_file()}),
+                          "statement": f"evidence covers only the behaviour of {P['pack']['id']}'s contract records, as exposed through the candidate's entrypoints, "
+                                       f"for the judged paths; " + ("included code is judged only through those entrypoints, and " if inc else "")
+                                       + "nothing else in the candidate's repository is covered"}
     pre, main_checks = PK.expand(P, root, M, "preflight"), PK.expand(P, root, M); concrete = pre + main_checks
     keys.update(EV.keys(concrete, root, claims["toolchain"], evaluator))       # before anything runs: outputs never change a key
     if reuse:
@@ -189,13 +218,19 @@ def judge(candidate, policy_src, out, mode, expected_release, review, reviewer_k
             res = K.Result(True, r["claim"], outputs=r.get("outputs", {}), outcome=r.get("outcome"))
             reused = r.get("reused_from") or {"evidence": str(reuse), "evidence_digest": prior["digest"], "key": r["key"]}
         else:
-            res = K.RUN[c["kind"]](c, ctx); reused = None
+            reused = None
+            try: res = K.RUN[c["kind"]](c, ctx); exc = None
+            except subprocess.TimeoutExpired as e:
+                res = K.Result(False, c.get("claim", c["name"]), f"timed out after {e.timeout} s: {' '.join(map(str, e.cmd)) if isinstance(e.cmd, list) else e.cmd}"[:600]); exc = "a timeout (if the candidate can hang, the cause may be the candidate's)"
+            except Exception as e:
+                res = K.Result(False, c.get("claim", c["name"]), f"evaluator error: {type(e).__name__}: {e}"[:600]); exc = f"{type(e).__name__}"
+            if exc: res.claim = K.fmt(res.claim, count="?", item=c.get("item", ""))
         for name, v in res.outputs.items():
             if name not in ("reviewer_context", "reviewer_flags"): claims[name] = v
         ctx.outputs.setdefault(c["group"], {}).update(res.outputs)
         if res.detail is not None and c.get("claims_key"): claims[c["claims_key"]] = res.detail
         results[c["id"]] = res
-        check(c["area"], c["name"], res.ok, res.claim, res.why, blocking=c.get("blocking", True), spec=c, res=res, reused=reused)
+        check(c["area"], c["name"], res.ok, res.claim, res.why, blocking=c.get("blocking", True), spec=c, res=res, reused=reused, exc=None if reused else exc)
 
     for c in pre: run(c)
     check("policy", "artifact", True, f"deployment artifact copied and digested ({claims['artifact_digest'][:16]}); judged in a fresh copy, never the live checkout")

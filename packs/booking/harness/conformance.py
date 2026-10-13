@@ -30,6 +30,7 @@ def svc():
 @settings(max_examples=80, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(st.lists(op, min_size=1, max_size=24))
 def test_service_agrees_with_the_verified_core(svc, seq):
+    """Contract: CoreConformance."""
     c = svc.client; k = core.Core(); rid = 10_000 + next(IDS); assert c.create(rid)[0] == 201
     model, booked = [], []                                  # the core's calendar; booking ids sent so far (accepted or not)
     for kind, pick, a, b in seq:

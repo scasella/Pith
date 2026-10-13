@@ -16,7 +16,10 @@ Issues and pull requests are welcome. Please read `ARCHITECTURE.md` first.
 - **Behavioural changes** to the core follow `INTENT.md` § How a behavioural change is made: spec, proof,
   adequacy candidates, traces, obligations, generator, monitor, in that order.
 - **Evaluator bypasses** are security reports, not issues: see `SECURITY.md`.
-- New examples under `examples/` contain only agent-owned files plus the claims file from a pinned run.
+- New examples under `examples/` contain only agent-owned files plus the claims file from a pinned run (an adoption
+  example also carries the project's own files, which the judge does not copy unless `include` names them).
+- A harness test names the contract records it bears on in its docstring (`"""Contract: A3."""`); a known-wrong
+  fixture's `expected.yaml` entry names the packet `category` and `contracts` it must produce.
 - Keep the judge honest: a check that cannot fail is removed, not kept.
 
 ## Running the checks locally
@@ -30,6 +33,10 @@ node --test obligations/app/lib/test_pith_view.mjs
 validation/judge_example.sh examples/build-a ../evidence-a
 python3 validation/judge_wrong.py ../evidence-wrong
 python3 validation/domain_free.py
+python3 -m pytest validation/test_packet.py -q              # failure categories, counterexamples, the packet, include rules
+python3 validation/packets.py ../evidence-packets           # one run per failure category; every packet schema-valid
+python3 validation/adoption.py ../evidence-adoption         # the existing-project journey (packs/approval/examples/adopt-handbook)
+for p in . packs/booking packs/approval; do python3 gate/cli.py pack check $p; done
 ```
 
 ## Style

@@ -8,6 +8,19 @@ is judged against) are the two worked examples to copy from.
 If you find you need to edit anything under `gate/` to express your obligations, stop and write down what and why:
 that is the finding M3 is looking for (RFC 0002 § 7). Do not work around it inside your pack.
 
+## 0. Start from the scaffold
+
+```bash
+python3 gate/cli.py pack new <name> --out packs/<name>     # a complete, judgeable draft pack with a small example contract
+python3 gate/release.py seal --pack packs/<name>
+python3 gate/cli.py pack check packs/<name>                # errors make it unfit to judge with; warnings are a reviewer's questions
+validation/judge_example.sh --pack packs/<name> packs/<name>/examples/basic ../ev-basic
+python3 validation/judge_wrong.py --pack packs/<name> ../ev-wrong
+```
+
+Then replace the example contract (a bounded tally) with yours, section by section below, keeping `pack check` free of
+errors as you go. RFC 0003 § 5 describes the workflow.
+
 ## 1. Decide what the oracle is
 
 Pick the native language your requirements are precise in, and what the candidate's code is held to:
@@ -47,6 +60,16 @@ structural, policy), `inputs` (the globs it reads: under-declaring them makes ev
 `establishes` (contract record ids), and `cacheable: true` only if its result is a function of its inputs and tools.
 Never mark a check that starts the candidate's service cacheable.
 
+So the task packet tells an agent whose problem a failure is (RFC 0003 § 2): mark checks of your own oracle
+`about: release` (a failing proof or model check is the release's defect, not the candidate's); mark coverage-style
+checks `failure_category: not_exercised`; have your delivery adapter return `failing` (the obligation ids) and a
+`failure_category` when it knows better than `violation` (an unavailable browser is `toolchain_unavailable`); and put
+the contract records each harness test bears on in its docstring (`"""Contract: A3."""`).
+
+Every manifest key you allow needs a defined domain and evidence: a `manifest_choice` preflight, or an entry under
+`parameters:` (`{domain, evidence}`). Allow `include` and `subsystem` if existing projects may adopt the pack
+(`docs/ADOPTING.md`).
+
 Statuses are yours: name them, say how each is computed (`all_pass` or `from_check`), and what value release
 readiness needs. The approval pack has no human evaluation and a `model_assurance` status; the booking pack has the
 same three statuses as the root pack.
@@ -80,3 +103,19 @@ python3 validation/generality.py ../ev-*                               # one eva
 
 List your vocabulary in `domain_vocabulary` so CI can hold the evaluator to it, and add your examples to the
 `packs` job in `.github/workflows/gate.yml`.
+
+## 7. Release review: not by you
+
+A pack's author cannot certify their own acceptance checks. Before a release is published, someone who is not one of
+`pack.maintainers` reads `INTENT.md`, the accepting and rejecting traces and the wrong candidates, and signs a review
+of that exact release digest:
+
+```bash
+python3 gate/review.py keygen --out reviewer                                    # the reviewer, on their own machine
+python3 gate/review.py sign-pack --key reviewer.key --release "$(python3 gate/release.py id --pack packs/<name>)" \
+    --pack <pack id> --reviewer "name/role" --reviewed intent --reviewed traces --reviewed wrong --expires 2027-06-30 \
+    --out packs/<name>/reviews/<name>.json
+python3 gate/cli.py pack check packs/<name> --release --reviewer-key reviewer.pub      # stage: released
+```
+
+Any change to the pack changes its digest and invalidates the review.

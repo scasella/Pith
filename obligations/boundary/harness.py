@@ -56,6 +56,7 @@ def svc():
 
 @pytest.mark.parametrize("amount", [0, -1, -50, True, "60", 60.5, None, 2**53, 2**70])
 def test_invalid_amount_rejected_at_boundary(svc, amount):
+    """Contract: BoundaryConformance."""
     assert svc.create(1, 100)[0] == 201
     code, body = svc.authorize(1, 7, amount)
     assert 400 <= code < 500, f"invalid amount {amount!r} must be rejected, got {code} {body}"
@@ -65,11 +66,13 @@ def test_invalid_amount_rejected_at_boundary(svc, amount):
 @pytest.mark.parametrize("body", ['{"request_id": 1}', '{"amount": 5}', '{"request_id": 1, "amount": 5, "extra": 1}', '{"request_id": "1", "amount": 5}',
                                   'not json', '[]', '{"request_id": 1, "amount": 1e3}'])
 def test_malformed_request_rejected(svc, body):
+    """Contract: BoundaryConformance."""
     assert svc.create(1, 100)[0] == 201
     assert 400 <= svc.raw_post("/accounts/1/authorize", body) < 500
     assert svc.account(1)[1]["holds"] == {} and len(svc.events()[1]) == 2        # account.created + op.committed only
 
 def test_conflicting_replay_rejected_and_unknown_account_404(svc):
+    """Contract: BoundaryConformance."""
     assert svc.create(1, 100)[0] == 201
     assert svc.authorize(1, 1, 60)[1]["decision"] == "AUTHORIZED"
     code, _ = svc.authorize(1, 1, 61); assert code in (400, 409)
@@ -78,6 +81,7 @@ def test_conflicting_replay_rejected_and_unknown_account_404(svc):
     assert svc.create(1, 5)[0] in (400, 409)
 
 def test_every_event_and_response_validates_against_schema(svc):
+    """Contract: BoundaryConformance."""
     assert svc.create(1, 100)[0] == 201
     V_AUTH.validate(svc.authorize(1, 1, 100)[1]); V_AUTH.validate(svc.authorize(1, 2, 1)[1]); V_ACCT.validate(svc.account(1)[1])
     _, evs = svc.events(); [V_EVENT.validate(e) for e in evs]
@@ -140,4 +144,5 @@ TestBoundary = Boundary.TestCase
 TestBoundary.settings = settings(max_examples=int(os.environ.get("BOUNDARY_EXAMPLES", "30")), stateful_step_count=15, deadline=None)
 
 def test_both_decision_branches_exercised():
+    """Contract: BoundaryConformance."""
     assert ANTECEDENTS.get("P0", 0) > 0 and ANTECEDENTS.get("P1", 0) > 0, ANTECEDENTS
