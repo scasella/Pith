@@ -1,7 +1,7 @@
 """service/api.py — the pith.approval HTTP API over handbook.reviews (harness/SERVICE.md). Stdlib only."""
 import json, re, threading
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-from handbook.reviews import Invalid, Conflict, Unknown, COMMANDS
+from handbook.reviews import Invalid, Conflict, Unknown, COMMANDS, DEFAULT_QUORUM
 
 
 def serve(reviews, port):
@@ -29,7 +29,7 @@ def serve(reviews, port):
                 b = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"null")
                 if not isinstance(b, dict): raise Invalid("body must be a JSON object")
                 if self.path == "/actors": return 201, reviews.add_person(b.get("id"), b.get("roles"))
-                if self.path == "/documents": return 200, reviews.create(b.get("request_id"), b.get("id"), b.get("actor"), b.get("title"), b.get("body"))
+                if self.path == "/documents": return 200, reviews.create(b.get("request_id"), b.get("id"), b.get("actor"), b.get("title"), b.get("body"), b["quorum"] if "quorum" in b else DEFAULT_QUORUM)
                 if (m := re.fullmatch(r"/documents/([^/]+)/(\w+)", self.path)) and m[2] in COMMANDS:
                     return 200, reviews.command(m[2], b.get("request_id"), m[1], b.get("actor"), b.get("revision"), b.get("body"))
                 return 404, {"error": "not found"}

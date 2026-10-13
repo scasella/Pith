@@ -1,0 +1,36 @@
+# How an approval-workflow/v1 deployment becomes an approval-workflow/v2 one, with its state (format:
+# docs/rfc/0004-safe-evolution.md § 4; harness/SERVICE.md "Upgrading from version 1"). `python3 gate/migrate.py run`
+# executes it: the populate script drives the OLD judged artifact's own service to produce real version 1 state, the
+# candidate's migrate entrypoint (chosen by migrations/migrate.py from its app.manifest.yaml runtime) transforms it
+# (twice: it must be re-runnable), and the verify harness judges the NEW service on the migrated state. Frozen with
+# the release.
+format: pith.migration/v1
+from: { pack: pith.approval, contract_version: approval-workflow/v1 }
+to: { pack: pith.approval, contract_version: approval-workflow/v2 }
+records: [MIG1]
+state: the version 1 service's state directory (the --db path, approval.db, and anything beside it)
+mapping: >
+  every version 1 document becomes a version 2 document with quorum 2 (version 1's fixed quorum), keeping its id,
+  title, revisions with their authors and bodies, status, and every approval ever recorded, those of superseded
+  revisions included (they are history and never count again: A3, A7); actors keep their roles; the event log is kept;
+  every recorded command result is kept with its outcome and reason, its document carrying quorum 2; a version 1
+  create is recorded as a create with quorum 2. Nothing is re-decided: an approved document stays approved, a document
+  in review keeps its current approvals and needs quorum 2.
+retries: >
+  a version 1 client retrying an old request_id with the same command gets the recorded result with replayed=true (an
+  old approval retried is a replay, not ALREADY_APPROVED; an old create, which named no quorum, is the same command as
+  a create naming 2); reusing an old request_id for a different command is 409, as before
+in_flight: >
+  a command the version 1 service may or may not have recorded before it was killed is decided at most once: replayed
+  if version 1 recorded it, decided by version 2 (against quorum 2) otherwise, and never both
+rollback:
+  policy: forward-only
+  why: >
+    once version 2 creates a document with a quorum other than 2, version 1 cannot represent the state (its quorum is
+    fixed at two, so it would approve that document on two votes); backing out is a forward repair in a new release,
+    not a downgrade. Before any such create the content is still version 1 compatible, but this release neither
+    ships nor verifies a reverse migration.
+populate: "{python} -I migrations/populate.py --old {old} --state {state} --out {observed}"
+migrate: "{python} -I migrations/migrate.py --db {state}/approval.db"
+verify: "{pytest} migrations/verify.py"
+unrecognised: { files: { approval.db: "this is not an approval database\n", approval.db.journal: "this is not an approval journal\n" } }

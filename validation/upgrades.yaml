@@ -18,3 +18,10 @@ packs:
             'design coverage (CovDecided)', 'design coverage (CovDecline)', 'design coverage (CovRelease)', 'design coverage (CovRetry)', 'design extends obligations',
             'design interface', 'design model (safety)', 'design module present', 'integration profile', 'kernel gate', 'obligations reject the known-bad design']
     wrong_migrations: examples/wrong-migrations
+  approval:
+    pack: packs/approval
+    old_release: a0c27100b0d0c7838041e6e822238883ebb072e46f0ba813c8b1da89c2f8118f
+    applications: [{new: packs/approval/examples/approvals-py}, {new: packs/approval/examples/approvals-node}, {new: packs/approval/examples/adopt-handbook}]
+    contract_changes: {A3: "version 1 -> 2", A9: added, BoundaryConformance: "version 1 -> 2", MIG1: added}
+    wrong_migrations: packs/approval/examples/wrong-migrations
+    holds: ["candidate runtime"]

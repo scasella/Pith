@@ -17,7 +17,8 @@ class Client:
             except ValueError: return e.code, None
     def actor(self, aid, roles):                        return self._req("POST", "/actors", {"id": aid, "roles": list(roles)})
     def actors(self):                                   return self._req("GET", "/actors")
-    def create(self, rq, doc, actor, title="T", body="v1"): return self._req("POST", "/documents", {"request_id": rq, "id": doc, "actor": actor, "title": title, "body": body})
+    def create(self, rq, doc, actor, title="T", body="v1", quorum=None):       # quorum None: not sent (the default, 2)
+        return self._req("POST", "/documents", {"request_id": rq, "id": doc, "actor": actor, "title": title, "body": body, **({} if quorum is None else {"quorum": quorum})})
     def edit(self, rq, doc, actor, body="next"):        return self._req("POST", f"/documents/{doc}/edit", {"request_id": rq, "actor": actor, "body": body})
     def cmd(self, op, rq, doc, actor, revision):        return self._req("POST", f"/documents/{doc}/{op}", {"request_id": rq, "actor": actor, "revision": revision})
     def document(self, doc):                            return self._req("GET", f"/documents/{doc}")

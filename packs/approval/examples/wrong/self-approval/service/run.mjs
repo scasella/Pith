@@ -1,6 +1,7 @@
 // service/run.mjs — node service/run.mjs --port P --db PATH (harness/SERVICE.md). Node standard library only.
 import http from "node:http";
 import { Journal, Invalid, Conflict, Missing } from "./journal.mjs";
+import { DEFAULT_QUORUM } from "./workflow.mjs";
 
 const arg = (n) => process.argv[process.argv.indexOf(`--${n}`) + 1];
 const store = new Journal(arg("db") + ".journal");
@@ -18,7 +19,7 @@ function route(method, url, raw) {
   try { b = JSON.parse(raw || "null"); } catch { throw new Invalid("body is not JSON"); }
   if (b === null || typeof b !== "object" || Array.isArray(b)) throw new Invalid("body must be a JSON object");
   if (p === "/actors") return [201, store.addActor(b.id, b.roles)];
-  if (p === "/documents") return [200, store.create(b.request_id, b.id, b.actor, b.title, b.body)];
+  if (p === "/documents") return [200, store.create(b.request_id, b.id, b.actor, b.title, b.body, "quorum" in b ? b.quorum : DEFAULT_QUORUM)];
   if ((m = p.match(/^\/documents\/([^/]+)\/(\w+)$/)) && OPS.has(m[2])) return [200, store.command(m[2], b.request_id, decodeURIComponent(m[1]), b.actor, b.revision, b.body)];
   return [404, { error: "not found" }];
 }

@@ -15,6 +15,9 @@ def name(x, what):
 def integer(x, what):
     if isinstance(x, bool) or not isinstance(x, int) or not 0 <= x < 2 ** 53: raise Invalid(f"{what} must be an integer in [0, 2^53)")
     return x
+def quorum(x):
+    if isinstance(x, bool) or not isinstance(x, int) or x not in W.QUORUMS: raise Invalid("quorum must be an integer in [2, 5]")
+    return x
 def text(x, what):
     if not isinstance(x, str) or len(x) > 10_000: raise Invalid(f"{what} must be a string of at most 10000 characters")
     return x
@@ -24,8 +27,11 @@ class Store:
     def __init__(self, path):
         self.db = sqlite3.connect(path, isolation_level=None, check_same_thread=False)
         self.db.execute("PRAGMA journal_mode=WAL"); self.db.execute("PRAGMA synchronous=FULL")
+        tables = {r[0] for r in self.db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if "docs" in tables and "meta" not in tables: raise SystemExit(f"{path} holds version 1 state: run service/migrate.py --db {path} first")
         for ddl in ("CREATE TABLE IF NOT EXISTS actors(id TEXT PRIMARY KEY, roles TEXT)", "CREATE TABLE IF NOT EXISTS docs(id TEXT PRIMARY KEY, body TEXT)",
-                    "CREATE TABLE IF NOT EXISTS ops(request_id INTEGER PRIMARY KEY, params TEXT, result TEXT)", "CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT, body TEXT)"):
+                    "CREATE TABLE IF NOT EXISTS ops(request_id INTEGER PRIMARY KEY, params TEXT, result TEXT)", "CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT, body TEXT)",
+                    "CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT)", "INSERT OR IGNORE INTO meta VALUES ('schema', '2')"):
             self.db.execute(ddl)
         self.lock = threading.Lock()
 
@@ -69,12 +75,12 @@ class Store:
             return dict(result, replayed=False)
         return self.tx(fn)
 
-    def create(self, rq, did, actor, title, body):
-        name(did, "id"); name(actor, "actor"); text(title, "title"); text(body, "body")
-        params = {"op": "create", "id": did, "actor": actor, "title": title, "body": body}
+    def create(self, rq, did, actor, title, body, q=W.DEFAULT_QUORUM):
+        name(did, "id"); name(actor, "actor"); text(title, "title"); text(body, "body"); quorum(q)
+        params = {"op": "create", "id": did, "actor": actor, "title": title, "body": body, "quorum": q}
         def decide():
             if self.db.execute("SELECT 1 FROM docs WHERE id=?", (did,)).fetchone(): raise Conflict(f"document {did} exists")
-            reason, doc = W.create(self.roles(actor), actor, did, title, body)
+            reason, doc = W.create(self.roles(actor), actor, did, title, body, q)
             if doc: self.db.execute("INSERT INTO docs VALUES (?, ?)", (did, json.dumps(doc)))
             return reason, doc
         return self._cmd(rq, params, decide)

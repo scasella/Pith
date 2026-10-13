@@ -2,8 +2,9 @@
 harness/conformance.py — the running service agrees with the reference model (= the TLA+ spec within its bounds,
 harness/refines.py), command by command. FROZEN.
 
-Hypothesis generates command sequences over six actors with overlapping roles, revisions near the current one
-(so stale and future revisions are common), and repeated approvals. Each sequence runs against a fresh document on
+Hypothesis generates command sequences over six actors with overlapping roles, a quorum per document (2, 3 or 4, or
+left to its default), revisions near the current one (so stale and future revisions are common), and repeated
+approvals. Each sequence runs against a fresh document on
 the candidate's service and through harness/reference.py; every outcome, every refusal reason and every resulting
 document view must be the same. A test, not a proof: it is how a candidate that writes the whole workflow itself
 is held to the spec.
@@ -32,15 +33,15 @@ def svc():
 
 def shape(v):
     return {"status": v["status"], "revision": v["revision"], "authors": [x["author"] for x in v["revisions"]],
-            "approvals": v["approvals"], "current_votes": v["current_votes"]}
+            "quorum": v["quorum"], "approvals": v["approvals"], "current_votes": v["current_votes"]}
 
 
 @settings(max_examples=80, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
-@given(st.sampled_from(["alice", "bob", "carol"]), st.lists(cmd, min_size=1, max_size=20))
-def test_service_agrees_with_the_reference(svc, creator, seq):
-    """Contract: ModelConformance."""
+@given(st.sampled_from(["alice", "bob", "carol"]), st.sampled_from([None, 2, 3, 4]), st.lists(cmd, min_size=1, max_size=20))
+def test_service_agrees_with_the_reference(svc, creator, quorum, seq):
+    """Contract: ModelConformance, A3, A9."""
     c = svc.client; doc = f"c{next(N)}"; rq = lambda: 10_000_000 + next(N)
-    code, r = c.create(rq(), doc, creator); why, d = R.create(creator, ROLES)
+    code, r = c.create(rq(), doc, creator, quorum=quorum); why, d = R.create(creator, ROLES, R.DEFAULT_QUORUM if quorum is None else quorum)
     assert code == 200 and (r["outcome"], r["reason"]) == (("OK", None) if why is None else ("REFUSED", why)), f"create by {creator}: service {r}"
     if why: return
     for op, actor, off in seq:

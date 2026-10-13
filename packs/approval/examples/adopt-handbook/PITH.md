@@ -15,7 +15,8 @@ The pack's behavioral contract records (its INTENT.md explains them):
 
 - A1: Nobody approves or rejects a revision they wrote.
 - A2: Only approvers' approvals are recorded; each command needs its role.
-- A3: A document is approved only with two approvals of its current revision; stale approvals never count.
+- A3: A document is approved only with its quorum of distinct approvals of its current revision; stale approvals never count.
+- A9: A document's quorum is chosen when it is created (2 to 5, 2 by default) and never changes.
 - A4: No approval names a revision that does not exist yet.
 - A5: Published is final.
 - A6: Only an approved document is published.
@@ -41,6 +42,13 @@ Record each refusal the judge reported, its category and what was changed (code,
 | 2026-10-13 | `service.entrypoint.python` (no `service/run.py`, `cli/main.py`) | evidence_missing | wrote `service/run.py`, `service/api.py` (HTTP onto `handbook.reviews.Reviews`) and `cli/main.py` |
 | 2026-10-13 | `service.lifecycle`, `test_approvals_are_bound_to_a_revision_and_stale_ones_never_count` (A3): after an edit, revision 2 was approved with one approval of revision 2 and one left over from revision 1 | violation | `Reviews._decide` counted every vote on the document toward the quorum; it now counts only the current revision's (`review_votes` already kept the revision) |
 | 2026-10-13 | none: every status the pack declares passed | | |
+| 2026-10-13 | upgrade to pith.approval 0.12.0 (`approval-workflow/v2`: a quorum per document, A3 version 2, A9) | contract_change | `handbook/reviews.py` keeps each document's quorum (`review_docs.quorum`, chosen at create, 2 by default) and counts the current revision's votes against it; `service/api.py` passes `quorum` through; `service/migrate.py` upgrades the review tables of a running handbook database (quorum 2 for every earlier document, recorded results kept and replayable; the pack's MIG1) |
 
 The known-wrong fixture `packs/approval/examples/wrong/adopt-handbook-stale` is this project as it was at the second
-row: it must keep failing for exactly that reason (`examples/wrong/expected.yaml`).
+row (brought up to the same contract version): it must keep failing for exactly that reason (`examples/wrong/expected.yaml`).
+
+## 5. Upgrades
+The pack's 0.12.0 release changed its contract (A3 now counts each document's own quorum; A9 is new). The judged
+paths are unchanged (`handbook`, `service`, `cli`); the upgrade added `service/migrate.py`, run once on the
+handbook's database before the new service starts (`python -I service/migrate.py --db <path>`). It touches only the
+review tables: pages and search are not part of the reviewed workflow, and stay as they were.

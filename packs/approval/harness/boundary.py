@@ -1,5 +1,6 @@
 """harness/boundary.py — the approval API boundary, black-box. FROZEN. Responses match harness/api.schema.json;
-invalid, malformed and out-of-domain input is 400 with no effect; unknown documents are 404."""
+invalid, malformed and out-of-domain input (a quorum outside [2, 5] included) is 400 with no effect; unknown documents
+are 404."""
 import json, pathlib, sys
 import jsonschema, pytest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -28,6 +29,23 @@ def test_every_response_matches_its_schema(svc):
         code, r = c.cmd(*args); assert code == 200; ok("result", r)
     code, r = c.edit(8, "d1", "alice"); assert code == 200; ok("result", r)
     ok("document", c.document("d1")[1]); ok("events", c.events()[1])
+    for rq, q in ((10, 2), (11, 5)):
+        code, r = c.create(rq, f"dq{q}", "alice", quorum=q); assert code == 200 and r["document"]["quorum"] == q; ok("result", r)
+    assert c.document("d1")[1]["quorum"] == 2
+
+
+BAD_QUORUM = [1, 6, 0, -1, 2.5, "3", True, None, [], {}]
+
+
+@pytest.mark.parametrize("bad", BAD_QUORUM, ids=[repr(b) for b in BAD_QUORUM])
+def test_out_of_domain_quorums_are_refused_without_effect(svc, bad):
+    """Contract: BoundaryConformance, A9."""
+    c = svc.client; n = len(c.events()[1])
+    assert c._req("POST", "/documents", {"request_id": 970, "id": "qb", "actor": "alice", "title": "t", "body": "b", "quorum": bad})[0] == 400
+    assert c.document("qb")[0] == 404 and len(c.events()[1]) == n
+    c.create(971, "qc", "alice", quorum=3); view = c.document("qc")[1]
+    assert c._req("POST", "/documents/qc/edit", {"request_id": 972, "actor": "alice", "body": "b", "quorum": 2})[0] in (200, 400)     # no command changes a quorum
+    assert c.document("qc")[1]["quorum"] == view["quorum"] == 3
 
 
 BAD = [-1, 2 ** 53, 1.5, "1", True, None, [], {}]
