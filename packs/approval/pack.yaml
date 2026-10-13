@@ -10,13 +10,13 @@
 format: pith.pack/v1
 pack:
   id: pith.approval
-  version: 0.11.0
+  version: 0.12.0
   title: Document approval workflow (roles, separation of duties, revision-bound approvals) with a command-line client
-  contract_version: approval-workflow/v1
+  contract_version: approval-workflow/v2
   intent: packs/approval/INTENT.md
   maintainers: [scasella]
 
-policy_dirs: [model, harness, delivery]                          # frozen pack content; the evaluator adds gate/ and this file
+policy_dirs: [model, harness, delivery, migrations]              # frozen pack content; the evaluator adds gate/ and this file
 
 candidate:
   owned_dirs: [service, cli]                                     # plus app.manifest.yaml
@@ -96,13 +96,13 @@ checks:
     module: MC.tla
     cfg: MC.cfg
     expect: no_error
-    claim: "Safety (TypeOK, SeparationOfDuties, ApproverRole, BoundToRevision, NoFutureApprovals, RejectBySeparation, PublishByPublisher, EditByEditor, SubmitByAuthor) and PublishedIsFinal, PublishOnlyApproved, RevisionsGrow, ApprovalsGrow hold over model/MC.cfg"
+    claim: "Safety (TypeOK, SeparationOfDuties, ApproverRole, BoundToRevision, NoFutureApprovals, RejectBySeparation, PublishByPublisher, EditByEditor, SubmitByAuthor) and PublishedIsFinal, PublishOnlyApproved, RevisionsGrow, ApprovalsGrow, QuorumFixed hold over model/MC.cfg (quorums 2 and 3)"
     status: model_assurance
     method: model-check
     inputs: ["model/**"]
     tools: [tlc, java]
     cacheable: true
-    establishes: [A1, A2, A3, A4, A5, A6, A7, A8]
+    establishes: [A1, A2, A3, A4, A5, A6, A7, A8, A9]
     assumptions: model/assumptions.yaml
 
   - id: model.adequacy.stale
@@ -252,6 +252,42 @@ checks:
     tools: [tlc, java]
     cacheable: true
 
+  - id: model.adequacy.constant-quorum
+    area: model
+    name: the model rejects a quorum read from a constant two
+    kind: tlc
+    jar: "{TLA2TOOLS}"
+    workdir: model
+    copy: { from: model/wrong, suffixes: [.tla, .cfg] }
+    module: MCWrongConstantQuorum.tla
+    cfg: MCWrongConstantQuorum.cfg
+    expect: { violated: BoundToRevision }
+    claim: "model/wrong/WrongConstantQuorum.tla (approving on two votes whatever the document's quorum) violates BoundToRevision under the same configuration"
+    why: model/wrong/WrongConstantQuorum.tla no longer violates BoundToRevision
+    status: model_assurance
+    method: model-check
+    inputs: ["model/**"]
+    tools: [tlc, java]
+    cacheable: true
+
+  - id: model.adequacy.quorum-fixed
+    area: model
+    name: the model rejects a quorum that changes after creation
+    kind: tlc
+    jar: "{TLA2TOOLS}"
+    workdir: model
+    copy: { from: model/wrong, suffixes: [.tla, .cfg] }
+    module: MCWrongQuorumChanges.tla
+    cfg: MCWrongQuorumChanges.cfg
+    expect: { violated: QuorumFixed }
+    claim: "model/wrong/WrongQuorumChanges.tla (an edit puts the document back on the default quorum) violates QuorumFixed under the same configuration"
+    why: model/wrong/WrongQuorumChanges.tla no longer violates QuorumFixed
+    status: model_assurance
+    method: model-check
+    inputs: ["model/**"]
+    tools: [tlc, java]
+    cacheable: true
+
   - id: model.refines
     about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
     area: model
@@ -259,7 +295,7 @@ checks:
     kind: command
     command: "TLA2TOOLS={TLA2TOOLS} {python} harness/refines.py"
     count: '"states": (\d+)'
-    claim: "harness/reference.py and model/Approval.tla have the same initial states, the same {count} reachable states (each recording who did the last step) and the same labelled transitions over model/MC.cfg (exhaustive)"
+    claim: "harness/reference.py and model/Approval.tla have the same initial states, the same {count} reachable states (each recording the document's quorum and who did the last step) and the same labelled transitions over model/MC.cfg (exhaustive)"
     status: model_assurance
     method: model-check
     inputs: ["model/**", "harness/reference.py", "harness/refines.py"]
@@ -312,7 +348,7 @@ checks:
     kind: command
     command: "{pytest} harness/lifecycle.py"
     count: '(\d+) passed'
-    claim: "through the running service: roles, the two-approver quorum, per-revision separation of duties, revision-bound approvals, rejection, idempotent replays, SIGKILL + restart + retry, durability, racing approvals and edits, one commit per command ({count} checks)"
+    claim: "through the running service: roles, each document's quorum (chosen at creation, never changed), per-revision separation of duties, revision-bound approvals, rejection, idempotent replays, SIGKILL + restart + retry, durability, racing approvals and edits, one commit per command ({count} checks)"
     status: behavioral_assurance
     method: test
     inputs: ["service/**", "app.manifest.yaml", "harness/**"]
@@ -325,7 +361,7 @@ checks:
     kind: command
     command: "{pytest} harness/boundary.py"
     count: '(\d+) passed'
-    claim: "every response schema-valid (harness/api.schema.json); out-of-domain, malformed and incomplete input refused without effect; unknown documents 404 ({count} checks)"
+    claim: "every response schema-valid (harness/api.schema.json); out-of-domain (a quorum outside [2, 5] included), malformed and incomplete input refused without effect; unknown documents 404 ({count} checks)"
     status: behavioral_assurance
     method: test
     inputs: ["service/**", "app.manifest.yaml", "harness/**"]
@@ -366,17 +402,19 @@ contracts:
       verified_by: [model.safety, service.lifecycle, service.conformance], wrong: [model/wrong/WrongSelfApproval.tla, model/wrong/WrongSelfReject.tla, packs/approval/examples/wrong/self-approval], change: behavioral }
   - { id: A2, version: 1, intent: "Each command needs its role: editors create and edit, approvers approve and reject, publishers publish.", semantics: { tla: "model/Approval.tla ApproverRole, RejectBySeparation, PublishByPublisher, EditByEditor [A2]", markdown: "harness/SERVICE.md § The workflow" },
       verified_by: [model.safety, service.lifecycle, service.conformance], wrong: [model/wrong/WrongAnyonePublishes.tla], change: behavioral }
-  - { id: A3, version: 1, intent: "A document is approved only with two approvals of its current revision; stale approvals never count.", semantics: { tla: "model/Approval.tla BoundToRevision, ApprovalsGrow [A3]" },
-      verified_by: [model.safety, service.lifecycle, service.conformance], wrong: [model/wrong/WrongStaleApprovals.tla, model/wrong/WrongEditClearsHistory.tla, packs/approval/examples/wrong/stale-approvals-counted], change: behavioral }
+  - { id: A3, version: 2, intent: "A document is approved only with its quorum of distinct approvals of its current revision; stale approvals never count.", semantics: { tla: "model/Approval.tla BoundToRevision, ApprovalsGrow [A3]", markdown: "harness/SERVICE.md § The workflow" },
+      verified_by: [model.safety, service.lifecycle, service.conformance], wrong: [model/wrong/WrongStaleApprovals.tla, model/wrong/WrongEditClearsHistory.tla, model/wrong/WrongConstantQuorum.tla, packs/approval/examples/wrong/stale-approvals-counted], change: behavioral }
   - { id: A4, version: 1, intent: "No approval names a revision that does not exist yet.", semantics: { tla: "model/Approval.tla NoFutureApprovals [A4]" }, verified_by: [model.safety, service.conformance], change: behavioral }
   - { id: A5, version: 1, intent: "Published is final.", semantics: { tla: "model/Approval.tla PublishedIsFinal [A5]" }, verified_by: [model.safety, service.lifecycle], wrong: [model/wrong/WrongEditAfterPublish.tla], change: behavioral }
   - { id: A6, version: 1, intent: "Only an approved document is published.", semantics: { tla: "model/Approval.tla PublishOnlyApproved [A6]" }, verified_by: [model.safety, service.conformance], wrong: [model/wrong/WrongPublishInReview.tla], change: behavioral }
   - { id: A7, version: 1, intent: "Revisions only grow and keep their authors.", semantics: { tla: "model/Approval.tla RevisionsGrow [A7]" }, verified_by: [model.safety, service.conformance], wrong: [model/wrong/WrongEditRewritesAuthors.tla], change: behavioral }
+  - { id: A9, version: 1, intent: "A document's quorum is chosen when it is created (2 to 5, 2 by default) and never changes.", semantics: { tla: "model/Approval.tla QuorumFixed, TypeOK [A9]", markdown: "harness/SERVICE.md § The workflow" },
+      verified_by: [model.safety, service.lifecycle, service.conformance], wrong: [model/wrong/WrongQuorumChanges.tla], change: behavioral }
   - { id: A8, version: 1, intent: "Only the author of the current revision submits it for review.", semantics: { tla: "model/Approval.tla SubmitByAuthor [A8]" }, verified_by: [model.safety, service.conformance, model.traces], change: behavioral }
   - { id: Atomicity, version: 1, intent: "Each command is decided against the latest committed document, one at a time.", semantics: { python: "harness/lifecycle.py" }, verified_by: [service.lifecycle], change: integration }
   - { id: Durability, version: 1, intent: "An acknowledged command survives a crash and restart.", semantics: { python: "harness/lifecycle.py" }, timing: after acknowledgement, verified_by: [service.lifecycle], change: integration }
   - { id: Idempotency, version: 1, intent: "request_id is the idempotency key of every command; a reuse for something else is refused.", semantics: { markdown: "harness/SERVICE.md" }, verified_by: [service.lifecycle], change: integration }
-  - { id: BoundaryConformance, version: 1, intent: "The API answers in its schemas and refuses out-of-domain input without effect.", semantics: { jsonschema: "harness/api.schema.json" }, verified_by: [service.boundary], change: integration }
+  - { id: BoundaryConformance, version: 2, intent: "The API answers in its schemas (every document carries its quorum) and refuses out-of-domain input (a quorum outside [2, 5] included) without effect.", semantics: { jsonschema: "harness/api.schema.json" }, verified_by: [service.boundary], change: integration }
   - { id: ModelConformance, version: 1, intent: "The running service gives the reference model's outcomes and reasons for the same commands.", semantics: { python: "harness/conformance.py" }, verified_by: [service.conformance], change: integration }
   - { id: AW1, version: 1, intent: "An editor creates a document and sees it in draft.", semantics: { yaml: "delivery/delivery.yaml AW1" }, verified_by: [delivery], change: presentation }
   - { id: AW2, version: 1, intent: "The review path ends published.", semantics: { yaml: "delivery/delivery.yaml AW2" }, verified_by: [delivery], change: presentation }
@@ -388,4 +426,11 @@ contracts:
   - { id: AI2, version: 1, intent: "An unreachable service is UNKNOWN.", semantics: { markdown: "delivery/CLI-CONTRACT.md AI2" }, verified_by: [delivery], wrong: [packs/approval/examples/wrong/unknown-as-refused], change: presentation }
   - { id: AI3, version: 1, intent: "Generated request ids never collide.", semantics: { markdown: "delivery/CLI-CONTRACT.md AI3" }, verified_by: [delivery], change: presentation }
 
-domain_vocabulary: [approver, publisher, revision, separation of duties, quorum, Approval.tla, reference.py, refines.py, STALE_REVISION, harness/, delivery/, model/wrong, cli/main]
+  - { id: MIG1, version: 1, intent: "Upgrading a running approval-workflow/v1 service keeps every acknowledged result and its replay, every document's revisions, authors, status and approval history (stale approvals included) with quorum 2, actors and identifiers, and decides a request in flight at most once.",
+      semantics: { yaml: "migrations/from-v1.yaml", markdown: "harness/SERVICE.md#upgrading-from-version-1" },
+      migration: migrations/from-v1.yaml, wrong: [packs/approval/examples/wrong-migrations/drops-stale-approvals, packs/approval/examples/wrong-migrations/drops-request-ledger, packs/approval/examples/wrong-migrations/creates-not-requalified], change: behavioral }
+
+migrations:                                                      # gate/migrate.py; the evidence for MIG1 is its report, not a judge run
+  - { from: approval-workflow/v1, spec: migrations/from-v1.yaml }
+
+domain_vocabulary: [approver, publisher, revision, separation of duties, quorum, Approval.tla, reference.py, refines.py, STALE_REVISION, harness/, delivery/, model/wrong, cli/main, QuorumFixed, WrongConstantQuorum, WrongQuorumChanges]

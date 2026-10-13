@@ -1,13 +1,14 @@
 # model/traces.yaml — concrete accepting and rejecting traces for author review before the pack is sealed. FROZEN.
-# Each step is "actor command [revision] => OK | REASON"; `end` is the document after the last step. Roles are
-# model/MC.tla's: alice and bob edit and approve, carol approves, dave publishes; the quorum is 2. harness/traces.py
+# Each step is "actor command [revision] => OK | REASON", and a create may name the document's quorum
+# ("alice create quorum 3 => OK"; without it the quorum is 2); `end` is the document after the last step. Roles are
+# model/MC.tla's: alice and bob edit and approve, carol and erin approve, dave publishes. harness/traces.py
 # runs every trace against harness/reference.py (equal to model/Approval.tla within these bounds: harness/refines.py)
 # and prints them as a table for review (--markdown). The comment on a trace names the known-wrong design
 # (model/wrong/) or wrong application (examples/wrong/) that behaves differently on it.
 - id: T1_two_other_approvers_then_publish
-  says: the author submits, two approvers who did not write it approve, the publisher publishes
+  says: the author submits, two approvers who did not write it approve, the publisher publishes (the default quorum is 2)
   steps: ["alice create => OK", "alice submit 1 => OK", "bob approve 1 => OK", "carol approve 1 => OK", "dave publish 1 => OK"]
-  end: { status: published, revision: 1, current_votes: [bob, carol] }
+  end: { status: published, revision: 1, quorum: 2, current_votes: [bob, carol] }
 - id: T2_author_cannot_approve_own_revision          # model/wrong/WrongSelfApproval.tla, examples/wrong/self-approval accept alice's approval
   says: the author of the current revision is refused, and the refusal changes nothing
   steps: ["alice create => OK", "alice submit 1 => OK", "alice approve 1 => SEPARATION_OF_DUTIES", "bob approve 1 => OK"]
@@ -55,3 +56,18 @@
           "alice submit 1 => OK", "bob submit 1 => WRONG_STATE",                             # WRONG_STATE before NOT_AUTHOR
           "bob approve 1 => OK", "carol approve 1 => OK", "bob approve 1 => WRONG_STATE"]    # WRONG_STATE before ALREADY_APPROVED
   end: { status: approved, revision: 1, current_votes: [bob, carol] }
+- id: T12_quorum_three_needs_a_third_approval      # model/wrong/WrongConstantQuorum.tla approves on carol's vote and lets dave publish
+  says: a document created with quorum 3 stays in review after two approvals and cannot be published; the third approves it
+  steps: ["alice create quorum 3 => OK", "alice submit 1 => OK", "bob approve 1 => OK", "carol approve 1 => OK", "dave publish 1 => WRONG_STATE",
+          "erin approve 1 => OK", "dave publish 1 => OK"]
+  end: { status: published, revision: 1, quorum: 3, current_votes: [bob, carol, erin] }
+- id: T13_the_quorum_survives_an_edit               # model/wrong/WrongQuorumChanges.tla approves revision 2 on carol's vote (the edit put it back to 2)
+  says: the quorum is the document's from creation on; after an edit revision 2 again needs three approvals of its own, and the stale ones stay history
+  steps: ["alice create quorum 3 => OK", "alice submit 1 => OK", "bob approve 1 => OK", "carol approve 1 => OK", "bob edit => OK", "bob submit 2 => OK",
+          "alice approve 2 => OK", "carol approve 2 => OK", "bob approve 2 => SEPARATION_OF_DUTIES", "erin approve 2 => OK"]
+  end: { status: approved, revision: 2, quorum: 3, current_votes: [alice, carol, erin], authors: [alice, bob],
+         approvals: [{revision: 1, actor: bob}, {revision: 1, actor: carol}, {revision: 2, actor: alice}, {revision: 2, actor: carol}, {revision: 2, actor: erin}] }
+- id: T14_quorum_three_in_review_after_two         # model/wrong/WrongConstantQuorum.tla approves on erin's vote, so carol's reject is WRONG_STATE
+  says: two approvals of a quorum-3 document leave it in review; a repeat counts once; a rejection still ends it
+  steps: ["bob create quorum 3 => OK", "bob submit 1 => OK", "alice approve 1 => OK", "erin approve 1 => OK", "erin approve 1 => ALREADY_APPROVED", "carol reject 1 => OK"]
+  end: { status: rejected, revision: 1, quorum: 3, current_votes: [alice, erin] }

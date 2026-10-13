@@ -1,0 +1,22 @@
+# Known-wrong migrations of approval-workflow/v1 state (migrations/from-v1.yaml, MIG1). Each is an OVERLAY on `base`
+# (it holds only the files that differ: service/migrate.py, with its one defect marked DEFECT). Its service is the
+# conforming one, so the ones marked `judged` pass the ordinary judge; each must fail `gate/migrate.py run` at the
+# verify step for exactly `failing_tests` (validation/upgrades.py).
+drops-stale-approvals:
+  base: packs/approval/examples/approvals-py
+  source: drops the approvals of superseded revisions as dead data ("they never count"), erasing the approval history
+  failing_tests: [test_documents_actors_and_history_are_kept]
+  contracts: [MIG1]
+  judged: true
+drops-request-ledger:
+  base: packs/approval/examples/approvals-py
+  source: clears the request ledger instead of converting it, so old retries are decided again (an old approval comes back ALREADY_APPROVED)
+  failing_tests: [test_every_recorded_result_is_kept_and_replayed, test_an_old_approval_retried_is_replayed_not_refused]
+  may_also_fail: [test_in_flight_command_is_decided_at_most_once]          # when version 1 recorded the in-flight approval before it died
+  contracts: [MIG1]
+  judged: true
+creates-not-requalified:
+  base: packs/approval/examples/approvals-py
+  source: converts recorded results but leaves recorded creates without their quorum, so a version 1 create retried is 409, not a replay
+  failing_tests: [test_every_recorded_result_is_kept_and_replayed]
+  contracts: [MIG1]

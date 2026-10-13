@@ -14,6 +14,7 @@ const name = (x, what) => { if (typeof x !== "string" || !NAME.test(x)) throw ne
 const int = (x, what) => { if (!Number.isSafeInteger(x) || x < 0) throw new Invalid(`${what} must be an integer in [0, 2^53)`); return x; };
 const text = (x, what) => { if (typeof x !== "string" || x.length > 10000) throw new Invalid(`${what} must be a string of at most 10000 characters`); return x; };
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+export const SCHEMA = { t: "schema", version: 2 };   // the first line of a version 2 journal (service/migrate.mjs)
 
 export class Journal {
   constructor(path) {
@@ -21,8 +22,11 @@ export class Journal {
     let raw = fs.existsSync(path) ? fs.readFileSync(path, "utf8") : "";
     const end = raw.lastIndexOf("\n") + 1;
     if (end < raw.length) { fs.truncateSync(path, end); raw = raw.slice(0, end); }
-    for (const line of raw.split("\n")) if (line) this.#replay(JSON.parse(line));
+    const lines = raw.split("\n").filter(Boolean);
+    if (lines.length && !same(JSON.parse(lines[0]), SCHEMA)) throw new Error(`${path} holds version 1 state: run service/migrate.mjs first`);
+    for (const line of lines.slice(1)) this.#replay(JSON.parse(line));
     this.fd = fs.openSync(path, "a");
+    if (!lines.length) { fs.writeSync(this.fd, JSON.stringify(SCHEMA) + "\n"); fs.fsyncSync(this.fd); }
   }
   #replay(rec) {
     if (rec.t === "actor") this.actors.set(rec.id, rec.roles);
@@ -57,12 +61,13 @@ export class Journal {
     this.#commit({ t: "op", rq, params, result, doc: reason ? null : doc, events });
     return { ...result, replayed: false };
   }
-  create(rq, id, actor, title, body) {
+  create(rq, id, actor, title, body, quorum) {
     name(id, "id"); name(actor, "actor"); text(title, "title"); text(body, "body"); int(rq, "request_id");
-    const params = { op: "create", id, actor, title, body };
+    if (!W.isQuorum(quorum)) throw new Invalid("quorum must be an integer in [2, 5]");
+    const params = { op: "create", id, actor, title, body, quorum };
     return this.#command(rq, params, () => {
       if (this.docs.has(id)) throw new Conflict(`document ${id} exists`);
-      return W.create(this.roles(actor), actor, id, title, body);
+      return W.create(this.roles(actor), actor, id, title, body, quorum);
     });
   }
   command(op, rq, id, actor, revision, body) {

@@ -1,7 +1,7 @@
 # model/assumptions.yaml — what a passing pith.approval model check rests on, and what it does not cover. FROZEN.
 assumptions:
-  - TLC 2.x explores the whole reachable state space of model/MC.tla under model/MC.cfg (4 actors, quorum 2, at most 3 revisions)
-  - the bounds are representative: the rules are uniform in actors and revisions, so a violation needs at most a few of each (a small-scope argument, not a proof)
+  - TLC 2.x explores the whole reachable state space of model/MC.tla under model/MC.cfg (5 actors of whom 4 approve, quorums 2 and 3, at most 3 revisions)
+  - the bounds are representative: the rules are uniform in actors, revisions and quorums, so a violation needs at most a few of each (a small-scope argument, not a proof); quorums 4 and 5 are not model-checked, and are held to the same rule by harness/reference.py and harness/conformance.py (quorum 4)
   - model/Approval.tla captures the intended contract (validated by the known-wrong designs in model/wrong/ and human review of INTENT.md, not by TLC)
   - harness/reference.py is equal to the spec within the bounds (harness/refines.py, exhaustively); beyond the bounds the two follow the same rules by construction, not by check
 not_covered:

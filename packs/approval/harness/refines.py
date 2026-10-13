@@ -5,11 +5,12 @@ harness/refines.py — the reference model IS the TLA+ spec, within the model's 
     TLA2TOOLS=tla2tools.jar python3 harness/refines.py
 
 Runs TLC on model/MC.tla with `-dump dot,actionlabels` to get the complete reachable state graph of the spec, builds
-the reachable graph of harness/reference.py from the same configuration (actors, roles, quorum, MaxRev from
-model/MC.tla and model/MC.cfg), and compares: the same initial states, the same reachable states, and for every
-state the same set of (action, successor) pairs. Every state includes the model's history variable `last` (who did
-the step that produced it), so two models that reach the same document by different actors are told apart: a
-reference that lets the wrong actor reject, publish, submit or edit fails here. Exit 0 iff identical. This turns "the service is tested against a
+the reachable graph of harness/reference.py from the same configuration (actors, roles, the allowed quorums, MaxRev
+from model/MC.tla and model/MC.cfg), and compares: the same initial states, the same reachable states, and for every
+state the same set of (action, successor) pairs. Every state includes the document's quorum (one initial state per
+creator and allowed quorum; a reference that ignored the document's quorum or changed it would differ here) and the
+model's history variable `last` (who did the step that produced it), so two models that reach the same document by
+different actors are told apart: a reference that lets the wrong actor reject, publish, submit or edit fails here. Exit 0 iff identical. This turns "the service is tested against a
 Python model" into "the service is tested against the spec, exhaustively equivalent within these bounds"; outside
 the bounds (more revisions, more actors) the equivalence is by construction of the same rules, not checked.
 """
@@ -60,7 +61,7 @@ def tlc_graph(jar):
         st = {}
         for part in label.split("/\\")[1:]:
             k, v = part.split("=", 1); st[k.strip()] = tla_value(v.strip())[0]
-        key = (st["status"], st["rev"], tuple(a for a in st["author"] if a != "none"), frozenset(st["approvals"]), tuple(st["last"]))
+        key = (st["status"], st["rev"], tuple(a for a in st["author"] if a != "none"), frozenset(st["approvals"]), st["quorum"], tuple(st["last"]))
         nodes[m.group(1)] = key
         if m.group(3): init.add(key)
     for m in re.finditer(r'^(-?\d+) -> (-?\d+) \[label="(\w+)"', dot, re.M):
@@ -71,23 +72,25 @@ def tlc_graph(jar):
 def mc_config():
     mc = (ROOT / "model/MC.tla").read_text(); cfg = (ROOT / "model/MC.cfg").read_text()
     sets = {k: set(re.findall(r'"(\w+)"', v)) for k, v in re.findall(r"^MC(\w+)\s*==\s*\{([^}]*)\}", mc, re.M)}
-    nums = {k: int(v) for k, v in re.findall(r"^\s*(Quorum|MaxRev)\s*=\s*(\d+)", cfg, re.M)}
+    quorums = {int(q) for q in re.findall(r"\d+", re.search(r"^MCQuorums\s*==\s*\{([^}]*)\}", mc, re.M)[1])}
+    nums = {k: int(v) for k, v in re.findall(r"^\s*(MaxRev)\s*=\s*(\d+)", cfg, re.M)}
     roles = {a: tuple(r for r, s in (("editor", "Editors"), ("approver", "Approvers"), ("publisher", "Publishers")) if a in sets[s]) for a in sets["Actors"]}
-    return sets["Actors"], roles, nums["Quorum"], nums["MaxRev"]
+    return sets["Actors"], roles, quorums, nums["MaxRev"]
 
 
 def reference_graph():
-    actors, roles, quorum, max_rev = mc_config()
-    key = lambda d: (d.status, d.rev, d.authors, d.approvals, d.last)       # last: who did the step, so actors are compared too
-    init = {key(R.create(a, roles)[1]) for a in actors if R.create(a, roles)[0] is None}
-    seen, edges, todo = set(init), set(), [R.create(a, roles)[1] for a in actors if R.create(a, roles)[0] is None]
+    actors, roles, quorums, max_rev = mc_config()
+    key = lambda d: (d.status, d.rev, d.authors, d.approvals, d.quorum, d.last)       # last: who did the step, so actors are compared too
+    born = [R.create(a, roles, q) for a in actors for q in quorums]                  # every creator, every quorum the model allows
+    init = {key(d) for why, d in born if why is None}
+    seen, edges, todo = set(init), set(), [d for why, d in born if why is None]
     label = {"edit": "Edit", "submit": "Submit", "approve": "Approve", "reject": "Reject", "publish": "Publish"}
     while todo:
         d = todo.pop()
         for op in label:
             for a in actors:
                 for r in ([None] if op == "edit" else range(1, max_rev + 1)):
-                    why, d2 = R.step(d, op, a, roles, r, quorum=quorum, max_rev=max_rev)
+                    why, d2 = R.step(d, op, a, roles, r, max_rev=max_rev)
                     if why is None:
                         edges.add((key(d), label[op], key(d2)))
                         if key(d2) not in seen: seen.add(key(d2)); todo.append(d2)

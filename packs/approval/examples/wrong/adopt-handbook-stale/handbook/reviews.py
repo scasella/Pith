@@ -1,14 +1,16 @@
-"""handbook/reviews.py — the review workflow for policy documents: people with roles write revisions, two approvers
-other than the author approve the current revision, a publisher publishes. This is the workflow the project protects
+"""handbook/reviews.py — the review workflow for policy documents: people with roles write revisions, approvers other
+than the author approve the current revision until the document's quorum (chosen when it is created, 2 by default) is
+reached, a publisher publishes. This is the workflow the project protects
 with Pith (PITH.md); its rules are the pack's (pith.approval INTENT.md), and service/ exposes it to the judge.
 
-Storage is the handbook's one database, normalised: people, review_docs, review_revisions, review_votes (each vote
+Storage is the handbook's one database, normalised: people, review_docs (with each document's quorum), review_revisions, review_votes (each vote
 bound to the revision it approved), review_requests (the idempotency record of every command) and review_log."""
 import json, re
 
 NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 ROLES = ("editor", "approver", "publisher")
-QUORUM = 2
+DEFAULT_QUORUM = 2                 # a create without `quorum`; every document reviewed before quorums (service/migrate.py)
+QUORUMS = range(2, 6)
 NEEDS = {"submit": None, "approve": "approver", "reject": "approver", "publish": "publisher"}
 FROM = {"submit": "draft", "approve": "in_review", "reject": "in_review", "publish": "approved"}
 COMMANDS = ("edit",) + tuple(NEEDS)
@@ -25,6 +27,9 @@ def _name(x, what):
 def _int(x, what):
     if isinstance(x, bool) or not isinstance(x, int) or not 0 <= x < 2 ** 53: raise Invalid(f"{what} must be an integer in [0, 2^53)")
     return x
+def _quorum(x):
+    if isinstance(x, bool) or not isinstance(x, int) or x not in QUORUMS: raise Invalid("quorum must be an integer in [2, 5]")
+    return x
 def _text(x, what):
     if not isinstance(x, str) or len(x) > 10_000: raise Invalid(f"{what} must be a string of at most 10000 characters")
     return x
@@ -33,8 +38,10 @@ def _text(x, what):
 class Reviews:
     def __init__(self, db):
         self.db = db
+        cols = [r[1] for r in db.query("PRAGMA table_info(review_docs)")]
+        if cols and "quorum" not in cols: raise SystemExit("this database holds reviews from before per-document quorums: run service/migrate.py first")
         db.schema("CREATE TABLE IF NOT EXISTS people(id TEXT PRIMARY KEY, roles TEXT)",
-                  "CREATE TABLE IF NOT EXISTS review_docs(id TEXT PRIMARY KEY, title TEXT, status TEXT)",
+                  "CREATE TABLE IF NOT EXISTS review_docs(id TEXT PRIMARY KEY, title TEXT, status TEXT, quorum INTEGER NOT NULL)",
                   "CREATE TABLE IF NOT EXISTS review_revisions(doc TEXT, rev INTEGER, author TEXT, body TEXT, PRIMARY KEY(doc, rev))",
                   "CREATE TABLE IF NOT EXISTS review_votes(doc TEXT, rev INTEGER, actor TEXT, PRIMARY KEY(doc, rev, actor))",
                   "CREATE TABLE IF NOT EXISTS review_requests(request_id INTEGER PRIMARY KEY, params TEXT, result TEXT)",
@@ -60,22 +67,22 @@ class Reviews:
     def log(self, since=0): return [dict(json.loads(b), seq=s) for s, b in self.db.query("SELECT seq, body FROM review_log WHERE seq > ? ORDER BY seq", since)]
 
     def _view(self, c, did):
-        d = c.execute("SELECT title, status FROM review_docs WHERE id=?", (did,)).fetchone()
+        d = c.execute("SELECT title, status, quorum FROM review_docs WHERE id=?", (did,)).fetchone()
         if not d: return None
         revs = [{"revision": r, "author": a, "body": b} for r, a, b in c.execute("SELECT rev, author, body FROM review_revisions WHERE doc=? ORDER BY rev", (did,))]
         votes = [{"revision": r, "actor": a} for r, a in c.execute("SELECT rev, actor FROM review_votes WHERE doc=? ORDER BY rev, actor", (did,))]
         cur = len(revs)
-        return {"id": did, "title": d[0], "status": d[1], "revision": cur, "revisions": revs, "approvals": votes,
+        return {"id": did, "title": d[0], "status": d[1], "revision": cur, "quorum": d[2], "revisions": revs, "approvals": votes,
                 "current_votes": [v["actor"] for v in votes if v["revision"] == cur]}
 
     # ---- commands: each one transaction; a request id is recorded with its result and replayed
-    def create(self, rq, did, actor, title, body):
-        _name(did, "id"); _name(actor, "actor"); _text(title, "title"); _text(body, "body")
+    def create(self, rq, did, actor, title, body, quorum=DEFAULT_QUORUM):
+        _name(did, "id"); _name(actor, "actor"); _text(title, "title"); _text(body, "body"); _quorum(quorum)
         def decide(c):
             if c.execute("SELECT 1 FROM review_docs WHERE id=?", (did,)).fetchone(): raise Conflict(f"document {did} exists")
             if "editor" not in self._roles(c, actor): return "ROLE"
-            c.execute("INSERT INTO review_docs VALUES (?, ?, 'draft')", (did, title)); c.execute("INSERT INTO review_revisions VALUES (?, 1, ?, ?)", (did, actor, body))
-        return self._command(rq, {"op": "create", "id": did, "actor": actor, "title": title, "body": body}, did, decide)
+            c.execute("INSERT INTO review_docs VALUES (?, ?, 'draft', ?)", (did, title, quorum)); c.execute("INSERT INTO review_revisions VALUES (?, 1, ?, ?)", (did, actor, body))
+        return self._command(rq, {"op": "create", "id": did, "actor": actor, "title": title, "body": body, "quorum": quorum}, did, decide)
 
     def command(self, op, rq, did, actor, revision=None, body=None):
         if op not in COMMANDS: raise Invalid(f"unknown command {op}")
@@ -86,9 +93,9 @@ class Reviews:
         return self._command(rq, params, did, lambda c: self._decide(c, op, did, actor, revision, body))
 
     def _decide(self, c, op, did, actor, revision, body):
-        d = c.execute("SELECT status FROM review_docs WHERE id=?", (did,)).fetchone()
+        d = c.execute("SELECT status, quorum FROM review_docs WHERE id=?", (did,)).fetchone()
         if d is None: raise Unknown(did)
-        status = d[0]; roles = self._roles(c, actor)
+        status, quorum = d; roles = self._roles(c, actor)
         cur, author = c.execute("SELECT rev, author FROM review_revisions WHERE doc=? ORDER BY rev DESC LIMIT 1", (did,)).fetchone()
         if op == "edit":
             if "editor" not in roles: return "ROLE"
@@ -104,7 +111,7 @@ class Reviews:
         if c.execute("SELECT 1 FROM review_votes WHERE doc=? AND rev=? AND actor=?", (did, cur, actor)).fetchone(): return "ALREADY_APPROVED"
         c.execute("INSERT INTO review_votes VALUES (?, ?, ?)", (did, cur, actor))
         votes = c.execute("SELECT COUNT(DISTINCT actor) FROM review_votes WHERE doc=?", (did,)).fetchone()[0]   # DEFECT: every revision's votes count
-        if votes >= QUORUM: self._set(c, did, "approved")
+        if votes >= quorum: self._set(c, did, "approved")
 
     def _command(self, rq, params, did, decide):
         _int(rq, "request_id")

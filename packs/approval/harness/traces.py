@@ -14,18 +14,18 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from harness import reference as R
 
-ROLES = {"alice": ("editor", "approver"), "bob": ("editor", "approver"), "carol": ("approver",), "dave": ("publisher",)}   # model/MC.tla
-STEP = re.compile(r"^(\w+) (create|edit|submit|approve|reject|publish)(?: (\d+))? => (\w+)$")
+ROLES = {"alice": ("editor", "approver"), "bob": ("editor", "approver"), "carol": ("approver",), "dave": ("publisher",), "erin": ("approver",)}   # model/MC.tla
+STEP = re.compile(r"^(\w+) (create|edit|submit|approve|reject|publish)(?: (\d+))?(?: quorum (\d+))? => (\w+)$")   # "alice create quorum 3 => OK"
 
 
 def run(t):
     d = None; problems = []
     for i, s in enumerate(t["steps"], 1):
         m = STEP.match(s)
-        if not m: problems.append(f"step {i} unreadable: {s!r}"); break
-        actor, op, rev, want = m[1], m[2], int(m[3]) if m[3] else None, m[4]
+        if not m or (m[4] and m[2] != "create"): problems.append(f"step {i} unreadable: {s!r}"); break
+        actor, op, rev, want = m[1], m[2], int(m[3]) if m[3] else None, m[5]
         if op == "create":
-            why, nd = R.create(actor, ROLES)
+            why, nd = R.create(actor, ROLES, int(m[4]) if m[4] else R.DEFAULT_QUORUM)
             if d is None and nd is not None: d = nd
         else:
             why, d = R.step(d, op, actor, ROLES, rev)
