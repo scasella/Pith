@@ -1,3 +1,108 @@
+# Validation record — Pith v0.11.0 (M6: governance, compatibility, catalog, experiment harness)
+
+Releases: reservation `6a20c4ccec8b17b737dfab2a7a48d6a71938d6f4ad77ff17bb4f3b49f20bc064`, booking
+`6ac2b05a0672df3cb0a34379f9294c3beaeeca1798d6cdac65552caa1adc0fa5`, approval
+`3b94e5846842d59b8dd357991034d95bca781c5046bb0ebc4ba19fa3e8678960`; demonstrations tally 1.0.0
+`7234ae64b8802540f8b8b8cc024cb2050b6953e8e3666c3ec88deb4ceff3b7e4`, tally 2.0.0
+`ff211e59c159108fab04d9aafef2d270ca6b36d49213bc73205d68d5bfedccba`. Local runs (advisory isolation, unsandboxed browser)
+as before; CI runs the same steps and the enforced `isolated` run.
+
+### governance mechanics (validation/governance.py)
+- `catalog.yaml` matches all five packs it lists (sealed digests, derived stages, listed files, maintainers): every
+  entry is `draft`, because no pack has an independent release review
+- an entry that claims `released` without one is refused by `gate/catalog.py check`
+- revocation end to end: evidence and a deployment record resting on a release revoked in a scratch revocations file
+  are reported revoked (`catalog.py revoked`, `deploy.py check --revocations`); without the revocation the same
+  deployment is covered
+
+### the experiment harness, dry run only (experiments/harness.py dryrun)
+- 6 planned runs (2 scripted agents × 1 task × 3 conditions), every record valid against the schema, the analysis
+  recomputes the primary outcome and labels itself a dry run
+- the paths it must see: a false acceptance in core-tests (a migration that drops refusals passes the conventional
+  tests, fails external criterion D5), the same migration refused by the judge in the pith condition followed by a
+  repair cycle, and success everywhere for the careful scripted agent. These numbers measure the harness; **no
+  experiment with real models has been run**
+- the plan crosses every model, task, condition and repeat, and rotates which condition runs first
+
+### unchanged results from v0.10.0
+- MATRIX_M6
+- every v0.10.0 check above re-run in CI on this release (jobs `judge` and `packs`)
+
+# Validation record — Pith v0.10.0 (M5: safe evolution)
+
+Releases: reservation `a43a0626f59a8e5ca4a150b5966938ef001d78b037c5a027d5f93fc9ba079957`, booking
+`d3158a1352189fcb39c8a0439cc31bc3c5fa173aa8ee6a1e675154cef35779a0`, approval
+`92a7fa52d8f70354e958080efd713c5d92b1df2b0552425240c7d30cc13be19e`; demonstrations tally 1.0.0
+`103143ba3bbbbe07cd9dbec50a325c37ddaa4b93a78839f336bdd8c7cb1e7970`, tally 2.0.0
+`f3fd8dba1625afbc696d55501492baf1f20d4c8d5f1a4c04903ac925c48ed59f`.
+
+### the exit demonstrations (validation/evolution.py; evolution-record.json)
+- **agent handoff**: agent A's application (tally 2 `basic`) accepted; agent B starts from A's packet (state `done`,
+  with the rerun and impact commands); `change.py plan` for `service/run.py` before the edit says integration and
+  re-run the lifecycle harness and the two entrypoint checks; `classify` after the edit says the same; B judged with
+  A's evidence offered is accepted, reusing exactly the two model checks, nothing the change invalidated
+- **substantial rewrite**: the journal rewrite is classified integration with every service file changed, every
+  service-derived record invalidated; judged on its own evidence it is accepted, only the two model checks reused
+- **contract upgrade with populated state**: v1 `basic` accepted under tally/v1 and recorded for deployment; moving
+  to tally/v2 classified behavioral (T1 and T2 version 1 → 2, M1 added), no v1 evidence holds; judged under v2 with
+  v1's evidence offered, nothing is reused; the v1 deployment record does not cover the v2 artifact (release and
+  artifact differ). Migration of state the accepted v1 artifact's own service produced (two results, a request in
+  flight at SIGKILL, two more after restart, a refusal), all seven steps passing for both `basic` (adds a column) and
+  the journal rewrite (converts the database): old artifact matches its evidence, unrecognised state refused and left
+  unchanged, migrate, migrate again, verify (4 tests), rollback policy stated. Known-wrong migrations:
+  `drops-refused` refused at verify by `test_every_recorded_result_is_kept_and_replayed` (and, when the in-flight
+  request was never recorded, `test_in_flight_request_is_decided_once`); `renames-default` by all four verify tests.
+  `drops-refused` passes the ordinary judge
+- **composed workflow**: `compositions/ledger-receipts` — the integration keeps `LedgerInv`, `ReceiptsInv`, both
+  permitted-effect properties and `ReceiptAgrees`; `wrong/receipt-first` keeps the local invariants and effect rules
+  and violates `ReceiptAgrees` (TLC trace: a receipt reports "ok" before the effect is applied)
+
+### the tally packs
+- tally 1 `basic` and tally 2 `basic` and `journal` accepted; tally 2's known-wrong `default-bound` refused at
+  `service.lifecycle` by its two tests, packet category violation naming T1; the model rejects `WrongDefaultBound`
+  (Bounded violated)
+
+### unchanged results from v0.9.0
+- the reservation pack still matches the M2 baseline (`compare_m1.py`), the known-wrong fixtures of all three packs
+  are refused with their expected categories and contract records, one run per failure category (`packets.py`), the
+  adoption journey, the scaffold, generality across packs: re-run in CI on this release
+- `validation/domain_free.py` now also scans the tally packs and the composition demos: gate/ is free of 5 packs'
+  115 terms and ids
+- MATRIX_M5
+
+# Validation record — Pith v0.9.0 (M4: task packets, authoring, adoption)
+
+Releases: reservation `117f339033b4c2b38c036ce9d277fd487f128c30435a002b4e01fd6cb12fce35`, booking
+`ae8c1b06dcf3d6eb794cf039494625339df78f048a503f969e565393175e1598`, approval
+`78a7bd4575d9f54abf9a1c0f5eaf2291744ed6d66b120efea52c0a4c175d598b`.
+
+### failure categories and task packets (validation/packets.py, validation/judge_wrong.py)
+- one run per category on the reservation pack, each with the expected first failure: evidence_missing (fresh seed,
+  `design.present`), contract_change (an edited frozen file, judged by the candidate's own gate), toolchain_unavailable
+  (TLC recorded unavailable, `design.safety`), not_exercised (a design that never retries, `design.coverage/CovRetry`),
+  infrastructure (the evaluator raising inside `design.extends`), and done; every packet valid against
+  `gate/schemas/task-packet.schema.json` and under 6 KB
+- every known-wrong application of the three packs (12) refused for exactly its defect as before, and its packet
+  names the expected category (all violation) and at least the expected contract records: club-desk I2, I4–I6;
+  office-desk I1–I6; closed-intervals HalfOpen; check-then-insert Atomicity, B0; move-loses-booking M3;
+  receipt-overwritten BI1, BI2; stale-approvals-counted A3; self-approval A1; unknown-as-refused AI1, AI2;
+  adopt-handbook-stale A3
+
+### authoring and adoption
+- the scaffold (`gate/cli.py pack new`) seals, passes `pack check`, judges its `basic` example as passing and refuses
+  `no-limit` at `service.lifecycle` (category violation, T1)
+- `pack check`: 0 errors on all three packs; all three `draft`
+- the adoption journey (`validation/adoption.py`): `adopt` writes the manifest and the record and names the two
+  entrypoints still to write; judged before they exist, refused with evidence_missing; with them, every status passes;
+  coverage names `handbook` and only the judged paths; the rest of the project is not in the artifact; a project whose
+  code sits in a pack policy dir is refused. This is the repository's own scripted run, not an external adoption
+
+### unchanged results from v0.8.0
+- the reservation pack matches the M2 baseline, with one more expected claim-text difference: the allowlist claim
+  now names `include` and `subsystem` (`compare_m1.py`); evidence invalidation and reuse as before
+  (`evidence_reuse.py`); one evaluator across 8 runs of the three packs (`generality.py`)
+- MATRIX_M4
+
 # Validation record — Pith v0.8.0 (M3: three packs, one evaluator)
 
 Releases: reservation `0031cde0de9ec614db5c7e4d1fe220a93f1ba936ad005f31750a8b6d98c7ff0b`, booking
