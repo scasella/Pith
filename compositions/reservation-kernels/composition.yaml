@@ -1,0 +1,59 @@
+# The reservation pack's two kernels as a composition contract (format: docs/rfc/0004-safe-evolution.md § 3). Until
+# v0.12.0 this composition was stated only inside the pack's design obligations (obligations/design/CoreActions.tla:
+# "INV1 is the composition invariant"); here it is restated in the composition format, with ownership, permitted
+# effects, the joint invariants and known-wrong integrations that keep each kernel's rules and break the joint ones.
+# `python3 gate/compose.py check compositions/reservation-kernels` model-checks it; correspondence/ shows with TLC that
+# the integration below has exactly the behaviours of the frozen CoreActions.tla (validation/compositions.py).
+format: pith.composition/v1
+id: pith.reservation.kernels
+version: 1
+intent: >
+  The authorization kernel decides requests against an account's availability and keeps the holds; the posting kernel
+  posts captured amounts. The account's limit binds the sum of what one owns and what the other owns, and a capture is
+  both kernels' business: neither can keep the limit or agree on what was captured alone.
+model:
+  dir: model
+  integration: Integration
+  contract: Contract
+  constants: { Limit: 100 }
+components:
+  - id: authorization
+    module: Authorization
+    owns: [status, held]
+    invariants: [AuthInv]
+    effects: ['\E r \in Reqs : AuthDecides(r) \/ AuthRelease(r) \/ AuthConsume(r)']
+  - id: posting
+    module: Posting
+    owns: [posted, captured]
+    invariants: [PostingInv]
+    effects: ['\E r \in Reqs : Post(r)']
+shared_invariants:
+  - id: INV1
+    components: [authorization, posting]
+    intent: Posted plus reserved never exceeds the limit (pack.yaml INV1; kernel/spec/AuthSpec.dfy Valid).
+  - id: CaptureAgrees
+    components: [authorization, posting]
+    intent: A request is Post in the authorization kernel exactly when the posting kernel has posted its amount.
+atomicity:
+  - transition: Decide
+    components: [authorization, posting]
+    requirement: >
+      the decision reads the posted total and the holds in the step that commits it (DecideCorrect in the design model;
+      the shipped profile's BEGIN IMMEDIATE transaction, profiles/sqlite/repo.py)
+  - transition: Capture
+    components: [authorization, posting]
+    requirement: giving up the hold and posting its amount commit together or not at all
+assumptions:
+  - Each kernel's transitions are proven against its own spec (kernel/spec/AuthSpec.dfy, PostingSpec.dfy, the pack's
+    kernel check); this model takes those transitions as given and checks only how they are put together.
+  - Transitions are atomic as modelled. For a candidate this is established by the design model (design.safety
+    interleaves both kernels with the candidate's own concurrency) and the profile tests, by test only; this check does
+    not establish it.
+  - Requests are distinct; a replay returns the recorded decision and changes neither kernel.
+wrong:
+  - dir: wrong/ignores-posting
+    violates: [INV1]
+  - dir: wrong/capture-forgets-posting
+    violates: [CaptureAgrees]
+  - dir: wrong/split-capture
+    violates: [INV1, CaptureAgrees]

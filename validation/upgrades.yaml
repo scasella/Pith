@@ -1,0 +1,8 @@
+# The contract upgrades of the main packs (docs/rfc/0006-upgrading-the-main-packs.md), judged by validation/upgrades.py.
+# from_commit is where every previous release was published (v0.11.0 on main); old_release is the digest catalog.yaml
+# recorded for it, which the rebuilt release must equal. `applications` are migrated from the same example at that
+# commit (`old` when the path differs); the first one is the reference application. `contract_changes` are the
+# records the classification must name. Known-wrong migrations are overlays on a base application
+# (<wrong_migrations>/<name>/ holds only what differs), listed in <wrong_migrations>/expected.yaml.
+from_commit: 8e63d7b45cc3f104097c54b0686f19b177c366b3
+packs: {}
