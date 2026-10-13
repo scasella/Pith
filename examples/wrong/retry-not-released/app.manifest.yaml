@@ -1,0 +1,4 @@
+name: "payments-authorization-app/v2 known-wrong: a retried release is answered 'not released' (Receipts)"
+profile: sqlite
+extra_tests: []
+ui_entry: ui/index.html

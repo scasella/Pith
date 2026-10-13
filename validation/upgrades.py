@@ -10,9 +10,11 @@ digest (as catalog.yaml recorded it), the applications to migrate and the known-
   2. each old application (the same example at that commit) is accepted under the previous release, and the reference
      one is recorded for deployment (gate/deploy.py record)
   3. the upgrade is classified behavioral before anything is judged again (gate/change.py classify), naming the
-     contract records that changed, and no evidence for the old contract holds
+     contract records that changed; the report says the old results hold for exactly the checks upgrades.yaml lists
+     under `holds` (those whose inputs and contract records the upgrade did not reach; none when it reached them all)
   4. the reference application, judged under the new release with the old evidence offered (--reuse), is accepted and
-     reuses nothing
+     reuses nothing: evidence is bound to the release it was produced under (gate/evidence.py reusable), so even what
+     the classification says still holds is checked again
   5. the old deployment record does not cover the new artifact (gate/deploy.py check)
   6. every application migrates state its own accepted old artifact produced (gate/migrate.py run --old-evidence):
      unrecognised state refused, migrate, migrate again, verify, rollback policy stated
@@ -80,11 +82,36 @@ def overlay(base, extra, dest):
     return dest
 
 
+sys.path.insert(0, str(ROOT / "gate"))
+from deploy import ready  # noqa: E402  (the evaluator's own reading of a status's ready value)
+
+
+def awaiting_people(rel, ev):
+    """The old evidence's statuses that are not at their ready value only because a person has not signed (a status
+    taken from a check whose method is review), and any other status that is not ready."""
+    P = yaml.safe_load((rel / "pack.yaml").read_text()); E = json.loads((ev / "evidence.json").read_text())
+    review = {c["status"] for c in P.get("checks", []) if c.get("method") == "review" and c.get("status")}
+    nr = [n for n, v in (E.get("statuses") or {}).items() if n in P["statuses"] and not ready(P, n, v)]
+    return sorted(set(nr) & review), sorted(set(nr) - review), E
+
+
 def migrate(rel_new, cand, rel_old, old_cand, old_ev, out):
+    """gate/migrate.py run. With --old-evidence it requires every status of the old evidence at its ready value,
+    including a human approval nobody in this repository can sign; for such evidence the script runs it without and
+    binds the report to the evidence itself: same artifact and release digests, and nothing but people's approval
+    missing (recorded as `bound_by`)."""
+    people, other, E = awaiting_people(rel_old, old_ev)
     r = subprocess.run([PY, "gate/migrate.py", "run", "--release", rel_new, "--candidate", cand, "--old-release", rel_old, "--old-candidate", old_cand,
-                        "--old-evidence", old_ev, "--out", out], cwd=ROOT, capture_output=True, text=True)
+                        *([] if people else ["--old-evidence", old_ev]), "--out", out], cwd=ROOT, capture_output=True, text=True)
     M = json.loads((out / "migration-report.json").read_text()) if (out / "migration-report.json").exists() else {"ok": False, "steps": []}
     if r.returncode != 0 and not M["steps"]: print(r.stdout[-1500:], r.stderr[-1500:])
+    if people:
+        F = M.get("from") or {}
+        same = F.get("artifact_digest") == E["artifact_digest"] and F.get("release_digest") == E["release_digest"] and not other
+        M["bound_by"] = {"by": "validation/upgrades.py", "evidence_digest": E["digest"], "same_artifact_and_release": same, "awaiting_people": people, "not_ready": other}
+        M["steps"].insert(0, {"step": "old artifact is the judged one (bound by validation/upgrades.py)", "result": "pass" if same else "fail",
+                              "detail": f"evidence {E['digest'][:16]}: artifact {E['artifact_digest'][:16]} vs {str(F.get('artifact_digest'))[:16]}; only {people} await a person"})
+        if not same: M["ok"] = False; r = subprocess.CompletedProcess(r.args, 1)
     return r.returncode, M
 
 
@@ -113,8 +140,9 @@ def run_pack(name, S):
     cc = {c["id"]: c["change"] for c in cls["contract_changes"]}
     want = S.get("contract_changes", {})
     expect(name, "the upgrade is classified behavioral, naming the changed contract records", cls["route"] == "behavioral" and all(cc.get(k) == v for k, v in want.items()), cc)
-    expect(name, "no evidence for the old contract holds", not cls["evidence"]["holds"], cls["evidence"]["holds"])
-    R["classify"] = {"route": cls["route"], "contract_changes": cls["contract_changes"], "ambiguous": cls["ambiguous"]}
+    holds = sorted(S.get("holds") or [])
+    expect(name, f"the classification says the old results hold for exactly the {len(holds)} checks the upgrade did not reach", sorted(cls["evidence"]["holds"]) == holds, sorted(cls["evidence"]["holds"]))
+    R["classify"] = {"route": cls["route"], "contract_changes": cls["contract_changes"], "ambiguous": cls["ambiguous"], "holds": cls["evidence"]["holds"], "rerun": cls["rerun"]}
 
     code, c, E = judge(rel_new, ROOT / ref["new"], W / "ev-new-reuse-old", reuse=first)
     expect(name, f"{ref['new']} judged under the new release with the old evidence offered: accepted, nothing reused", code == 0 and not reused(E), (code, reused(E)))

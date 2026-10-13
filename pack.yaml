@@ -11,13 +11,16 @@
 format: pith.pack/v1
 pack:
   id: pith.reservation
-  version: 0.11.0
+  version: 0.12.0
   title: Reservation and capture (authorization holds, release, posting) with a browser-delivered application
-  contract_version: authorization-and-posting-core/v2          # = kernel/gate/manifest.yaml:name
+  # v3 (v0.12.0): every write answers with a receipt and a retry returns it (record Receipts), with the upgrade of a
+  # running v2 deployment (MIG1, migrations/from-v2.yaml). The proven kernels did not change: their own identity is
+  # still kernel/gate/manifest.yaml:name (authorization-and-posting-core/v2), which is why the contract's name differs.
+  contract_version: authorization-and-posting/v3
   intent: INTENT.md                                              # reviewed prose; not an oracle
   maintainers: [scasella]
 
-policy_dirs: [kernel, obligations, profiles]                     # frozen pack content; the evaluator adds gate/ and this file
+policy_dirs: [kernel, obligations, profiles, migrations]         # frozen pack content; the evaluator adds gate/ and this file
 
 candidate:
   owned_dirs: [design, service, app, ui, adapter, gen]           # plus app.manifest.yaml: together the deployment artifact
@@ -277,12 +280,12 @@ checks:
     kind: command
     command: "{pytest} obligations/service/lifecycle.py"
     count: '(\d+) passed'
-    claim: "through the running service: duplicate create, idempotent replay and conflicts, crash (SIGKILL) + restart + retry, restart durability, event contract (op_id, chain, state_after, one commit per op), concurrency with readers ({count} checks)"
+    claim: "through the running service: duplicate create, idempotent replay and conflicts, crash (SIGKILL) + restart + retry, receipts of release and capture on retry, restart durability, event contract (op_id, chain, state_after, one commit per op), concurrency with readers ({count} checks)"
     status: behavioral_assurance
     method: test
     inputs: ["service/**", "adapter/**", "design/**", "app/**", "ui/**", "gen/**", "app.manifest.yaml", "profiles/**", "kernel/core/py/**", "obligations/service/**"]   # the service may read anything in the artifact
     depends_on: [kernel, service.entrypoint, gen.current]
-    establishes: [Idempotency, Durability, EventContract]
+    establishes: [Idempotency, Durability, EventContract, Receipts]
 
   - id: extra
     area: ring1
@@ -311,12 +314,12 @@ checks:
     kind: command
     command: "{pytest} obligations/boundary/harness.py"
     count: '(\d+) passed'
-    claim: "API not falsified: JSON-Schema-valid requests/responses/events; invalid and malformed inputs rejected without effect; conflicts rejected; agrees with the proven core under bursts; idempotent; monitor silent; both branches exercised ({count} checks)"
+    claim: "API not falsified: JSON-Schema-valid requests/responses/events; invalid and malformed inputs rejected without effect; conflicts rejected; agrees with the proven core under bursts; idempotent, every retry answered with its receipt; monitor silent; both branches exercised ({count} checks)"
     status: behavioral_assurance
     method: test
     inputs: ["service/**", "adapter/**", "design/**", "app/**", "ui/**", "gen/**", "app.manifest.yaml", "profiles/**", "kernel/core/py/**", "obligations/service/**", "obligations/boundary/**"]
     depends_on: [kernel, gen.current, monitor, lifecycle]
-    establishes: [BoundaryConformance]
+    establishes: [BoundaryConformance, Receipts]
 
   - id: delivery
     area: ring3
@@ -493,6 +496,30 @@ contracts:
     semantics: { python: "obligations/boundary/harness.py", generated: "gen/out/openapi.yaml" }
     verified_by: [boundary]
     change: integration
+  - id: Receipts
+    version: 1
+    intent: >-
+      Every write answers with its receipt, and a retry of the same operation returns that receipt with replayed:
+      true: an authorization its decision, a release that it released, a capture that it captured and the amount.
+      A retried release is never answered "not released". Receipts survive a crash, a restart and an upgrade.
+    excludes: [receipts for operations that changed nothing (a no-op release or capture has no receipt and is not retried)]
+    semantics: { python: "obligations/service/lifecycle.py test_receipts_are_returned_on_retry_across_a_crash", generated: "obligations/boundary/generate.py ReleaseResponse, CaptureResponse", markdown: "migrations/README.md" }
+    timing: after acknowledgement, including across a crash, a restart and an upgrade
+    verified_by: [lifecycle, boundary]
+    wrong: [examples/wrong/retry-not-released]
+    change: behavioral
+  - id: MIG1
+    version: 1
+    intent: >-
+      Upgrading a running authorization-and-posting-core/v2 deployment keeps every account, hold, decision, release and
+      capture and the whole event history byte for byte, turns every acknowledged write into its receipt (so an old
+      retry is answered with what was acknowledged, a retried release now with released: true), decides a request
+      that was in flight at most once, and keeps conflicting replays refused.
+    semantics: { yaml: "migrations/from-v2.yaml", markdown: "migrations/README.md#upgrading-from-authorization-and-posting-corev2" }
+    timing: once, before the new service starts on the old state; the new profile refuses state that was not migrated
+    migration: migrations/from-v2.yaml
+    wrong: [examples/wrong-migrations/skips-declines, examples/wrong-migrations/stamps-history]
+    change: behavioral
   - { id: W1, version: 2, intent: "An operator creates an account with a limit.", semantics: { yaml: "obligations/app/delivery.yaml W1" }, verified_by: [delivery], change: presentation }
   - { id: W2, version: 2, intent: "An authorization within the limit shows AUTHORIZED.", semantics: { yaml: "obligations/app/delivery.yaml W2" }, verified_by: [delivery], change: presentation }
   - { id: W3, version: 2, intent: "An authorization over the limit shows DECLINED, distinctly.", semantics: { yaml: "obligations/app/delivery.yaml W3" }, verified_by: [delivery], change: presentation }
@@ -509,5 +536,8 @@ contracts:
   - { id: E2, version: 2, intent: "Declined decisions are visually distinct from authorized ones.", semantics: { yaml: "obligations/app/delivery.yaml E2" }, verified_by: [approval], change: presentation }
   - { id: E3, version: 2, intent: "User-facing copy uses the glossary's terms and no synonyms.", semantics: { yaml: "obligations/app/delivery.yaml E3" }, verified_by: [approval], change: presentation }
 
+migrations:                                                      # gate/migrate.py; MIG1's evidence is the migration report, not a judge run
+  - { from: authorization-and-posting-core/v2, spec: migrations/from-v2.yaml }
+
 # Words that belong to this pack and must never appear in the evaluator (validation/domain_free.py, CI).
-domain_vocabulary: [account, authoriz, reservation, Capture, posting, posted, declin, ledger, CoreActions, INV1, Design.tla, sqlite, service/run.py, kernel/, obligations/, profiles/, browser_workflows, delivery.yaml, openapi]
+domain_vocabulary: [ReleaseResponse, CaptureResponse, available_at_decision, account, authoriz, reservation, Capture, posting, posted, declin, ledger, CoreActions, INV1, Design.tla, sqlite, service/run.py, kernel/, obligations/, profiles/, browser_workflows, delivery.yaml, openapi]

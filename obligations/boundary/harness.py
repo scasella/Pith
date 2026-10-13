@@ -10,7 +10,8 @@ through the frozen client; no candidate Python is imported. Client methods retur
     client.create(id, limit)                 201 on success; 4xx on duplicate / invalid
     client.account(id)                       200 + AccountView
     client.authorize(id, request_id, amount) 200 + AuthorizeResponse; 4xx on invalid input or conflicting replay; 404 unknown account
-    client.release(id, request_id)           200 + {"request_id","released"}
+    client.release(id, request_id)           200 + ReleaseResponse {"request_id","released","replayed"}
+    client.capture(id, request_id)           200 + CaptureResponse {"request_id","captured","amount"?,"replayed"}
     client.events(since=0)                   200 + [event...] in seq order
     client.raw_post(path, json_text)         status for an arbitrary JSON body (used for malformed-input attacks)
 """
@@ -32,6 +33,7 @@ V_EVENT = jsonschema.Draft202012Validator(EVENTS)
 V_AUTH  = jsonschema.Draft202012Validator(schema("AuthorizeResponse"))
 V_ACCT  = jsonschema.Draft202012Validator(schema("AccountView"))
 V_CAP   = jsonschema.Draft202012Validator(schema("CaptureResponse"))
+V_REL   = jsonschema.Draft202012Validator(schema("ReleaseResponse"))
 ANTECEDENTS = {}
 
 from obligations.service.supervisor import Service
@@ -88,6 +90,20 @@ def test_every_event_and_response_validates_against_schema(svc):
     assert [e["type"] for e in evs] == ["account.created", "op.committed", "auth.decided", "reservation.created", "op.committed", "auth.decided", "op.committed"]
     assert len({e["op_id"] for e in evs}) == 3
 
+def test_release_and_capture_answer_with_receipts(svc):
+    """Contract: Receipts, BoundaryConformance."""
+    assert svc.create(1, 100)[0] == 201
+    svc.authorize(1, 1, 30); svc.authorize(1, 2, 40)
+    assert ok(*svc.release(1, 1), V_REL) == {"request_id": 1, "released": True, "replayed": False}
+    assert ok(*svc.release(1, 1), V_REL) == {"request_id": 1, "released": True, "replayed": True}          # the receipt, not a no-op
+    assert ok(*svc.capture(1, 2), V_CAP) == {"request_id": 2, "captured": True, "amount": 40, "replayed": False}
+    assert ok(*svc.capture(1, 2), V_CAP) == {"request_id": 2, "captured": True, "amount": 40, "replayed": True}
+    assert ok(*svc.release(1, 2), V_REL) == {"request_id": 2, "released": False, "replayed": False}        # posted: never released
+    assert ok(*svc.capture(1, 1), V_CAP) == {"request_id": 1, "captured": False, "replayed": False}        # released: never captured
+    assert ok(*svc.release(1, 9), V_REL) == {"request_id": 9, "released": False, "replayed": False}
+    _, evs = svc.events(); [V_EVENT.validate(e) for e in evs]
+    assert [e["type"] for e in evs].count("reservation.released") == 1 and [e["type"] for e in evs].count("capture.posted") == 1
+
 # ------------------------------------------------------------------ stateful: API vs proven core, with the monitor
 class Boundary(RuleBasedStateMachine):
     accounts = Bundle("accounts")
@@ -125,14 +141,16 @@ class Boundary(RuleBasedStateMachine):
     def release_one(self, acct):
         h = ok(*self.c.account(acct), V_ACCT)["holds"]
         if h:
-            rid = int(sorted(h, key=int)[0]); assert self.c.release(acct, rid)[1]["released"]; self.oracle[acct] = self.core.Release(self.oracle[acct], rid)
+            rid = int(sorted(h, key=int)[0]); r = ok(*self.c.release(acct, rid), V_REL)
+            assert r["released"] and r["replayed"] is False; self.oracle[acct] = self.core.Release(self.oracle[acct], rid)
+            assert ok(*self.c.release(acct, rid), V_REL) == dict(r, replayed=True)              # a retry returns the receipt
     @rule(acct=accounts)
     def capture_one(self, acct):
         h = ok(*self.c.account(acct), V_ACCT)["holds"]
         if h:
             rid = int(sorted(h, key=int)[-1]); r = ok(*self.c.capture(acct, rid), V_CAP)
-            assert r["captured"] and r["amount"] == h[str(rid)]; self.oracle[acct] = POSTER.Capture(self.oracle[acct], rid)
-            assert ok(*self.c.capture(acct, rid), V_CAP)["replayed"] is True               # idempotent
+            assert r["captured"] and r["amount"] == h[str(rid)] and r["replayed"] is False; self.oracle[acct] = POSTER.Capture(self.oracle[acct], rid)
+            assert ok(*self.c.capture(acct, rid), V_CAP) == dict(r, replayed=True)              # a retry returns the receipt, amount included
     @invariant()
     def equals_oracle(self):
         for aid, o in self.oracle.items():

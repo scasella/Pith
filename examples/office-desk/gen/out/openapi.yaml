@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: authorization-core service
-  version: '1'
+  version: '3'
   description: 'Generated from kernel/spec/AuthSpec.dfy and kernel/glossary.yaml by
     obligations/boundary/generate.py. Do not edit.
 
@@ -94,11 +94,16 @@ paths:
                   maximum: 9007199254740991
       responses:
         '200':
-          description: released or no-op
+          description: released, replayed (the receipt of an earlier release of this
+            request), or no-op
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseResponse'
   /accounts/{id}/capture:
     post:
       summary: 'Capture(a, request_id): post the held amount in full (posting kernel);
-        idempotent for a captured request'
+        a retry returns the receipt, amount included'
       parameters:
       - name: id
         in: path
@@ -219,6 +224,8 @@ components:
       required:
       - request_id
       - decision
+      - available_at_decision
+      - replayed
       properties:
         request_id:
           type: integer
@@ -234,11 +241,28 @@ components:
         replayed:
           type: boolean
       additionalProperties: false
+    ReleaseResponse:
+      type: object
+      required:
+      - request_id
+      - released
+      - replayed
+      additionalProperties: false
+      properties:
+        request_id:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        released:
+          type: boolean
+        replayed:
+          type: boolean
     CaptureResponse:
       type: object
       required:
       - request_id
       - captured
+      - replayed
       additionalProperties: false
       properties:
         request_id:

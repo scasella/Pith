@@ -1,0 +1,2 @@
+name: tally-v2
+subsystem: tally service (bounded tally per named counter)

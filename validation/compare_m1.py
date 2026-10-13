@@ -25,6 +25,11 @@ EXPECTED = {
     ("policy", "isolation"): "claim text: probed dirs and README path",
     # v0.9.0 (M4): the pack allows two more manifest keys (include, subsystem) for existing-project adoption
     ("policy", "manifest allowlisted"): "claim text lists the allowlist, which gained include and subsystem",
+    # v0.12.0: contract authorization-and-posting/v3 adds receipts (record Receipts) and the upgrade from v2 (MIG1); the
+    # harnesses and the profile gained tests for them, so the counts in these claims rise and two claims name receipts
+    ("ring1", "lifecycle harness (black-box)"): "claim text names receipts; the test count rises",
+    ("ring2", "boundary harness (black-box)"): "claim text names receipts; the test count rises",
+    ("ring1", "shipped profile tests"): "the test count rises (receipts, the refusal of unmigrated state, the migration)",
 }
 
 

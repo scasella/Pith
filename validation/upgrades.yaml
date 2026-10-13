@@ -2,7 +2,19 @@
 # from_commit is where every previous release was published (v0.11.0 on main); old_release is the digest catalog.yaml
 # recorded for it, which the rebuilt release must equal. `applications` are migrated from the same example at that
 # commit (`old` when the path differs); the first one is the reference application. `contract_changes` are the
-# records the classification must name. Known-wrong migrations are overlays on a base application
-# (<wrong_migrations>/<name>/ holds only what differs), listed in <wrong_migrations>/expected.yaml.
+# records the classification must name; `holds` the checks it must say still hold (inputs and contract records the
+# upgrade did not reach; the judge re-runs them anyway, because evidence is bound to its release). Known-wrong
+# migrations are overlays on a base application (<wrong_migrations>/<name>/ holds only what differs), listed in
+# <wrong_migrations>/expected.yaml.
 from_commit: 8e63d7b45cc3f104097c54b0686f19b177c366b3
-packs: {}
+packs:
+  reservation:
+    pack: .
+    old_release: b6a58ad409fd80070f39c35e402dd3fb46e659be8b123c11b73b4f65e083ffa7
+    applications: [{new: examples/build-a}, {new: examples/build-b}, {new: examples/club-desk}, {new: examples/office-desk}]
+    contract_changes: {Receipts: added, MIG1: added}
+    # the kernels, their proofs and the design obligations did not change, so the classification says these results hold
+    holds: ['core state only via core actions', 'design coverage (CovCapture)', 'design coverage (CovCaptureContention)', 'design coverage (CovContention)',
+            'design coverage (CovDecided)', 'design coverage (CovDecline)', 'design coverage (CovRelease)', 'design coverage (CovRetry)', 'design extends obligations',
+            'design interface', 'design model (safety)', 'design module present', 'integration profile', 'kernel gate', 'obligations reject the known-bad design']
+    wrong_migrations: examples/wrong-migrations
