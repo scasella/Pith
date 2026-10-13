@@ -15,8 +15,12 @@ How judging works, and why:
     deployment artifact (the agent-owned files, copied). The artifact digest covers every file in that copy; nothing
     is excluded by basename. The live checkout is not touched.
   * pytest runs with --noconftest -c /dev/null, cwd in the judged copy, under -I.
-  * Three statuses are reported separately; release_ready requires all three plus an authoritative pinned run and a
-    sandboxed browser. Exit 0 iff assurance and delivery passed; 2 if delivery incomplete; 1 on refusal.
+  * Isolation is observed, not declared: a frozen probe runs under the candidate's identity before any candidate code
+    and reports what that identity can reach (evidence, policy, gate code, protected paths, network). Without a
+    separate identity (SEED_CANDIDATE_UID, see obligations/isolation/) the run is advisory and says so.
+  * Three statuses are reported separately; release_ready requires all three plus an authoritative pinned run, an
+    enforced isolation profile and a contained browser. Exit 0 iff assurance and delivery passed; 2 if delivery
+    incomplete; 1 on refusal.
 """
 import argparse, hashlib, importlib.metadata, json, os, platform, re, shutil, subprocess, sys, tempfile, time, pathlib
 import yaml
@@ -112,7 +116,8 @@ def judge(candidate, policy_src, out, mode, expected_release, review, reviewer_k
         except Exception: pass
         (out / "README.txt").write_text("Evidence applies ONLY to artifact/ (the copy that was judged) and release_digest.\n"
             "app-claims.json separates behavioral_assurance, application_delivery and human_approval; release_ready needs all three plus an\n"
-            "authoritative pinned run and a sandboxed browser. The judge imported no candidate code; the candidate ran as a separate process.\n"
+            "authoritative pinned run, an enforced isolation profile and a contained browser (release_ready_missing lists what is absent).\n"
+            "The judge imported no candidate code; the candidate ran as a separate process (see isolation for its identity and what it could reach).\n"
             "Unavailable tools are blockers, never passes. No prior evidence is reused.\n")
         shutil.rmtree(root, ignore_errors=True)
         print(f"app-claims.json: behavioral_assurance={claims['behavioral_assurance']} | application_delivery={claims['application_delivery']} | human_approval={claims['human_approval']} | release_ready={claims['release_ready']} | gate_mode={mode} | evidence={out}")
@@ -147,6 +152,27 @@ def judge(candidate, policy_src, out, mode, expected_release, review, reviewer_k
     check("policy", "integration profile", profile in ("sqlite", "custom"), f"profile = {profile}" + (" (shipped; in-process tests apply)" if profile == "sqlite" else " (custom; judged only through the service)"), "profile must be sqlite or custom")
     check("policy", "artifact", True, f"deployment artifact copied and digested ({claims['artifact_digest'][:16]}); judged in a fresh copy, never the live checkout")
     claims["app"] = M.get("name")
+
+    # ---------------- isolation: observed under the candidate's identity before any candidate code runs ----------------
+    sys.path.insert(0, str(root)); from obligations.service import supervisor as SUP
+    ident = SUP.candidate_identity()
+    if ident: root.chmod(0o755)                         # the judged copy is readable by the candidate, owned (and writable) by the judge only
+    probe = [sys.executable, "-I", str(root / "obligations/isolation/probe.py"), "--evidence", str(out), "--policy", str(root),
+             "--host", "1.1.1.1:443", "--host", "github.com:443"] + [x for p_ in os.environ.get("SEED_PROTECTED_PATHS", "").split(":") if p_ for x in ("--secret", p_)]
+    try:
+        code, o = SUP.run_as_candidate(probe, cwd=root); seen = json.loads(o.strip().splitlines()[-1])
+    except Exception as e:
+        seen = {"checks": {"probe ran": f"reachable (probe failed: {type(e).__name__}: {str(e)[:120]})"}}
+    reachable = sorted(k for k, v in seen.get("checks", {}).items() if not v.startswith("denied"))
+    enforced = bool(ident) and not reachable
+    claims["isolation"] = {"status": "enforced" if enforced else "not enforced",
+                           "profile": os.environ.get("SEED_ISOLATION_PROFILE") or ("candidate uid " + str(ident[0]) if ident else "none (candidate runs as the judge's user)"),
+                           "candidate_identity": {"uid": ident[0], "gid": ident[1]} if ident else None, "resource_limits": SUP.LIMITS if ident else {k: v for k, v in SUP.LIMITS.items() if k != "RLIMIT_NPROC"},
+                           "observed": seen, "reachable_from_candidate": reachable,
+                           "scope": "observed by a frozen probe run under the candidate's identity: evidence dir, policy dirs, gate code, protected paths, outbound network; "
+                                    "the candidate has no build or dependency-install step in this release (it runs on the judge's interpreter and packages)"}
+    check("policy", "isolation", True, f"candidate isolation {claims['isolation']['status']}" + (f": reachable from the candidate: {reachable}" if reachable else f" ({claims['isolation']['profile']})")
+          + ("" if enforced else " — advisory run; release_ready requires an enforced profile (obligations/isolation/README.md)"), blocking=False)
 
     # ---------------- ring 0 ----------------
     k = POL["kernel"]
@@ -236,12 +262,16 @@ def judge(candidate, policy_src, out, mode, expected_release, review, reviewer_k
     for r in browser.get("runs", []):
         for s_ in r["steps"]:
             results.setdefault(s_["workflow"], {"ok": True, "evidence": []}); results[s_["workflow"]]["ok"] &= s_["ok"]; results[s_["workflow"]]["evidence"].append(f"{r['viewport']}: {s_['evidence']}")
-    for w in D["required_workflows"]:
+    for i in browser.get("interactions", []):
+        results.setdefault(i["obligation"], {"ok": True, "evidence": []}); results[i["obligation"]]["ok"] &= i["ok"]; results[i["obligation"]]["evidence"].append(i["evidence"])
+    if browser["status"] == "failed":
+        dl_fail.extend(f"interaction {i['obligation']} failed: {i['evidence'][:160]}" for i in browser.get("interactions", []) if not i["ok"])
+    for w in D["required_workflows"] + D.get("required_interactions", []):
         r = results.get(w["id"])
-        if browser["status"] == "passed" and not (r and r.get("ok")): dl_fail.append(f"workflow {w['id']} not demonstrated in the browser")
+        if browser["status"] == "passed" and not (r and r.get("ok")): dl_fail.append(f"{w['id']} not demonstrated in the browser")
     claims["application_delivery"] = "passed" if not dl_fail else ("failed" if browser["status"] == "failed" else "incomplete")
-    claims["delivery_detail"] = {"workflows": results, "browser": {k_: browser.get(k_) for k_ in ("status", "browser_sandbox", "chromium_version", "detail")}, "problems": dl_fail}
-    check("ring3", "application delivery", not dl_fail, f"real-browser workflows {[w['id'] for w in D['required_workflows']]} + replay display passed at {[r['viewport'] for r in browser.get('runs', [])]} (sandboxed={browser.get('browser_sandbox')}); SPEC structurally complete (lint is structural, not semantic)", " | ".join(dl_fail), blocking=False)
+    claims["delivery_detail"] = {"workflows": results, "browser": {k_: browser.get(k_) for k_ in ("status", "browser_sandbox", "browser_user", "chromium_version", "detail")}, "problems": dl_fail}
+    check("ring3", "application delivery", not dl_fail, f"real-browser workflows {[w['id'] for w in D['required_workflows']]} + replay display passed at {[r['viewport'] for r in browser.get('runs', [])]}; interaction obligations {[i['id'] for i in D.get('required_interactions', [])]} passed under injected response faults (sandboxed={browser.get('browser_sandbox')}, browser user={browser.get('browser_user')}); SPEC structurally complete (lint is structural, not semantic)", " | ".join(dl_fail), blocking=False)
 
     # ---------------- ring 3: human approval (attestation only) ----------------
     flags = lint.get("flags", [])
@@ -252,8 +282,14 @@ def judge(candidate, policy_src, out, mode, expected_release, review, reviewer_k
     stable = digest_dir(out / "artifact") == claims["artifact_digest"]
     check("policy", "judged copy unchanged", stable, "the artifact copy that was judged is byte-identical at the end (an observation at two points, not a monitor)", "artifact copy changed during judging", blocking=False)
     sandboxed = browser.get("browser_sandbox") is True
-    claims["release_ready"] = bool(stable and claims["behavioral_assurance"].startswith("passed") and claims["application_delivery"] == "passed" and mode == "authoritative" and claims["authority"] == "externally-pinned-release" and sandboxed and status == "approved")
-    claims["release_ready_requires"] = {"behavioral_assurance": "passed", "application_delivery": "passed", "human_approval": "approved", "gate_mode": "authoritative", "authority": "externally-pinned-release", "browser_sandbox": True}
+    isolated = claims["isolation"]["status"] == "enforced"
+    contained = sandboxed or (isolated and browser.get("browser_user") not in (None, "judge"))   # Chromium's sandbox, or a separate unprivileged user inside the enforced profile
+    claims["release_ready"] = bool(stable and claims["behavioral_assurance"].startswith("passed") and claims["application_delivery"] == "passed" and mode == "authoritative" and claims["authority"] == "externally-pinned-release" and contained and isolated and status == "approved")
+    claims["release_ready_requires"] = {"behavioral_assurance": "passed", "application_delivery": "passed", "human_approval": "approved", "gate_mode": "authoritative", "authority": "externally-pinned-release",
+                                        "isolation": "enforced", "browser": "Chromium sandbox, or a separate unprivileged browser user under the enforced isolation profile"}
+    claims["release_ready_missing"] = [k for k, ok in (("behavioral_assurance", claims["behavioral_assurance"].startswith("passed")), ("application_delivery", claims["application_delivery"] == "passed"),
+                                       ("human_approval", status == "approved"), ("gate_mode", mode == "authoritative"), ("authority", claims["authority"] == "externally-pinned-release"),
+                                       ("isolation", isolated), ("browser", contained), ("judged copy unchanged", stable)) if not ok]
     finish(); sys.exit(0 if (claims["application_delivery"] == "passed" and stable) else (1 if not stable else 2))
 
 

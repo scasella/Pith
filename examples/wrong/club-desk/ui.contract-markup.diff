@@ -1,0 +1,42 @@
+--- submitted/club-desk/ui/index.html
++++ examples/wrong/club-desk/ui/index.html
+@@ -163,10 +163,10 @@
+           <label class="field"><span>Account limit</span><input data-testid="acct-limit" id="acct-limit" type="number" min="0" step="1" value="100" required><small>Set the maximum in demo units.</small></label>
+           <div class="field-action">
+             <button data-testid="btn-create" type="submit">Create account</button>
+-            <button id="load-account" class="secondary" type="button">Load account</button>
++            <button id="load-account" data-testid="btn-load" class="secondary" type="button">Load account</button>
+           </div>
+         </form>
+-        <p id="account-status" class="inline-status" role="status" aria-live="polite">Create a new account or load an existing one.</p>
++        <p id="account-status" data-testid="loaded-account" class="inline-status" role="status" aria-live="polite">Create a new account or load an existing one.</p>
+         <p class="unit-note">Club Desk is a simulation. No money moves.</p>
+       </section>
+ 
+@@ -250,14 +250,15 @@
+       byId("acct-id").value = account.id;
+       byId("available").textContent = account.available;
+       byId("posted").textContent = account.posted;
+-      renderHolds(account.holds);
++      renderHolds(account.holds, account.id);
++      Object.assign(byId("account-status").dataset, { accountId: account.id, state: "current" });
+       byId("account-status").textContent = `Account ${account.id} loaded · limit ${account.limit} demo units.`;
+       byId("account-status").classList.remove("error");
+       await loadEvents();
+       return account;
+     }
+ 
+-    function renderHolds(holds) {
++    function renderHolds(holds, shownAccount) {
+       const entries = Object.entries(holds || {});
+       const list = byId("hold-list");
+       byId("hold-count").textContent = `${entries.length} LIVE ${entries.length === 1 ? "HOLD" : "HOLDS"}`;
+@@ -266,7 +267,7 @@
+         return;
+       }
+       list.innerHTML = entries.map(([requestId, amount]) => `
+-        <tr data-testid="hold-row" data-request-id="${requestId}">
++        <tr data-testid="hold-row" data-account-id="${shownAccount}" data-request-id="${requestId}">
+           <td>Request <strong>${requestId}</strong></td>
+           <td class="amount">${amount} demo units</td>
+           <td><div class="hold-actions">

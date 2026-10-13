@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.6.0 — 2026-10-13
+M1 of the roadmap: the reservation application as an honest end-to-end reference.
+
+- **Interaction obligations I1–I6** (`obligations/app/UI-CONTRACT.md`, `delivery.yaml:required_interactions`):
+  action-target binding, failed switch, view consistency under reordered responses, receipt preservation across a
+  failed refresh, outcome/view separation (`UNKNOWN` / `REJECTED` / decision), receipt scope. Judged in a real
+  browser through a judge-owned fault proxy (`obligations/app/faultproxy.py`) that delays, fails or loses chosen
+  responses while the page runs unmodified; every verdict is read from the service's own state. Each probe must
+  reach its precondition, so an interface without the affordances cannot pass vacuously. UI contract additions:
+  `btn-load`, `loaded-account` (`data-account-id`, `data-state`), `data-account-id` on rows and on `decision`,
+  `data-request-id` on `decision`, decision values `REJECTED` and `UNKNOWN`.
+- **Optional client-state library** `obligations/app/lib/pith-view.js` (draft selection, loaded view, pending
+  operation, receipt; pure transitions + a fetch driver; 9 node tests). Framework-free and not required.
+- **Known-wrong release fixtures** `examples/wrong/club-desk`, `examples/wrong/office-desk`: the desk applications
+  as submitted to the 2026-10-13 review, contract markup only. `validation/judge_wrong.py` (CI) requires the
+  pristine gate to fail each on exactly the obligations in `examples/wrong/expected.yaml`.
+- **Corrected desks** `examples/club-desk`, `examples/office-desk` pass every obligation; the reference UIs
+  (`build-a` on the library, `build-b` by hand) were corrected too: both had the action-target defect.
+- **Supported isolation profile** `obligations/isolation/`: pinned container, no network, read-only mounts, the
+  candidate's service (uid 10001) and the browser (uid 10002) as separate unprivileged users, rlimits and cgroup
+  limits. The gate runs a frozen probe under the candidate's identity before any candidate code and records what
+  it could reach; `isolation.status` is `enforced` only if nothing was. The supervisor drops privileges, owns the
+  candidate's process group and applies rlimits.
+- `release_ready` additionally requires an enforced isolation profile and a contained browser (Chromium's sandbox,
+  or the separate browser user under the enforced profile); `release_ready_missing` names what is absent.
+- Docs reconciled (README, ARCHITECTURE § The interface is a layer too, AGENT, CUSTOMIZATION, SECURITY,
+  CONTRIBUTING, examples/README). CI judges four examples and the wrong fixtures, runs the library tests, and judges
+  build-a inside the isolation profile.
+Release digest `RELEASE_DIGEST`.
+
 ## v0.5.0 — 2026-10-12
 Second proven kernel: posting (`Capture`), as a separate Dafny module importing the shared state and invariant;
 four capture adequacy candidates; two capture traces. Design obligations compose both kernels: `posted` is a

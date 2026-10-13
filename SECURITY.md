@@ -10,6 +10,10 @@ Advisories → Report a vulnerability). Include a minimal candidate that demonst
 matrix in `validation/matrix.py` shows the expected shape. Reports are acknowledged within a week; fixes ship as
 a new sealed release with the reproducing candidate added to `docs/VALIDATION.md`.
 
-Scope notes: the judge isolates candidate code by process, not by sandbox. Attacks that require the candidate
-to already have write access to the evaluator, the operator's keys, or the evidence directory are out of scope
-and documented as operational requirements in `README.md`.
+Scope notes: from v0.6.0 the supported isolation profile (`obligations/isolation/`) runs the candidate's service
+and the browser as separate unprivileged users in a network-less container, and the gate observes those
+restrictions with a probe before any candidate code runs. A candidate that can read the evidence directory, write
+the judged policy, reach the network, or cause the probe to report "denied" for something it can in fact reach,
+*inside that profile*, is in scope and is the most valuable report. Outside the profile (local advisory runs)
+the candidate runs as the judge's user and these are known, reported limitations. Kernel and container-runtime
+escapes are out of scope.

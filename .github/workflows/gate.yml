@@ -26,6 +26,8 @@ jobs:
       - name: release identity matches the seal
         run: |
           test "$(python3 gate/release.py id)" = "$(python3 -c 'import json;print(json.load(open("release.seal.json"))["release_digest"])')"
+      - name: client-state library tests
+        run: node --test obligations/app/lib/test_pith_view.mjs
       - name: frozen unit suites
         run: |
           # the monitor suite tests the generated gen/out/monitor.py; generate it, then remove it so the next step sees a fresh seed
@@ -39,9 +41,41 @@ jobs:
       - name: judge the examples with the pristine gate
         run: |
           set -o pipefail   # a failing judge must fail the step, not be hidden by tail
-          for ex in build-a build-b; do   # examples/archive is not judged (conforms to an earlier release)
+          for ex in build-a build-b club-desk office-desk; do   # examples/archive is not judged (conforms to an earlier release)
             validation/judge_example.sh "examples/$ex" "$RUNNER_TEMP/ev-$ex" | tail -1
           done
+      - name: known-wrong fixtures are refused for exactly their defects
+        run: python3 validation/judge_wrong.py "$RUNNER_TEMP"
       - uses: actions/upload-artifact@v7
         if: always()
         with: { name: evidence, path: "${{ runner.temp }}/ev-*", retention-days: 14 }
+
+  isolated:
+    # the supported isolation profile, end to end: container build, judge as root, candidate and browser as separate
+    # unprivileged users, no network; the run must observe isolation as enforced and pass the reference build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with: { python-version: "3.12" }
+      - name: judge build-a in the isolation profile
+        run: |
+          pip install -q pyyaml
+          CAND="$(mktemp -d)"; for d in kernel obligations gate profiles; do cp -r "$d" "$CAND/$d"; done
+          cp release.seal.json "$CAND/"; cp -r examples/build-a/. "$CAND/"; rm -f "$CAND/claims-from-release.json" "$CAND"/*.example
+          set +e; obligations/isolation/judge-isolated.sh "$PWD" "$CAND" "$RUNNER_TEMP/ev-isolated" "$(python3 gate/release.py id)"; code=$?; set -e
+          sudo chmod -R a+rX "$RUNNER_TEMP/ev-isolated"
+          python3 - "$RUNNER_TEMP/ev-isolated/run/app-claims.json" <<'PY'
+          import json, sys
+          c = json.load(open(sys.argv[1])); i = c["isolation"]
+          print(json.dumps(i["observed"], indent=1)); print("missing for release_ready:", c["release_ready_missing"])
+          assert i["status"] == "enforced", i["reachable_from_candidate"]
+          assert c["behavioral_assurance"].startswith("passed") and c["application_delivery"] == "passed", c.get("delivery_detail")
+          assert c["delivery_detail"]["browser"]["browser_user"] == "uid 10002"
+          assert c["release_ready_missing"] == ["human_approval"], c["release_ready_missing"]
+          PY
+          exit $code
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with: { name: evidence-isolated, path: "${{ runner.temp }}/ev-isolated", retention-days: 14 }

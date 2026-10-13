@@ -9,11 +9,46 @@ which is how crash-window and durability obligations are exercised black-box.
 
 Candidate contract (service/run.py):  python -I service/run.py --port <int> --db <path>
   serves the generated OpenAPI on 127.0.0.1:<port>, the UI at /, and exits on SIGTERM.
+
+Isolation (obligations/isolation/README.md): when the judge runs as root with SEED_CANDIDATE_UID set, the candidate
+runs as that unprivileged user with no supplementary groups, owns nothing but its database directory, and is held to
+resource limits. Without it the candidate runs as the judge's own user: the report says so (isolation status), and
+release-readiness requires an enforced profile. The judge's own code never runs under the candidate's identity except
+the frozen isolation probe, whose output the judge reads as evidence of what that identity can reach.
 """
-import os, pathlib, socket, subprocess, sys, tempfile, time
+import os, pathlib, resource, socket, subprocess, sys, tempfile, time
 from .client import Client
 
 SCRUBBED_ENV_KEYS = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR")
+LIMITS = {"RLIMIT_CPU": 900, "RLIMIT_AS": 4 << 30, "RLIMIT_FSIZE": 512 << 20, "RLIMIT_NOFILE": 1024, "RLIMIT_NPROC": 256}
+
+
+def candidate_identity():
+    """(uid, gid) the candidate runs as, or None when no separate identity is configured (advisory)."""
+    uid = os.environ.get("SEED_CANDIDATE_UID")
+    if not uid: return None
+    if os.geteuid() != 0: raise RuntimeError("SEED_CANDIDATE_UID is set but the judge is not root, so it cannot drop to that identity")
+    return int(uid), int(os.environ.get("SEED_CANDIDATE_GID") or uid)
+
+
+def _demote(ident):
+    def fn():
+        os.setsid()
+        for name, v in LIMITS.items():
+            if name == "RLIMIT_NPROC" and not ident: continue        # per-user limit: only meaningful for a dedicated user
+            resource.setrlimit(getattr(resource, name), (v, v))
+        if ident:
+            uid, gid = ident; os.setgroups([]); os.setgid(gid); os.setuid(uid)
+            if os.getuid() == 0 or os.geteuid() == 0: raise RuntimeError("privilege drop failed")
+    return fn
+
+
+def run_as_candidate(argv, cwd, timeout=60, env_extra=None):
+    """Run judge-owned code (the isolation probe) under the candidate's identity and limits; returns (code, stdout)."""
+    ident = candidate_identity()
+    env = {k: os.environ[k] for k in SCRUBBED_ENV_KEYS if k in os.environ}; env.update(env_extra or {})
+    r = subprocess.run(argv, cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout, preexec_fn=_demote(ident))
+    return r.returncode, r.stdout
 
 class Service:
     def __init__(self, root: pathlib.Path, db: pathlib.Path | None = None):
@@ -26,8 +61,11 @@ class Service:
         env = {k: os.environ[k] for k in SCRUBBED_ENV_KEYS if k in os.environ}
         env["SEED_KERNEL_PY"] = str(self.root / "kernel" / "core" / "py" / "authcore-py")   # where the translated core lives; nothing else is told to the candidate
         self.logpath = self.db.parent / f"service-{self.port}.log"; self.log = open(self.logpath, "ab")
+        ident = candidate_identity()
+        if ident: os.chown(self.db.parent, *ident); self.db.parent.chmod(0o700)     # the only place the candidate may write
         self.proc = subprocess.Popen([sys.executable, "-I", "service/run.py", "--port", str(self.port), "--db", str(self.db)],
-                                     cwd=self.root, env=env, stdout=self.log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
+                                     cwd=self.root, env=env, stdout=self.log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                     preexec_fn=_demote(ident))
         self.client = Client(f"http://127.0.0.1:{self.port}")
         t0 = time.time()
         while time.time() - t0 < timeout:
@@ -39,13 +77,19 @@ class Service:
             time.sleep(0.1)
         self.stop(); raise RuntimeError("candidate service did not become ready")
     def kill(self):
-        """Simulate a crash: SIGKILL, no shutdown hooks."""
-        if self.proc and self.proc.poll() is None: self.proc.kill(); self.proc.wait(timeout=10)
+        """Simulate a crash: SIGKILL, no shutdown hooks (the whole process group: the candidate cannot outlive it)."""
+        if self.proc and self.proc.poll() is None:
+            try: os.killpg(self.proc.pid, 9)
+            except ProcessLookupError: pass
+            self.proc.wait(timeout=10)
     def stop(self):
         if self.proc and self.proc.poll() is None:
             self.proc.terminate()
             try: self.proc.wait(timeout=5)
-            except subprocess.TimeoutExpired: self.proc.kill(); self.proc.wait(timeout=5)
+            except subprocess.TimeoutExpired: self.kill()
+        if self.proc:
+            try: os.killpg(self.proc.pid, 9)              # stragglers the candidate spawned
+            except (ProcessLookupError, PermissionError): pass
         if self.log: self.log.close()
     def restart(self):
         self.stop(); return self.start()

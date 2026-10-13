@@ -17,6 +17,7 @@ human evaluation named. Required workflow ids (W1–W6) and evaluation ids (E1�
 - OC-5 informal: (E1) usable by a payments-ops analyst without training. Evaluation: task completion under 3 minutes.
 - OC-6 informal: (E2) declined decisions are visually distinct. Evaluation: design review.
 - OC-7 informal: (E3) copy uses the glossary's words. Evaluation: copy review against kernel/glossary.yaml.
+- OC-9 informal: (I1–I6) every hold action acts on the account whose holds are shown, never on an account typed but not loaded; a late answer for an earlier selection never replaces the current one; a received decision stays on screen, with its account and request, when the refresh after it fails, and the figures that could not be refreshed are marked stale; no response, a refusal and a decision are shown as different outcomes. Evaluation: interaction obligations judged in the browser (obligations/app/UI-CONTRACT.md).
 
 ## Human evaluation record
 

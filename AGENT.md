@@ -14,7 +14,8 @@ it, `kernel/spec/AuthSpec.dfy` defines it, and `gate/app_gate.py` decides accept
 
 You are done when the first two read `passed` (exit code 0) and the third reads `pending`. Every run
 needs a fresh `--out` evidence directory outside your workspace; it receives the claims, a snapshot of the
-judged application, and browser screenshots. A local run is advisory; the authoritative result is produced
+judged application, and browser screenshots. A local run is advisory (it also reports `isolation: not enforced`,
+which is expected on your machine); the authoritative result is produced
 with `--policy-from <pristine release> --expected-release <pinned digest>` by the operator. `release_ready`
 additionally needs a signed human review (`gate/review.py`) that you cannot produce. Nothing else counts,
 including your own assessment of the code.
@@ -74,6 +75,12 @@ missing. Read `kernel/core/claims.json`: `scope.does_not_cover` and
   `data-testid` affordances must exist and behave as described; layout, framework and styling are yours.
   The gate drives W1–W6 and a replay in a real browser at desktop and mobile widths. The UI talks only to
   the API and shows only numbers the API returned.
+- Meet the interaction obligations I1–I6 in the same contract. The gate injects delayed, failed and lost
+  responses and checks the effect on the service. In practice: treat the account field as a draft; bind every
+  row and its actions to the account of the response that drew it; drop answers to superseded loads; keep a
+  received decision when the refresh after it fails and mark the figures stale; show `UNKNOWN` (no response)
+  and `REJECTED` (4xx) as outcomes distinct from a decision. `obligations/app/lib/pith-view.js` does all of
+  this and is optional; `examples/build-a` uses it, `examples/build-b` and the desks do it by hand.
 - Leave the evaluation table `(pending)`; approval comes only from an operator-signed attestation.
 - Adapter events must be hash-chained and every `op.committed` must carry `state_after` (see the sqlite
   profile and `gen/out/events.schema.json`); the monitor checks continuity, not just event atoms.

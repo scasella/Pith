@@ -9,7 +9,8 @@ ring 0  kernel/            Dafny spec + proof; translated core executed by the s
 ring 1  design/, adapter   TLA+ design (agent) against frozen obligations (CoreActions.tla, MC.tla); integration
                            judged black-box through the running service (obligations/service/lifecycle.py)
 ring 2  service/, gen/     API, events, monitor derived from the kernel by a reviewed generator; boundary harness
-ring 3  app/, ui/          prose spec (lint), UI contract, real-browser workflows; human review by attestation
+ring 3  app/, ui/          prose spec (lint), UI contract, real-browser workflows, interaction obligations under
+                           injected response faults; human review by attestation
 ```
 
 ## Why the judge is shaped like this
@@ -26,8 +27,34 @@ process, so the candidate controlled the evidence. The current judge therefore:
   launch are refusals or blockers, never passes;
 - reports three statuses and a `release_ready` flag rather than one word.
 
-A process boundary is not a sandbox. A hostile `service/run.py` runs as the judge's user; operational
-isolation (container, restricted user, network policy) is outside the repository and required for trust.
+- observes isolation instead of assuming it: a frozen probe runs under the candidate's identity before any
+  candidate code and reports what it can reach; release-readiness needs that probe to find nothing.
+
+A process boundary is not a sandbox. Until v0.5.0 a hostile `service/run.py` ran as the judge's user and
+operational isolation was left to the operator. v0.6.0 ships one supported profile (`obligations/isolation/`):
+a pinned container with no network, read-only policy and candidate mounts, the candidate's service and the
+browser as two separate unprivileged users, and resource limits. Outside it the judge still runs, labelled
+advisory, and reports what the candidate could reach.
+
+## The interface is a layer too
+
+The Club Desk / Office Desk review (`docs/VALIDATION.md`, v0.6.0) found two applications whose protected
+implementations were intact and whose proofs held, yet a displayed hold could release or capture a hold on a
+different account, and a successful authorization could be shown as an error after a failed refresh. The core's
+validity does not establish that the interface maps what the user selected to the operation it submits.
+
+For each protected behaviour the chain of confidence is:
+
+```text
+approved intent → precise obligation → abstract model → implementation and runtime assumptions
+    → observed operation, persistence, receipt and presentation → evidence for this artifact
+```
+
+v0.6.0 adds the last observable link for the reference domain: interaction obligations I1–I6
+(`obligations/app/UI-CONTRACT.md`), judged in a real browser through a judge-owned proxy that delays, fails or
+loses chosen responses. They are stated in observable terms (which account the submitted operation names, which
+account's figures are shown, what outcome the page claims) and judged from the service's own state. The known
+desk defects are kept as release fixtures (`examples/wrong/`) that must fail exactly those obligations.
 
 ## Why the obligations are shaped like this
 
