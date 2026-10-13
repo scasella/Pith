@@ -1,0 +1,258 @@
+# pack.yaml — the sliding-window quota contract pack (pith.quota). FROZEN (covered by frozen.sha256 and the release digest).
+#
+# A fourth pack, written by an author outside the three existing packs, from docs/PACK-AUTHORING.md and the RFCs,
+# without editing gate/. What it stresses that the others do not: the candidate delivers a LIBRARY (no service, no
+# port, no state directory, no crash/restart), time is an input with a half-open sliding window, and the
+# retry hint is an "earliest instant" (a minimality obligation). Friction met on the way: AUTHORING-NOTES.md.
+# Build the release with `python3 gate/release.py build --pack packs/quota`.
+
+format: pith.pack/v1
+pack:
+  id: pith.quota
+  version: 0.1.0
+  title: Sliding-window quotas (half-open windows, exact retry hints, a caller-supplied clock) delivered as a Python or Node.js library
+  contract_version: sliding-window-quota/v1
+  intent: packs/quota/INTENT.md
+  maintainers: [outside-author]
+
+policy_dirs: [spec, harness, delivery]                           # frozen pack content; the evaluator adds gate/ and this file
+
+candidate:
+  owned_dirs: [lib]                                              # plus app.manifest.yaml
+  manifest_allowlist: [name, runtime]
+  runtimes: [python, node]                                       # what the candidate's code runs on (recorded in the isolation scope)
+
+tools:
+  DAFNY: { env: DAFNY, default: dafny }
+
+toolchain:
+  dafny: { command: "{DAFNY} --version" }
+  node: { command: "node --version" }
+  hypothesis: { python_package: hypothesis }
+  dafny_runtime: { python_package: DafnyRuntimePython }
+
+pytest: "{python} -m pytest -q -p no:cacheprovider --noconftest -c /dev/null --rootdir={root}"
+
+statuses:
+  contract_assurance:             # about the pack, not the candidate: the same for every candidate of this release
+    rule: all_pass
+    passed: >-
+      passed; scoped: the core proven against spec/QuotaSpec.dfy under spec/tcb.yaml, every known-wrong core rejected by
+      the obligations it claims to break and told apart on a reviewed trace, the reviewed traces hold for the core, and
+      the Python oracle is the translator's output
+    ready: { startswith: passed }
+  behavioral_assurance:
+    rule: all_pass
+    passed: >-
+      passed; scoped: the library not falsified by the frozen black-box lifecycle, boundary and conformance harnesses
+      against the verified core's translation (by test, not proof; run through frozen driver programs as the candidate)
+    ready: { startswith: passed }
+  application_delivery:
+    rule: from_check
+    check: delivery
+    ready: { equals: passed }
+refusal_status: behavioral_assurance          # evaluator checks; a failing pack check refuses the status it contributes to
+completion_status: application_delivery
+
+preflight:
+  - id: runtime
+    area: policy
+    name: candidate runtime
+    kind: manifest_choice
+    key: runtime
+    default: python
+    choices:
+      python: " (lib/limiter.py, imported by the pack's driver under the judge's Python)"
+      node: " (lib/limiter.mjs, imported by the pack's driver under the judge's Node.js)"
+    claim: "runtime = {value}{note}"
+    why: runtime must be python or node
+    status: behavioral_assurance
+    method: policy
+
+checks:
+  # ---- the contract (pack content: evidence about the release, reusable across candidates) ----
+  - id: core.tcb
+    area: contract
+    name: core stays inside the trusted base
+    kind: source_rules
+    file: spec/QuotaCore.dfy
+    forbid_lines: ['\bassume\b', '\{:axiom\}', '\{:verify\s+false\}', '\{:extern', 'decreases\s+\*', '\bexpect\b', '\{:only\}|\{:focus\}']
+    claim: "spec/QuotaCore.dfy uses none of spec/tcb.yaml:banned_in_core"
+    why: "banned constructs: {lines}"
+    status: contract_assurance
+    method: structural
+    inputs: ["spec/**"]
+
+  - id: core.verify
+    area: contract
+    name: core verified against the contract
+    kind: command
+    command: "{DAFNY} verify spec/QuotaCore.dfy"
+    count: 'finished with (\d+) verified'
+    claim: "Acquire and Peek proven to refine the spec's traits: Q0 preserved, Q1-Q5, WINDOW, CLOCK ({count} verified)"
+    status: contract_assurance
+    method: proof
+    inputs: ["spec/**"]
+    tools: [dafny]
+    cacheable: true
+    depends_on: [core.tcb]
+    establishes: [Q0, Q1, Q2, Q3, Q4, Q5, WINDOW, CLOCK]
+    assumptions: spec/tcb.yaml
+
+  - id: core.adequacy
+    area: contract
+    name: "the contract rejects {item}"
+    kind: command
+    each: { glob: "spec/wrong/*.dfy" }
+    command: "DAFNY={DAFNY} {python} harness/adequacy.py {item}"
+    claim: "known-wrong core {item} fails to verify only on the obligations it claims to break, and gives a different decision on its reviewed trace"
+    status: contract_assurance
+    method: proof
+    inputs: ["spec/**", "harness/adequacy.py"]
+    tools: [dafny]
+    cacheable: true
+    depends_on: [core.verify]
+
+  - id: core.traces
+    area: contract
+    name: reviewed traces
+    kind: command
+    command: "T=$(mktemp -d) && {DAFNY} test --target py --output $T/traces spec/traces.dfy; c=$?; rm -rf $T; exit $c"
+    count: 'traces: (\d+) hold'
+    claim: "the {count} accepting and rejecting traces in spec/TraceData.dfy give, step by step, the decisions the author worked out by hand, against the verified core"
+    status: contract_assurance
+    method: test
+    inputs: ["spec/**"]
+    tools: [dafny]
+    cacheable: true
+    depends_on: [core.verify]
+
+  - id: oracle.translation
+    area: contract
+    name: Python oracle reproduced
+    kind: regenerated
+    command: "DAFNY={DAFNY} {python} harness/translate.py"
+    files: [harness/oracle-py/QuotaCore.py, harness/oracle-py/QuotaSpec.py, harness/oracle-py/module_.py, harness/oracle-py/__main__.py, harness/oracle-py/oracle-py.dtr]
+    claim: the Python oracle the harnesses judge against is byte-identical to dafny translate py of the verified core
+    why: "differs from the translator's output: {drift}"
+    status: contract_assurance
+    method: structural
+    inputs: ["spec/**", "harness/translate.py", "harness/oracle-py/**"]
+    tools: [dafny]
+    cacheable: true
+    depends_on: [core.verify]
+
+  # ---- the candidate's library, black-box ----
+  - id: library.entrypoint.python
+    area: library
+    name: library entrypoint
+    kind: files_present
+    when: { manifest: { runtime: python } }
+    files: [lib/limiter.py]
+    claim: lib/limiter.py present (imported only by the pack's driver, in a separate process run as the candidate)
+    why: lib/limiter.py missing
+    status: behavioral_assurance
+    method: structural
+    inputs: ["lib/**"]
+
+  - id: library.entrypoint.node
+    area: library
+    name: library entrypoint
+    kind: files_present
+    when: { manifest: { runtime: node } }
+    files: [lib/limiter.mjs]
+    claim: lib/limiter.mjs present (imported only by the pack's driver, in a separate process run as the candidate)
+    why: lib/limiter.mjs missing
+    status: behavioral_assurance
+    method: structural
+    inputs: ["lib/**"]
+
+  - id: library.lifecycle
+    area: library
+    name: lifecycle harness (black-box)
+    kind: command
+    command: "{pytest} harness/lifecycle.py"
+    count: '(\d+) passed'
+    claim: "through the library: the reviewed traces, the half-open window at every boundary, no window over the limit, independent limiters, dump/load carrying the clock and every live grant, regressions without effect, no wall-clock dependence, threads sharing one limiter, extreme values ({count} checks)"
+    status: behavioral_assurance
+    method: test
+    inputs: ["lib/**", "app.manifest.yaml", "harness/**", "spec/TraceData.dfy"]
+    depends_on: [library.entrypoint.python, library.entrypoint.node, oracle.translation, core.traces]
+    establishes: [InstanceIsolation, Persistence, Atomicity, Determinism]
+
+  - id: library.boundary
+    area: library
+    name: boundary harness (black-box)
+    kind: command
+    command: "{pytest} harness/boundary.py"
+    count: '(\d+) passed'
+    claim: "malformed configurations, keys, costs, instants and dump texts refused as InvalidArgument without effect on the log or the clock; arguments checked before the clock; the decision types ({count} checks)"
+    status: behavioral_assurance
+    method: test
+    inputs: ["lib/**", "app.manifest.yaml", "harness/**"]
+    depends_on: [library.lifecycle]
+    establishes: [BoundaryConformance]
+
+  - id: library.conformance
+    area: library
+    name: conformance to the verified core
+    kind: command
+    command: "{pytest} harness/conformance.py"
+    count: '(\d+) passed'
+    claim: "200 generated call sequences with regressions and dump/load round trips: every decision, remaining count, retry hint and error equal the verified core's (property-based, black-box)"
+    status: behavioral_assurance
+    method: test
+    inputs: ["lib/**", "app.manifest.yaml", "harness/**", "spec/**"]
+    tools: [hypothesis, dafny_runtime]
+    depends_on: [core.verify, oracle.translation, library.lifecycle]
+    establishes: [CoreConformance]
+
+  # ---- the application: what a programmer using the library gets ----
+  - id: delivery
+    area: delivery
+    name: application delivery (library consumers)
+    kind: adapter
+    adapter: delivery/delivery_adapter.py
+    claims_key: delivery_detail
+    blocking: false
+    status: application_delivery
+    method: test
+    inputs: ["lib/**", "app.manifest.yaml", "harness/**", "delivery/**"]
+    depends_on: [library.lifecycle, library.boundary]
+    establishes: [LW1, LW2, LW3, LW4, LI1, LI2, LI3]
+
+contracts:
+  - { id: Q0, version: 1, intent: "In every window of the configured length, at every instant, no key is granted more than the limit.", semantics: { dafny: "spec/QuotaSpec.dfy WindowSafe [Q0]" },
+      timing: "invariant of every reachable state, quantified over all instants, not only those a call named",
+      verified_by: [core.verify, library.lifecycle, library.conformance], wrong: [spec/wrong/fixed_window.dfy, spec/wrong/denied_counted.dfy, packs/quota/examples/wrong/fixed-window], change: behavioral }
+  - { id: WINDOW, version: 1, intent: "The window ending at t is (t - window, t]: a grant stops counting at exactly its instant plus the window.", semantics: { dafny: "spec/QuotaSpec.dfy Counts [WINDOW]" },
+      verified_by: [core.verify, core.traces, library.lifecycle], examples: [spec/TraceData.dfy T1_GrantExpiresExactlyOneWindowLater], wrong: [spec/wrong/closed_window.dfy, packs/quota/examples/wrong/closed-window], change: behavioral }
+  - { id: Q1, version: 1, intent: "A request is granted exactly when it fits in the sliding window: no needless denial.", semantics: { dafny: "spec/QuotaSpec.dfy Acquirer [Q1]" }, timing: "against the state left by the previous call",
+      verified_by: [core.verify, library.conformance], wrong: [spec/wrong/fixed_window.dfy, spec/wrong/closed_window.dfy], change: behavioral }
+  - { id: Q2, version: 1, intent: "A grant records exactly itself; a denial consumes nothing.", semantics: { dafny: "spec/QuotaSpec.dfy Acquirer [Q2]" },
+      verified_by: [core.verify, core.traces, library.conformance], examples: [spec/TraceData.dfy T3_DenialsConsumeNothing], wrong: [spec/wrong/denied_counted.dfy], change: behavioral }
+  - { id: Q3, version: 1, intent: "remaining is what is left after the decision.", semantics: { dafny: "spec/QuotaSpec.dfy Acquirer [Q3]" }, verified_by: [core.verify, library.conformance], change: behavioral }
+  - { id: Q4, version: 1, intent: "A denial's retry hint is the earliest instant at which the same request would be granted; none when it can never fit.", semantics: { dafny: "spec/QuotaSpec.dfy Acquirer FitsAfter [Q4]" },
+      timing: "if nothing else is granted to the key meanwhile",
+      verified_by: [core.verify, core.traces, library.conformance, delivery], examples: [spec/TraceData.dfy T4_RetryWaitsUntilEnoughHasExpired], wrong: [spec/wrong/retry_after_oldest.dfy], change: behavioral }
+  - { id: Q5, version: 1, intent: "A peek reports what is left and grants nothing.", semantics: { dafny: "spec/QuotaSpec.dfy Peeker [Q5]" }, verified_by: [core.verify, library.conformance], change: behavioral }
+  - { id: CLOCK, version: 1, intent: "The clock never runs backwards; a call naming an earlier instant raises ClockRegression and changes nothing.", semantics: { dafny: "spec/QuotaSpec.dfy [CLOCK]", markdown: "harness/LIBRARY.md § The semantics" },
+      verified_by: [core.verify, core.traces, library.lifecycle, library.conformance], change: behavioral }
+  - { id: InstanceIsolation, version: 1, intent: "Separate limiters, and separate keys, are independent quotas.", semantics: { python: "harness/lifecycle.py test_limiters_are_independent" },
+      verified_by: [library.lifecycle], wrong: [packs/quota/examples/wrong/shared-state], change: integration }
+  - { id: Persistence, version: 1, intent: "dump/load carries configuration, clock and every grant that can still count.", semantics: { markdown: "harness/LIBRARY.md § The semantics" }, timing: "from the dump, for every later sequence of calls",
+      verified_by: [library.lifecycle, library.conformance, delivery], change: integration }
+  - { id: Atomicity, version: 1, intent: "A Python limiter shared by threads decides each call against the state left by the calls before it.", semantics: { python: "harness/lifecycle.py test_one_limiter_shared_by_threads_grants_exactly_the_limit" },
+      assumptions: ["Node.js: run-to-completion of a synchronous call (spec/tcb.yaml)"], verified_by: [library.lifecycle], wrong: [packs/quota/examples/wrong/unlocked], change: integration }
+  - { id: Determinism, version: 1, intent: "Decisions depend only on the calls, never on the wall clock.", semantics: { python: "harness/lifecycle.py test_decisions_do_not_depend_on_the_wall_clock" }, verified_by: [library.lifecycle], change: integration }
+  - { id: BoundaryConformance, version: 1, intent: "Malformed arguments raise InvalidArgument and change nothing.", semantics: { markdown: "harness/LIBRARY.md § Values" }, verified_by: [library.boundary], change: integration }
+  - { id: CoreConformance, version: 1, intent: "The library gives the verified core's decisions for the same calls.", semantics: { python: "harness/conformance.py" }, verified_by: [library.conformance], change: integration }
+  - { id: LW1, version: 1, intent: "The documented examples run as written.", semantics: { yaml: "delivery/delivery.yaml LW1" }, verified_by: [delivery], change: presentation }
+  - { id: LW2, version: 1, intent: "Waiting exactly retry_after is enough.", semantics: { yaml: "delivery/delivery.yaml LW2" }, verified_by: [delivery], change: presentation }
+  - { id: LW3, version: 1, intent: "Errors are handleable through one base class and name what was wrong.", semantics: { markdown: "delivery/CONSUMER-CONTRACT.md LW3" }, verified_by: [delivery], wrong: [packs/quota/examples/wrong/flat-errors], change: presentation }
+  - { id: LW4, version: 1, intent: "State handed to another process continues there.", semantics: { markdown: "delivery/CONSUMER-CONTRACT.md LW4" }, verified_by: [delivery], change: presentation }
+  - { id: LI1, version: 1, intent: "Importing is silent.", semantics: { markdown: "delivery/CONSUMER-CONTRACT.md LI1" }, verified_by: [delivery], change: presentation }
+  - { id: LI2, version: 1, intent: "Decisions are values.", semantics: { markdown: "delivery/CONSUMER-CONTRACT.md LI2" }, verified_by: [delivery], change: presentation }
+  - { id: LI3, version: 1, intent: "Retained state follows the window, not the history.", semantics: { markdown: "delivery/CONSUMER-CONTRACT.md LI3" }, verified_by: [delivery], wrong: [packs/quota/examples/wrong/never-prunes], change: presentation }
+
+domain_vocabulary: [quota, limiter, QuotaSpec, QuotaCore, TraceData, retry_after, retryAfter, ClockRegression, sliding window, lib/limiter, oracle-py, spec/wrong, harness/, delivery/]

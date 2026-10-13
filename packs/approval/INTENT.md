@@ -11,11 +11,18 @@ draft → in review → approved → published, or is rejected; any edit starts 
 
 - **Separation of duties.** Nobody approves or rejects a revision they wrote. Separation is per revision: the
   author of revision 1 may approve revision 2 written by someone else. [A1]
-- **Roles.** Only editors create and edit, only approvers approve or reject, only publishers publish. [A2]
+- **Roles.** Only editors create and edit, only approvers approve or reject, only publishers publish. Any editor
+  may edit any document that is not published, and becomes the author of the revision they write. [A2]
+- **Only the author of the current revision submits it for review.** After someone else edits a document, its
+  creator can no longer submit it: the new revision is the editor's. [A8]
 - **Approvals are bound to a revision.** An approval counts for the revision it named and no other. After an edit,
-  earlier approvals stay in the history and never count again; a command naming a superseded revision is refused as
-  `STALE_REVISION`, not applied to the new one. A document is approved only when **two** distinct approvers, neither
-  of them its author, approved its current revision. [A3] [A4]
+  earlier approvals stay in the history and never count again; a command naming any revision other than the current
+  one (a superseded one, or one that does not exist yet) is refused as `STALE_REVISION`, not applied to the current one. A document is approved only when **two** distinct approvers, neither
+  of them its author, approved its current revision. An approver who already approved the current revision is
+  refused (`ALREADY_APPROVED`): a repeat never counts twice. [A3] [A4]
+- **After approval or rejection.** An approved revision can only be published, or superseded by an edit; it can no
+  longer be approved or rejected. A rejected revision cannot be resubmitted: it must be edited into a new revision,
+  which is then reviewed from the start.
 - **Published is final.** A published document never changes again, and only an approved revision is published. [A5] [A6]
 - **Revisions only grow**, and each revision keeps its author. [A7]
 - **A refusal changes nothing and says which rule refused it**, in a fixed precedence (harness/SERVICE.md § Refusals).

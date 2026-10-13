@@ -57,9 +57,9 @@ jobs:
         with: { name: evidence, path: "${{ runner.temp }}/ev-*\n${{ runner.temp }}/wrong-*", retention-days: 14 }
 
   packs:
-    # M3: the booking and approval packs, judged by the same evaluator as the reservation pack (docs/rfc/0002-generality.md)
+    # M3: the booking, approval and quota packs, judged by the same evaluator as the reservation pack (docs/rfc/0002-generality.md)
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -80,7 +80,7 @@ jobs:
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: each pack's release identity matches its seal, and a built release has the same identity
         run: |
-          for pk in packs/booking packs/approval; do
+          for pk in packs/booking packs/approval packs/quota; do
             id="$(python3 gate/release.py id --pack $pk)"
             test "$id" = "$(python3 -c "import json;print(json.load(open('$pk/release.seal.json'))['release_digest'])")"
             out="$RUNNER_TEMP/rel-$(basename $pk)"; python3 gate/release.py build --pack $pk --out "$out" >/dev/null
@@ -104,12 +104,20 @@ jobs:
           done
       - name: approval pack known-wrong apps are refused for exactly their defects
         run: python3 validation/judge_wrong.py --pack packs/approval "$RUNNER_TEMP"
-      - name: one evaluator, three packs (M3 exit check)
+      - name: quota pack examples (an outside author's library pack, Python and Node.js)
+        run: |
+          set -o pipefail
+          for ex in sliding-log-py tally-node; do
+            validation/judge_example.sh --pack packs/quota "packs/quota/examples/$ex" "$RUNNER_TEMP/ev-quota-$ex" | tail -1
+          done
+      - name: quota pack known-wrong apps are refused for exactly their defects
+        run: python3 validation/judge_wrong.py --pack packs/quota "$RUNNER_TEMP"
+      - name: one evaluator, four packs (M3 exit check)
         run: |
           set -o pipefail
           validation/judge_example.sh examples/build-a "$RUNNER_TEMP/ev-reservation-build-a" | tail -1
           validation/judge_example.sh examples/club-desk "$RUNNER_TEMP/ev-reservation-club-desk" | tail -1
-          python3 validation/generality.py "$RUNNER_TEMP"/ev-reservation-* "$RUNNER_TEMP"/ev-booking-* "$RUNNER_TEMP"/ev-approval-*
+          python3 validation/generality.py "$RUNNER_TEMP"/ev-reservation-* "$RUNNER_TEMP"/ev-booking-* "$RUNNER_TEMP"/ev-approval-* "$RUNNER_TEMP"/ev-quota-*
       - uses: actions/upload-artifact@v7
         if: always()
         with: { name: evidence-packs, path: "${{ runner.temp }}/ev-*\n${{ runner.temp }}/wrong-*", retention-days: 14 }

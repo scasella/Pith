@@ -45,6 +45,13 @@ in this order: `ROLE` (the actor lacks the role), `STALE_REVISION` (the command 
 (approve or reject by the current revision's author), `ALREADY_APPROVED`. A refusal changes nothing, is recorded,
 and is replayed like any other result. (`edit` names no revision; `create` can only be refused for `ROLE`.)
 
+The order is a layering, from the caller outwards: who is asking (`ROLE`), which revision they mean
+(`STALE_REVISION`), whether the document is in a state where the command means anything at all (`WRONG_STATE`),
+and only then the rules about this actor and this revision (`NOT_AUTHOR`, `SEPARATION_OF_DUTIES`) and the vote
+history (`ALREADY_APPROVED`). So the same self-approval is `WRONG_STATE` while the document is a draft and
+`SEPARATION_OF_DUTIES` once it is in review: the first tells the caller the command cannot apply yet, the second
+that it never will for them. `model/traces.yaml` T8 and T11 pin every adjacent pair.
+
 ## Endpoints
 
 | Method and path | Body | Success |

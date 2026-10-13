@@ -41,6 +41,9 @@ def test_half_open_intervals_conflicts_and_independent_resources(svc):
     assert c.book(1, 7, 700, 700)[1]["outcome"] == "INVALID" and c.book(1, 8, 710, 700)[1]["outcome"] == "INVALID"
     assert c.book(2, 9, 600, 660)[1]["outcome"] == "ACCEPTED"                      # another resource is independent
     assert active(c, 1) == [(1, 600, 660), (2, 660, 720), (3, 540, 600)] and active(c, 2) == [(9, 600, 660)]
+    r = c.book(2, 11, 659, 720)[1]; assert r["outcome"] == "CONFLICT" and r["conflicts_with"] == 9   # a one-minute overlap conflicts
+    r = c.book(2, 12, 540, 601)[1]; assert r["outcome"] == "CONFLICT" and r["conflicts_with"] == 9
+    assert c.book(2, 13, 660, 661)[1]["outcome"] == "ACCEPTED"                     # one minute is the shortest booking
     assert c.book(99, 10, 0, 10)[0] == 404
 
 

@@ -58,6 +58,21 @@ candidate's user, waits for readiness, and can SIGKILL and restart it on the sam
 program with `gate/sandbox.py:run_as_candidate_full`. If a runtime needs a resource limit lifted (Node.js and
 `RLIMIT_AS`), pass a `limits` override; say why in a comment. The harness must never import candidate code.
 
+What a harness author needs to know before writing one:
+
+- `command` checks run as the **judge's** user, with `{python}` = the judge's `sys.executable -I`, and a 900 s
+  timeout per command. A pytest harness therefore runs as the judge and must start candidate code itself.
+- The candidate's environment is scrubbed to `PATH HOME LANG LC_ALL TMPDIR`.
+- **No service?** A library, CLI or batch pack runs each candidate program through `run_as_candidate_full`, which
+  returns exit code, stdout and stderr; there is no stdin, so pass input as arguments (bounded by the kernel's
+  128 KiB per argument). `packs/quota/` drives a library this way with frozen driver programs that import it; its
+  split between behavioural assurance (what the library decides) and delivery (frozen consumer programs) is one
+  way to draw the line.
+- `INTENT.md` is outside `policy_dirs` in every pack so far, so it is reviewed prose but not frozen: a change to it
+  does not change the release digest.
+- `domain_free.py` matches contract ids case-sensitively and vocabulary as substrings: an id such as `Isolation`, or
+  a word such as `limit`, collides with the evaluator's own words. Pick ids and terms that are specific to the domain.
+
 ## 5. Prove the pack rejects what it should
 
 - **Wrong designs** next to the oracle (`spec/wrong/`, `model/wrong/`), each with one defect, each checked to fail.
@@ -65,8 +80,10 @@ program with `gate/sandbox.py:run_as_candidate_full`. If a runtime needs a resou
   `expected.yaml` naming exactly where each is refused (`refused_at` + `failing_tests`) or which delivery
   obligations it fails (`must_fail`).
 - **Traces** for review: concrete accepting and rejecting cases a reader can check against `INTENT.md` by hand,
-  run on every judge, each wrong design differing from the oracle on at least one. Have someone other than the
-  person who wrote the formal statements read them before you seal.
+  run on every judge, each wrong design differing from the oracle on at least one. Make that last part a check, not a
+  comment (`packs/quota/harness/adequacy.py` runs each wrong core on its named trace; a wrong design that merely fails
+  to verify may be failing for an unrelated reason). Have someone other than the person who wrote the formal
+  statements read them before you seal.
 
 ## 6. Seal and validate
 

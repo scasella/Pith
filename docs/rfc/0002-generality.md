@@ -30,8 +30,8 @@ the same.
 | Delivery | browser page (W1–W6, I1–I6) | browser page (BW1–BW6, BI1–BI3) | command-line client (AW1–AW5, AI1–AI3), no browser |
 | Human evaluation | yes (E1–E3) | yes (BE1–BE2) | none |
 | Statuses | behavioral_assurance, application_delivery, human_approval | the same three | model_assurance, behavioral_assurance, application_delivery |
-| Wrong candidates | 2 wrong applications + a 19-case matrix | 6 wrong cores + 4 wrong applications | 3 wrong designs + 3 wrong applications |
-| Accepting/rejecting traces | `obligations/design` coverage, kernel adequacy | `spec/traces.dfy` T1–T8 | `model/traces.yaml` T1–T8 |
+| Wrong candidates | 2 wrong applications + a 19-case matrix | 8 wrong cores + 4 wrong applications | 8 wrong designs + 3 wrong applications |
+| Accepting/rejecting traces | `obligations/design` coverage, kernel adequacy | `spec/traces.dfy` T1–T11 | `model/traces.yaml` T1–T11 |
 
 The approval pack differs from the other two on every axis the evaluator could have quietly depended on: no
 Dafny, no core shipped to the candidate, a different oracle language driving the service conformance, no
@@ -58,7 +58,7 @@ the frozen list it carries) is identical in every run, which `validation/general
 ## 4. What the new packs needed from the evaluator
 
 Every change is listed with the pack need that forced it. None names a domain: `validation/domain_free.py` now
-scans `gate/` for the vocabulary, contract ids and check ids of all three packs.
+scans `gate/` for the vocabulary, contract ids and check ids of every pack.
 
 | Change | Needed by | Why the existing evaluator did not fit |
 |---|---|---|
@@ -71,12 +71,32 @@ scans `gate/` for the vocabulary, contract ids and check ids of all three packs.
 | `gate/browser.py` (launch options, browser user, containment) | booking | the containment condition lived in the reservation adapter; the booking adapter needed the same rule, and a rule about the judge's own browser is the evaluator's |
 | isolation scope names `candidate.runtimes` | booking, approval | the scope text said the candidate runs on "the judge's pinned Python"; Node is now a candidate runtime |
 | exit code from `ready(completion_status)` | approval | the judge compared the completion status to the literal `"passed"` instead of the pack's own `ready` condition |
+| `tlc` `expect: {violated: X}` also accepts an action property | approval (after the trace review) | known-wrong designs that break a temporal property (`PublishedIsFinal`, `PublishOnlyApproved`, `RevisionsGrow`, `ApprovalsGrow`) could only be shown to break some invariant instead |
 | a blocking failure refuses the status its check contributes to | approval | only `refusal_status` could read `refused`, so a failing model check would have been reported against `behavioral_assurance` |
 
 What needed **no** change: the `tlc` kind (the approval pack's model, adequacy designs and refinement all use it
 or `command`), `adapter` (a CLI adapter returns the same shape as a browser adapter), `attestation` (the approval
 pack simply has none), `all_pass`/`from_check` statuses, contract records, evidence keys, invalidation and reuse,
 the in-toto statement, the frozen-file and seal checks, the isolation probe.
+
+**The fourth pack, by an outside author, needed none.** `packs/quota/` (sliding-window quotas delivered as a
+library, Python or Node.js, with no service) was written by a separate agent from the docs and the existing packs,
+starting from the M3 tree, with no edits to `gate/`, `validation/` or any other pack. Its friction log is
+`packs/quota/AUTHORING-NOTES.md`. It wanted five additions and worked around each inside the pack; none is a
+rewrite, and they are the open list for the evaluator:
+
+| Wanted | Workaround in the pack |
+|---|---|
+| a `Supervised` mode for a long-lived driver on stdin/stdout with line readiness | one short `run_as_candidate_full` process per program (about 50 ms each) |
+| `stdin` for `run_as_candidate_full` | input as a JSON argument; state handed from one consumer's stdout to the next one's arguments |
+| a helper for a directory the candidate may write, outside `Supervised` | the same stdout-to-argument hand-over, rather than copying the `chown` logic into the pack |
+| a way to say *why* a command must fail (`expect_exit: nonzero` accepts a type error) | `harness/adequacy.py`: only postconditions may fail, one per claimed obligation, and the wrong core must differ on its named trace |
+| `source_rules` over a glob | determinism tested behaviourally instead of by source scan |
+
+Its documentation gaps (no guidance for a pack without a service; the judge's user, environment and timeout for
+harness commands; `judge_wrong.py` hardcoding the status names `behavioral_assurance` and `application_delivery`
+and dropping pytest parameters; `domain_free.py` false positives; `INTENT.md` not frozen) are answered in
+`docs/PACK-AUTHORING.md` § 4 where they are documentation, and left open where they are code.
 
 The reservation pack is judged with the same scoped results as the v0.6.0 judge after these changes
 (`validation/compare_m1.py`, CI).
@@ -89,8 +109,9 @@ A TLA+ spec is not. The approval pack bridges the gap in two steps, both checked
 1. `harness/reference.py` writes the same transition system as a Python function, adding only what the service
    contract needs and the model does not (unbounded revisions, the reason for a refusal).
    `harness/refines.py` runs TLC with `-dump dot,actionlabels`, rebuilds the complete reachable graph of the
-   reference from the same constants, and requires the same initial states, the same 1314 reachable states and the
-   same 1602 labelled transitions. A one-line mutation of the reference fails it.
+   reference from the same constants, and requires the same initial states, the same 1898 reachable states and the
+   same 2330 labelled transitions. Every state carries the model's history variable `last` (who did the step), so
+   a reference that lets the wrong actor act fails it, as does a one-line mutation of the reference.
 2. `harness/conformance.py` (Hypothesis) drives the running service and the reference with the same generated
    commands by every actor, and requires the same outcome, reason and resulting document each time.
 
@@ -118,15 +139,16 @@ different human output and different request-id generation (`approvals-py`, `app
 
 | Criterion | State |
 |---|---|
-| Three structurally different domains on the same evaluator | **Met.** `validation/generality.py`: one evaluator digest over runs of all three packs; CI job `packs`. |
+| Three structurally different domains on the same evaluator | **Met.** `validation/generality.py`: one evaluator digest over runs of all four packs; CI job `packs`. |
 | Application variation | **Met** in both new packs (§ 6). |
 | Implementation variation with its own evidence | **Met**: booking's Node.js profile on the JavaScript translation, booking's custom store, approval's two stacks (§ 6). |
-| Formalization review: authors review accepting and rejecting traces before sealing | **Built, not done.** `packs/booking/spec/traces.dfy` and `packs/approval/model/traces.yaml` run on every judge (`core.traces`, `model.traces`), and each wrong design differs from the spec on a named trace. The traces were drafted by the same agent that wrote the packs; a human author has **not** yet reviewed them. Until someone does, the packs are sealed for evaluation, not for release. `python3 packs/approval/harness/traces.py --markdown` prints the approval traces for review. |
-| Independent authorship: a pack written by someone other than the principal maintainer, without editing the evaluator | **Not met.** All three packs were written in the maintainer's repository by the same author. What it depends on exists: the pack format (RFC 0001), the authoring guide (`docs/PACK-AUTHORING.md`), `gate/release.py build --pack`, `judge_example.sh --pack`, `judge_wrong.py --pack`, `domain_free.py`. The test of the abstraction is an outside author doing this and reporting what they had to change. |
+| Formalization review: authors review accepting and rejecting traces before sealing | **Met by an independent agent reviewer; no human review yet.** `packs/booking/spec/traces.dfy` and `packs/approval/model/traces.yaml` run on every judge (`core.traces`, `model.traces`). A separate agent that had not written the packs reviewed every trace against INTENT.md alone, derived each outcome by hand, and wrote mutants the traces should catch: `docs/reviews/m3-trace-review.md`. Both packs came back "accept with changes"; all 15 findings were applied (new traces T9–T11 in both packs, a history variable `last` in the approval model so actors are compared, four more invariants, an action property, five more wrong designs, two more wrong cores, one-minute nudges in booking conformance), and every reviewer mutant is now caught. The reviewer is an agent, not the pack's human owner; a human sign-off is still the release condition. `python3 packs/approval/harness/traces.py --markdown` prints the approval traces for review. |
+| Independent authorship: a pack written by someone other than the principal maintainer, without editing the evaluator | **Met by an independent agent author; no human author yet.** `packs/quota/` was written from the docs by a separate agent, with no edits to `gate/`; it seals, both examples reach every status, all six wrong applications are refused for exactly their defect, and its runs share the evaluator digest of the other packs (`validation/generality.py`, CI). It reported five wanted additions and no needed rewrite (§ 4). The author is an agent working in the maintainer's environment, not an outside person. |
 
-The roadmap's exit gate ("independent authors identify no need to rewrite its internals") is therefore not
-passed. § 4 is the record of where the abstraction did not fit for this author; an independent author's list is
-the evidence M3 still needs.
+The roadmap's exit gate ("independent authors identify no need to rewrite its internals") is passed for an
+independent agent: the quota author changed nothing in `gate/` and listed additions, not rewrites (§ 4). It is not
+yet passed for a human: neither the traces nor a pack have been reviewed or written by a person other than the
+maintainer, and that remains the condition for calling the packs release-ready.
 
 ## 8. Limits
 

@@ -15,11 +15,12 @@
 - id: T3_separation_is_per_revision
   says: alice wrote revision 1, bob wrote revision 2; alice may approve revision 2 and bob may not
   steps: ["alice create => OK", "bob edit => OK", "bob submit 2 => OK", "bob approve 2 => SEPARATION_OF_DUTIES", "alice approve 2 => OK", "carol approve 2 => OK"]
-  end: { status: approved, revision: 2, current_votes: [alice, carol] }
+  end: { status: approved, revision: 2, current_votes: [alice, carol], authors: [alice, bob] }
 - id: T4_an_edit_discards_the_quorum                  # model/wrong/WrongStaleApprovals.tla, examples/wrong/stale-approvals-counted approve after one new vote
   says: two approvals of revision 1, then an edit; revision 2 needs two approvals of its own
   steps: ["alice create => OK", "alice submit 1 => OK", "bob approve 1 => OK", "carol approve 1 => OK", "alice edit => OK", "alice submit 2 => OK", "bob approve 2 => OK"]
-  end: { status: in_review, revision: 2, current_votes: [bob] }
+  end: { status: in_review, revision: 2, current_votes: [bob], authors: [alice, alice],
+         approvals: [{revision: 1, actor: bob}, {revision: 1, actor: carol}, {revision: 2, actor: bob}] }   # model/wrong/WrongEditClearsHistory.tla drops the revision-1 pairs
 - id: T5_stale_revision_is_refused_not_redirected
   says: an approval that names a superseded revision is refused; it does not count for the new one
   steps: ["alice create => OK", "alice submit 1 => OK", "bob edit => OK", "carol approve 1 => STALE_REVISION", "bob submit 2 => OK", "carol approve 2 => OK"]
@@ -37,3 +38,20 @@
   steps: ["carol create => ROLE", "alice create => OK", "dave approve 1 => ROLE", "carol approve 9 => STALE_REVISION", "bob submit 1 => NOT_AUTHOR",
           "alice submit 1 => OK", "bob approve 1 => OK", "bob approve 1 => ALREADY_APPROVED", "carol reject 1 => OK"]
   end: { status: rejected, revision: 1, current_votes: [bob] }
+- id: T9_reject_publish_and_edit_need_their_rule      # model/wrong/WrongSelfReject.tla accepts alice's reject; WrongAnyonePublishes accepts bob's publish
+  says: the author cannot reject their own revision; a non-editor cannot edit; a non-publisher cannot publish; an approved document cannot be rejected
+  steps: ["alice create => OK", "carol edit => ROLE", "alice submit 1 => OK", "alice reject 1 => SEPARATION_OF_DUTIES",
+          "bob approve 1 => OK", "carol approve 1 => OK", "bob publish 1 => ROLE", "carol reject 1 => WRONG_STATE", "dave publish 1 => OK"]
+  end: { status: published, revision: 1, current_votes: [bob, carol] }
+- id: T10_rejected_must_be_revised
+  says: a rejected revision cannot be resubmitted; an edit starts a new revision that can be reviewed
+  steps: ["alice create => OK", "alice submit 1 => OK", "bob reject 1 => OK", "alice submit 1 => WRONG_STATE",
+          "alice edit => OK", "alice submit 2 => OK", "bob approve 2 => OK"]
+  end: { status: in_review, revision: 2, current_votes: [bob] }
+- id: T11_precedence_pairs
+  says: each adjacent pair of the refusal order (harness/SERVICE.md § Refusals), with both rules applying
+  steps: ["alice create => OK", "dave approve 9 => ROLE",                                   # ROLE before STALE_REVISION
+          "alice approve 1 => WRONG_STATE",                                                  # WRONG_STATE before SEPARATION_OF_DUTIES
+          "alice submit 1 => OK", "bob submit 1 => WRONG_STATE",                             # WRONG_STATE before NOT_AUTHOR
+          "bob approve 1 => OK", "carol approve 1 => OK", "bob approve 1 => WRONG_STATE"]    # WRONG_STATE before ALREADY_APPROVED
+  end: { status: approved, revision: 1, current_votes: [bob, carol] }

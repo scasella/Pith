@@ -1,15 +1,17 @@
-# Validation record — Pith v0.8.0 (M3: three packs, one evaluator)
+# Validation record — Pith v0.8.0 (M3: four packs, one evaluator)
 
-Releases: reservation `0031cde0de9ec614db5c7e4d1fe220a93f1ba936ad005f31750a8b6d98c7ff0b`, booking
-`5c46b4c19b3d629b780458f8ac473a3e5c65a71c0b303f50631478bfe0113a49`, approval
-`7fb94ff09874a3aeafed8aea0fb2de8c4fa03b3e09a93f91369534a0eb456d72`. Local runs (advisory isolation, unsandboxed
+Releases: reservation `3286ed7e2257e2d6b93728e2fce0dd95e86eec4f1547f44bc6374fcb1d2c6119`, booking
+`a90e315748315501532551968263d46bb67019cec66bcadf140b7fdd0923331c`, approval
+`14d4b7a14b79144851fe7256ef33b3a63848b36ee48434bc75cc212eec61ab6c`, quota
+`3ea02abe4f896c56292c709feba4221b28435bee8fcd09e01b02d508ff78c82d`. Local runs (advisory isolation, unsandboxed
 browser) as for v0.7.0; CI runs the same steps (jobs `judge` and `packs`) and the enforced `isolated` run.
 
-### one evaluator, three packs (validation/generality.py)
-- 9 runs, 3 packs, one evaluator digest (`a084c3d6ae5993ff`) in every run's evidence.json
+### one evaluator, four packs (validation/generality.py)
+- 11 runs, 4 packs, one evaluator digest (`425c61dc6ab0fb76`) in every run's evidence.json
 - reservation: build-a, build-b (custom profile), club-desk, office-desk; booking: calendar-py (Python profile, 27
   checks), desk-node (Node.js profile on the JavaScript translation, 27), custom-py (own store, 26); approval:
-  approvals-py (Python + SQLite, 19), approvals-node (Node.js + journal, 19). Every mechanical status passed;
+  approvals-py (Python + SQLite, 19), approvals-node (Node.js + journal, 19); quota: sliding-log-py (Python library), tally-node (Node.js library).
+  Every mechanical status passed;
   human approval pending where the pack asks for it (the approval pack does not)
 
 ### the reservation pack keeps the M2 baseline (validation/compare_m1.py)
@@ -23,14 +25,22 @@ browser) as for v0.7.0; CI runs the same steps (jobs `judge` and `packs`) and th
   as `may_also_fail`); receipt-overwritten passes assurance and fails delivery on exactly BI1, BI2
 - approval: stale-approvals-counted and self-approval refused at `service.lifecycle` by exactly their tests;
   unknown-as-refused passes assurance and fails delivery on exactly AI1, AI2
-- pack adequacy, on every run: the six wrong booking cores fail to verify (`core.adequacy`); the three wrong
-  approval designs violate the invariant named for each (`model.adequacy.*`); `harness/refines.py` finds the
-  reference and the spec equal (1314 states, 1602 transitions) and detects a one-line mutation of the reference;
+- quota: fixed-window, closed-window, shared-state, unlocked refused at `library.lifecycle` by exactly their tests;
+  flat-errors and never-prunes pass assurance and fail delivery on exactly LW3 and LI3
+- pack adequacy, on every run: the eight wrong booking cores fail to verify (`core.adequacy`); the eight wrong
+  approval designs violate the invariant or action property named for each (`model.adequacy.*`); `harness/refines.py` finds the
+  reference and the spec equal (1898 states, 2330 transitions) and detects a one-line mutation of the reference;
   reviewed traces pass (`core.traces`, `model.traces`), and a changed expectation in model/traces.yaml fails `model.traces`
 
 ### the evaluator is domain-free across every pack (validation/domain_free.py)
-- no vocabulary, contract id or check id of any of the three packs occurs in gate/ (the first run of the
+- no vocabulary, contract id or check id of any of the four packs occurs in gate/ (the first run of the
   extended scan found comments added in M3 that used the reservation pack's terms; they were reworded)
+
+### intermittent failures seen while validating (not reproduced)
+- the reservation `boundary` check on club-desk failed once and `model.adequacy.self` on approvals-py failed once,
+  both while other judge runs and the quota author's runs shared the machine; each passed on re-run with nothing
+  changed. Neither record said why (the failing `tlc` check printed its fixed claim, not TLC's output; that is now
+  fixed in `gate/kinds.py`, so a recurrence will show what TLC reported)
 
 ### wrong-candidate matrix (validation/matrix.py, 19 cases)
 - re-run against the v0.8.0 reservation release: all 19 cases refused at their intended check, the same checks as
