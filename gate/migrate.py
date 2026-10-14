@@ -6,10 +6,14 @@ A release that changes a contract can ship migrations (pack.yaml `migrations`, e
 pith.migration/v1 inside the release's policy dirs). `run` judges one, end to end:
 
     python3 gate/migrate.py run --release NEW_RELEASE --candidate NEW_CANDIDATE \
-        --old-release OLD_RELEASE --old-candidate OLD_CANDIDATE [--old-evidence OLD_EVIDENCE] --out DIR [--spec PATH] [--json]
+        --old-release OLD_RELEASE --old-candidate OLD_CANDIDATE [--old-evidence OLD_EVIDENCE [--allow-not-ready]] --out DIR [--spec PATH] [--json]
 
   1. old artifact   with --old-evidence, the old candidate must be the artifact that evidence judged under the old
-                    release (same artifact digest, same release digest): the state comes from what was accepted
+                    release (same artifact digest, same release digest) and every status of that evidence at its ready
+                    value: the state comes from what was accepted. --allow-not-ready accepts evidence whose only
+                    statuses not at their ready value come from a review (a person's signed approval, which a test run
+                    cannot have); the report names them under `from.awaiting_review`, as `deploy.py record
+                    --allow-not-ready` does
   2. populate       the release's populate script drives the OLD artifact's own service to produce real state, and
                     records what that service acknowledged (results, requests in flight when it was killed)
   3. unrecognised   the candidate's migrate command must refuse state it does not recognise (exit non-zero)
@@ -82,7 +86,11 @@ def run(a):
     if a.old_evidence:
         E = EV.load(a.old_evidence)
         same = E["artifact_digest"] == rep["from"]["artifact_digest"] and E["release_digest"] == rep["from"]["release_digest"]
-        accepted = all(ready(OP, n, v) for n, v in (E.get("statuses") or {}).items() if n in (OP.get("statuses") or {}))
+        not_ready = sorted(n for n, v in (E.get("statuses") or {}).items() if n in (OP.get("statuses") or {}) and not ready(OP, n, v))
+        review = {c.get("status") for c in OP.get("checks", []) if c.get("method") == "review"}
+        waived = sorted(set(not_ready) & review) if a.allow_not_ready else []
+        accepted = not set(not_ready) - set(waived)
+        if waived: rep["from"]["awaiting_review"] = waived
         if not step("old artifact is the judged one", same and accepted,
                     f"evidence {E['digest'][:16]}: artifact {E['artifact_digest'][:16]} vs {rep['from']['artifact_digest'][:16]}, release {E['release_digest'][:16]} vs {rep['from']['release_digest'][:16]}, statuses {E.get('statuses')}",
                     "infrastructure" if not same else "evidence_missing"): return done()
@@ -128,6 +136,7 @@ def main():
     r = sub.add_parser("run")
     for k in ("--release", "--candidate", "--old-release", "--old-candidate", "--out"): r.add_argument(k, required=True)
     r.add_argument("--old-evidence"); r.add_argument("--spec"); r.add_argument("--json", action="store_true")
+    r.add_argument("--allow-not-ready", action="store_true", help="accept old evidence whose only unready statuses await a person's review (recorded in the report)")
     a = ap.parse_args()
     rep = run(a)
     if a.json: print(json.dumps(rep, indent=1))

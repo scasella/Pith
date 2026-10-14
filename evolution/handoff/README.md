@@ -39,7 +39,12 @@ application produced; B's recorded plans and classification say what is written 
 evidence today gives what B recorded; B judged with A's evidence offered is accepted, reusing only what holds; B
 changed only `service/run.py`; and B's service still refuses counter `vip` at its fourth request.
 
+**What was decided about A's findings** (`docs/rfc/0006-upgrading-the-main-packs.md` § 6): a release keeps holding only
+what the judge reads, so (1) and (4) stay as they are, and an operator who hands an agent only a release hands it the
+pack's intent document too (this run did not, which is how A noticed); (2) is not a gap in the contract, which fixes
+behaviour rather than storage: a migration is written by whoever holds the version 1 application, and A, who had none,
+had to guess; (3) is left as it is in this demonstration release.
+
 **What this does not show.** How often agents do this; whether a smaller model would; anything about a pack other
 than this small one. The contract findings above are recorded here and in `docs/rfc/0006-upgrading-the-main-packs.md`
-§ 6; changing the tally releases to answer them is left to their maintainer, because they are demonstration releases
-whose digests other records cite.
+§ 6.

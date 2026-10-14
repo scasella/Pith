@@ -4,7 +4,7 @@
 |---|---|
 | Status | Implemented in v0.12.0. § 7 says which roadmap criteria this closes and which still need people. |
 | Applies to | `pack.yaml`, `packs/booking`, `packs/approval`, `packs/quota`, `compositions/reservation-kernels`, `validation/upgrades.py`, `validation/compositions.py`, `evolution/handoff` |
-| Builds on | RFC 0004 (change classification, composition contracts, migrations, deployment records). No format changes, and no evaluator change: `gate/` is the v0.11.0 evaluator. |
+| Builds on | RFC 0004 (change classification, composition contracts, migrations, deployment records). No format identifier changes; two small evaluator additions (§ 5). |
 
 ## 1. What was left open
 
@@ -17,8 +17,9 @@ maintainer can close alone:
    shown only on a contract written to demonstrate it;
 3. the agents in the handoff demonstration were scripted edits.
 
-This release closes all three. It changes no format and no evaluator code: every pack is judged by the same `gate/`
-as v0.11.0, which is itself evidence that the M5 mechanisms were general enough.
+This release closes all three. All four upgrades were made and judged with the v0.11.0 evaluator unchanged, which is
+itself evidence that the M5 mechanisms were general enough; the two evaluator additions in § 5 came afterwards, from
+what the upgrade check showed, and only add an optional report field and a flag.
 
 ## 2. The reservation kernels as a composition contract (`compositions/reservation-kernels`)
 
@@ -154,8 +155,8 @@ For each pack, against the release published at v0.11.0:
    reconstruction;
 2. every old example is accepted under it, and the reference one is recorded for deployment;
 3. the upgrade is classified `behavioral` before anything is judged again, naming the records that changed; the
-   report says which old results still hold (those whose inputs and contract records the upgrade did not reach), and
-   `upgrades.yaml` lists exactly which those must be;
+   report says which old results still hold (those whose inputs, contract records and evaluator the upgrade did not
+   reach), and `upgrades.yaml` lists exactly which those must be (none in this release, whose evaluator changed);
 4. the reference application judged under the new release with the old evidence offered (`--reuse`) is accepted and
    reuses nothing: evidence is bound to the release it was produced under, so even a result the classification says
    still holds is produced again;
@@ -165,19 +166,22 @@ For each pack, against the release published at v0.11.0:
 7. every known-wrong migration is refused at verify for exactly its defect, and those marked `judged` pass the
    ordinary judge.
 
-Two things this check found in the evaluator, recorded rather than changed (this release changes no evaluator code):
+Two things this check found in the evaluator, and what was decided (the only evaluator changes in this release; both
+add an optional field or flag, so no format identifier changes, `COMPATIBILITY.md`):
 
-- The classification and the judge answer different questions across a release. For the reservation upgrade
+- **The classification and the judge answered different questions across a release.** For the reservation upgrade
   `change.py classify` reports fifteen old results as holding (the kernel proof and every design check: no input and
   no contract record of theirs changed), while the judge reuses none of them, because `--reuse` never crosses
-  releases. Both are sound; the report's "holds" means "unaffected by this change", not "reusable". The tally upgrade
-  could not show this, since it reached every record.
-- `gate/migrate.py --old-evidence` requires every status of the old evidence to be at its ready value, including a
-  human approval. For a pack whose acceptance includes an operator's signed approval (the reservation pack), a
-  migration can only be bound to evidence a person has approved. `validation/upgrades.py` runs such migrations without
-  `--old-evidence` and binds the report to the evidence itself (same artifact and release digests, and nothing but the
-  approval missing), recording it as `bound_by` in the report. Whether `migrate.py` should accept evidence awaiting only
-  people, as `deploy.py record --allow-not-ready` does, is an evaluator decision left to the maintainer.
+  releases. Both are sound, but "holds" read as "reusable". Decided: keep both rules, and make the report say which.
+  `classify` now adds `evidence.reusable` (the results `--reuse` can actually take: those that hold, when the previous
+  evidence is for the same release, else none) and `evidence.reusable_note` when the two differ. The tally upgrade
+  could not show this, since it reached every record. (The evaluator is part of every evidence key, so after these two
+  additions nothing holds across v0.11.0 → v0.12.0 at all; the fifteen were observed before them.)
+- **A migration could only be bound to evidence a person had approved.** `gate/migrate.py --old-evidence` required
+  every status of the old evidence at its ready value, including the reservation and booking packs' human approval,
+  which no test run can have. Decided: `migrate.py run --allow-not-ready`, as `deploy.py record --allow-not-ready`
+  already does, accepts old evidence whose only unready statuses come from a review check, and names them in the
+  report under `from.awaiting_review`; any other unready status is still refused. `validation/upgrades.py` uses it.
 
 ## 6. A handoff between model agents (`evolution/handoff`)
 
@@ -190,11 +194,20 @@ contract change, noting that the route report could not tell it so because route
 code, B's change-impact reports and both agents' reports are committed; `validation/handoff.py` (CI) re-judges what
 they produced and checks the record. No model runs in CI.
 
-The run surfaced contract gaps in the tally 2 release that no scripted agent could have: its intent document and
-known-wrong examples are not part of the release a candidate receives, and the version 1 state a migration must
-recognise is described nowhere in it. They are recorded, not fixed here: the tally releases are demonstrations whose
-digests other records cite, and the first one concerns what a release contains for every pack, which is an evaluator
-decision for the maintainer.
+The run surfaced things about the tally 2 release that no scripted agent could have, and each was decided:
+
+- *Its intent document and known-wrong examples are not in the release a candidate receives.* Kept as it is, for every
+  pack. A release is what the judge reads and what a candidate may not edit; the intent document is reviewed prose for
+  the people who change the contract (`INTENT.md`: "not an oracle"), and the known-wrong examples are the maintainers'
+  adequacy material, judged by `validation/judge_wrong.py`, not inputs to a candidate's judge. Making them policy would
+  turn every wording fix into a new release and invalidate every result for nothing. A candidate receives them with
+  the seed (the repository); an operator who hands an agent only a release should hand over the intent document with
+  it, which `evolution/handoff/README.md` now says.
+- *Nothing in the release describes version 1's state.* Correct, and not a gap: a contract fixes behaviour, not
+  storage, so version 1's state is whatever the version 1 application wrote, and its migration is written by whoever
+  holds that application. Agent A had no version 1 application, so it had to guess, and its guess happened to fit.
+- *"Anything else is 400" does not say whether extra keys count.* Left as it is in the demonstration release; agent
+  A's stricter reading is allowed by it.
 
 ## 7. What this closes, and what still needs people
 

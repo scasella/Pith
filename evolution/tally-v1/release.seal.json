@@ -1,6 +1,6 @@
 {
   "format": 2,
-  "created": "2026-10-13T19:26:41Z",
+  "created": "2026-10-14T00:41:01Z",
   "pack": {
     "id": "demo.tally",
     "version": "1.0.0"
@@ -11,5 +11,5 @@
     "harness"
   ],
   "files": 35,
-  "release_digest": "94e8781945f07514f989abc1e3e9b52cb434301dbcd6e98ddb544ae47ee294b4"
+  "release_digest": "c0b1d23e8b992db871d54932d9f5b7f4d915fc8750f51d44a0668e75579598b0"
 }

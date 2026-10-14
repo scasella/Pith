@@ -10,7 +10,7 @@ packs:
     version: 0.12.0
     status: supported
     stage: draft
-    release_digest: f78d43798f1da2e0ddfe423f02810aabacdc326c619ac10c17d0f5fd20a6e32d
+    release_digest: 10d14f9cd91450c14c4861ebaaff23bf13d88e7e5ae804bba04d048613a937b0
     scope: >
       authorization against a limit with reservations, release and capture (posting), over a proven Dafny core; an
       agent-written TLA+ design, service and browser application around it
@@ -28,7 +28,7 @@ packs:
     version: 0.12.0
     status: supported
     stage: draft
-    release_digest: 9bf4ebbc9fb4b7cb05ae28feaf54eff6d53afc24e1c3cbe1587945a48bf48f90
+    release_digest: 3adf212726d64e3b2f9ba12673f3e39d5a7da7d05bb39b85ce893611ef737cbc
     scope: interval booking with half-open intervals, a turnaround buffer per resource, cancellation and atomic rescheduling, over a verified Dafny core
     assumptions: spec/tcb.yaml
     examples: [examples/calendar-py, examples/desk-node, examples/custom-py]
@@ -44,7 +44,7 @@ packs:
     version: 0.12.0
     status: supported
     stage: draft
-    release_digest: c5465e546a9f292a34b2864f4f0dc265bbf43a57496090e64ac4ac01b9054fdd
+    release_digest: 4ae7a61844ef11c848ab086a4403317b1bf14c4ec4fc5ae973d31e21fc420977
     scope: document approval with roles, per-revision separation of duties, revision-bound approvals and a quorum per document (2 to 5, fixed at creation)
     assumptions: model/assumptions.yaml
     examples: [examples/approvals-py, examples/approvals-node, examples/adopt-handbook]
@@ -60,7 +60,7 @@ packs:
     version: 0.2.0
     status: demonstration          # its author decides whether it is supported (GOVERNANCE.md: a catalog status change is the pack's maintainers' call)
     stage: draft
-    release_digest: 492425a27b1c24a0c417f1d161bc0fa8f9eb0809db8dcbc085c02e41fd5448ee
+    release_digest: 8e81efd2474c99f90f4caae157f198ac09917e54fd546aea4d92e9d07a8add38
     scope: sliding-window quotas per key, each key with its own limit or the default (half-open windows, exact retry hints, a caller-supplied clock), delivered as a Python or Node.js library
     assumptions: spec/tcb.yaml
     examples: [examples/sliding-log-py, examples/tally-node]
@@ -76,7 +76,7 @@ packs:
     version: 1.0.0
     status: demonstration
     stage: draft
-    release_digest: 94e8781945f07514f989abc1e3e9b52cb434301dbcd6e98ddb544ae47ee294b4
+    release_digest: c0b1d23e8b992db871d54932d9f5b7f4d915fc8750f51d44a0668e75579598b0
     scope: "one bounded tally with idempotent requests: the scaffold's example contract, the 'before' of the evolution demonstrations"
     assumptions: harness/SERVICE.md
     examples: [examples/basic]
@@ -92,7 +92,7 @@ packs:
     version: 2.0.0
     status: demonstration
     stage: draft
-    release_digest: e7bf373c80b4a359a02e1242f1ffe76aee54f6c3c772c34b865c48d7c7c434b3
+    release_digest: 57d8620daecde6872faecb7850a8b738d0a07e3349145be4968c1b50eb72c55c
     scope: "a bounded tally per named counter, upgraded from 1.0.0 with its state: the 'after' of the evolution demonstrations"
     assumptions: harness/SERVICE.md
     examples: [examples/basic, examples/journal]

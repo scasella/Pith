@@ -131,6 +131,18 @@ def report(prior, now, files, reads, rows_impact):
             "rerun": sorted({r["check"] for r in inval})}
 
 
+def reusable(R, prior, policy):
+    """`holds` says which results this change did not reach; `reusable` says which of them the judge's --reuse can
+    actually take. Evidence is bound to the release and evaluator it was produced under (evidence.reusable), so across
+    a release every result is produced again, including the ones that hold."""
+    import release as REL
+    now = REL.release_digest(policy if (policy / "gate").is_dir() else HERE.parent, policy); same = prior.get("release_digest") == now
+    R["evidence"]["reusable"] = list(R["evidence"]["holds"]) if same else []
+    if not same:
+        R["evidence"]["reusable_note"] = ("the previous evidence is for another release: what holds was not reached by the change, "
+                                          "but --reuse never crosses releases, so the judge produces every result again")
+
+
 def reads_from(prior, now, paths):
     """{path: [check groups]} — which checks read each path: the previous run's recorded inputs and the release's
     declared `inputs` globs (so a path that does not exist yet is still placed)."""
@@ -170,6 +182,7 @@ def main():
             nowf = now["artifact_files"]; files = {p for p in set(before) | set(nowf) if before.get(p) != nowf.get(p)}
         reads = reads_from(prior, now, files)
         R = report(prior, now, files, reads, EV.impact(prior, now["keys"], now["pack"].get("contracts")))
+        reusable(R, prior, policy)
         if before is None: R["ambiguous"].append({"why": ["the previous evidence predates recorded artifact files: only files some check reads were compared"]})
     if a.out: pathlib.Path(a.out).write_text(json.dumps(R, indent=1))
     if a.json: print(json.dumps(R, indent=1)); return
@@ -179,6 +192,8 @@ def main():
     for x in R["ambiguous"]:
         if "path" not in x: print(f"  ambiguous: {'; '.join(x['why'])}")
     print(f"evidence: {len(R['evidence']['holds'])} hold, {len(R['evidence']['invalidated'])} invalidated; re-run: {', '.join(R['rerun']) or 'nothing'}")
+    if R["evidence"].get("reusable") is not None and len(R["evidence"]["reusable"]) != len(R["evidence"]["holds"]):
+        print(f"  {R['evidence']['reusable_note']}")
     print(f"required: {R['required']}")
 
 
