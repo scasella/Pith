@@ -1,6 +1,6 @@
 {
   "format": 2,
-  "created": "2026-10-13T22:12:32Z",
+  "created": "2026-10-14T00:41:00Z",
   "pack": {
     "id": "pith.approval",
     "version": "0.12.0"
@@ -13,5 +13,5 @@
     "migrations"
   ],
   "files": 79,
-  "release_digest": "c5465e546a9f292a34b2864f4f0dc265bbf43a57496090e64ac4ac01b9054fdd"
+  "release_digest": "4ae7a61844ef11c848ab086a4403317b1bf14c4ec4fc5ae973d31e21fc420977"
 }

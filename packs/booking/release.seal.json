@@ -1,6 +1,6 @@
 {
   "format": 2,
-  "created": "2026-10-13T22:14:45Z",
+  "created": "2026-10-14T00:41:00Z",
   "pack": {
     "id": "pith.booking",
     "version": "0.12.0"
@@ -14,5 +14,5 @@
     "migrations"
   ],
   "files": 73,
-  "release_digest": "9bf4ebbc9fb4b7cb05ae28feaf54eff6d53afc24e1c3cbe1587945a48bf48f90"
+  "release_digest": "3adf212726d64e3b2f9ba12673f3e39d5a7da7d05bb39b85ce893611ef737cbc"
 }

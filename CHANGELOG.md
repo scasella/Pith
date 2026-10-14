@@ -3,7 +3,8 @@
 ## v0.12.0 — 2026-10-13
 What M5 left open and a maintainer can close alone: a contract upgrade with a migration on each of the four main
 packs, the reservation pack's two kernels as a composition contract, and the handoff done once by model agents. RFC:
-`docs/rfc/0006-upgrading-the-main-packs.md`. No format and no evaluator change: `gate/` is v0.11.0's.
+`docs/rfc/0006-upgrading-the-main-packs.md`. No format identifier changes; two small evaluator additions (below), so
+every release digest changes, the demonstrations' included.
 
 - **Reservation 0.12.0** (`authorization-and-posting/v3`): every write answers with its receipt and a retry returns
   it (`Receipts`); a retried release is no longer answered "not released". `MIG1` turns each acknowledged write of a v2
@@ -34,17 +35,21 @@ packs, the reservation pack's two kernels as a composition contract, and the han
   the release alone; agent B planned, made and classified an in-contract change, was judged reusing only what held,
   and refused the out-of-contract half of its request. The run found gaps in the tally 2 release (§ 6 of the RFC).
   One run, not a measurement.
-- **Found, not changed** (RFC 0006 § 5): `change.py classify` reports results as holding across a release that the
-  judge will not reuse; `migrate.py --old-evidence` needs evidence whose human approval is signed.
+- **Evaluator** (RFC 0006 § 5, both found by the upgrade check): `change.py classify` adds `evidence.reusable` and a
+  note, because results that hold across a release are still not reused by the judge; `migrate.py run
+  --allow-not-ready` accepts old evidence that awaits only a person's review and names it in the report
+  (`from.awaiting_review`), as `deploy.py record --allow-not-ready` does. Self-reviewed: there is no second maintainer.
+- **Decided, not changed** (RFC 0006 § 6): a release keeps holding only what the judge reads; the intent document and
+  known-wrong examples travel with the seed, not the release.
 - **Still needs people** (unchanged from RFC 0005 § 8): independent release reviews (every pack stays `draft`), a
   second maintainer, external adoption trials, the conditions experiment with real models, external review.
 
-Release digests: reservation `f78d43798f1da2e0ddfe423f02810aabacdc326c619ac10c17d0f5fd20a6e32d`, booking
-`9bf4ebbc9fb4b7cb05ae28feaf54eff6d53afc24e1c3cbe1587945a48bf48f90`, approval
-`c5465e546a9f292a34b2864f4f0dc265bbf43a57496090e64ac4ac01b9054fdd`, quota
-`492425a27b1c24a0c417f1d161bc0fa8f9eb0809db8dcbc085c02e41fd5448ee`; demonstrations unchanged (tally 1.0.0
-`94e8781945f07514f989abc1e3e9b52cb434301dbcd6e98ddb544ae47ee294b4`, tally 2.0.0
-`e7bf373c80b4a359a02e1242f1ffe76aee54f6c3c772c34b865c48d7c7c434b3`).
+Release digests: reservation `10d14f9cd91450c14c4861ebaaff23bf13d88e7e5ae804bba04d048613a937b0`, booking
+`3adf212726d64e3b2f9ba12673f3e39d5a7da7d05bb39b85ce893611ef737cbc`, approval
+`4ae7a61844ef11c848ab086a4403317b1bf14c4ec4fc5ae973d31e21fc420977`, quota
+`8e81efd2474c99f90f4caae157f198ac09917e54fd546aea4d92e9d07a8add38`; demonstrations (contracts unchanged, new evaluator)
+tally 1.0.0 `c0b1d23e8b992db871d54932d9f5b7f4d915fc8750f51d44a0668e75579598b0`, tally 2.0.0
+`57d8620daecde6872faecb7850a8b738d0a07e3349145be4968c1b50eb72c55c`.
 
 ## v0.11.0 — 2026-10-13
 M6 of the roadmap: what a community-ready release needs that can be built before the community exists. RFC:

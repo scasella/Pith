@@ -82,36 +82,14 @@ def overlay(base, extra, dest):
     return dest
 
 
-sys.path.insert(0, str(ROOT / "gate"))
-from deploy import ready  # noqa: E402  (the evaluator's own reading of a status's ready value)
-
-
-def awaiting_people(rel, ev):
-    """The old evidence's statuses that are not at their ready value only because a person has not signed (a status
-    taken from a check whose method is review), and any other status that is not ready."""
-    P = yaml.safe_load((rel / "pack.yaml").read_text()); E = json.loads((ev / "evidence.json").read_text())
-    review = {c["status"] for c in P.get("checks", []) if c.get("method") == "review" and c.get("status")}
-    nr = [n for n, v in (E.get("statuses") or {}).items() if n in P["statuses"] and not ready(P, n, v)]
-    return sorted(set(nr) & review), sorted(set(nr) - review), E
-
-
 def migrate(rel_new, cand, rel_old, old_cand, old_ev, out):
-    """gate/migrate.py run. With --old-evidence it requires every status of the old evidence at its ready value,
-    including a human approval nobody in this repository can sign; for such evidence the script runs it without and
-    binds the report to the evidence itself: same artifact and release digests, and nothing but people's approval
-    missing (recorded as `bound_by`)."""
-    people, other, E = awaiting_people(rel_old, old_ev)
+    """gate/migrate.py run, bound to the old evidence. --allow-not-ready: the old evidence of a pack whose acceptance
+    includes a person's signed approval awaits it here (nobody in this repository can sign one); the report names it
+    under from.awaiting_review, and nothing else may be unready."""
     r = subprocess.run([PY, "gate/migrate.py", "run", "--release", rel_new, "--candidate", cand, "--old-release", rel_old, "--old-candidate", old_cand,
-                        *([] if people else ["--old-evidence", old_ev]), "--out", out], cwd=ROOT, capture_output=True, text=True)
+                        "--old-evidence", old_ev, "--allow-not-ready", "--out", out], cwd=ROOT, capture_output=True, text=True)
     M = json.loads((out / "migration-report.json").read_text()) if (out / "migration-report.json").exists() else {"ok": False, "steps": []}
     if r.returncode != 0 and not M["steps"]: print(r.stdout[-1500:], r.stderr[-1500:])
-    if people:
-        F = M.get("from") or {}
-        same = F.get("artifact_digest") == E["artifact_digest"] and F.get("release_digest") == E["release_digest"] and not other
-        M["bound_by"] = {"by": "validation/upgrades.py", "evidence_digest": E["digest"], "same_artifact_and_release": same, "awaiting_people": people, "not_ready": other}
-        M["steps"].insert(0, {"step": "old artifact is the judged one (bound by validation/upgrades.py)", "result": "pass" if same else "fail",
-                              "detail": f"evidence {E['digest'][:16]}: artifact {E['artifact_digest'][:16]} vs {str(F.get('artifact_digest'))[:16]}; only {people} await a person"})
-        if not same: M["ok"] = False; r = subprocess.CompletedProcess(r.args, 1)
     return r.returncode, M
 
 

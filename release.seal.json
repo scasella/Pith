@@ -1,6 +1,6 @@
 {
   "format": 2,
-  "created": "2026-10-13T21:58:18Z",
+  "created": "2026-10-14T00:41:00Z",
   "pack": {
     "id": "pith.reservation",
     "version": "0.12.0"
@@ -13,5 +13,5 @@
     "migrations"
   ],
   "files": 90,
-  "release_digest": "f78d43798f1da2e0ddfe423f02810aabacdc326c619ac10c17d0f5fd20a6e32d"
+  "release_digest": "10d14f9cd91450c14c4861ebaaff23bf13d88e7e5ae804bba04d048613a937b0"
 }

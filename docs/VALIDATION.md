@@ -1,16 +1,19 @@
 # Validation record — Pith v0.12.0 (contract upgrades on the main packs, the reservation kernels as a composition, a model-agent handoff)
 
-Releases: reservation `f78d43798f1da2e0ddfe423f02810aabacdc326c619ac10c17d0f5fd20a6e32d`, booking
-`9bf4ebbc9fb4b7cb05ae28feaf54eff6d53afc24e1c3cbe1587945a48bf48f90`, approval
-`c5465e546a9f292a34b2864f4f0dc265bbf43a57496090e64ac4ac01b9054fdd`, quota
-`492425a27b1c24a0c417f1d161bc0fa8f9eb0809db8dcbc085c02e41fd5448ee`; demonstrations unchanged. Local runs (advisory
+Releases: reservation `10d14f9cd91450c14c4861ebaaff23bf13d88e7e5ae804bba04d048613a937b0`, booking
+`3adf212726d64e3b2f9ba12673f3e39d5a7da7d05bb39b85ce893611ef737cbc`, approval
+`4ae7a61844ef11c848ab086a4403317b1bf14c4ec4fc5ae973d31e21fc420977`, quota
+`8e81efd2474c99f90f4caae157f198ac09917e54fd546aea4d92e9d07a8add38`; tally 1.0.0
+`c0b1d23e8b992db871d54932d9f5b7f4d915fc8750f51d44a0668e75579598b0`, tally 2.0.0
+`57d8620daecde6872faecb7850a8b738d0a07e3349145be4968c1b50eb72c55c` (the evaluator changed, § 5 of the RFC). The
+records below were made before the two evaluator additions; the run after them is recorded at the end of this section. Local runs (advisory
 isolation, unsandboxed browser) as before; CI runs the same steps, the new `upgrades` job and the enforced `isolated`
 run. RFC: `docs/rfc/0006-upgrading-the-main-packs.md`.
 
 ### the contract upgrades (validation/upgrades.py; upgrades-record-<pack>.json)
 Each previous release rebuilt from 8e63d7b had exactly the digest the v0.11.0 catalog recorded.
 
-| Pack | Expectations | Old examples accepted, then migrated | Known-wrong migrations refused at verify (passing the ordinary judge) | Old results the classification says hold |
+| Pack | Expectations | Old examples accepted, then migrated | Known-wrong migrations refused at verify (passing the ordinary judge) | Old results the classification said hold (before the evaluator change; none after) |
 |---|---|---|---|---|
 | reservation | 18 of 18 | build-a, build-b, club-desk, office-desk | skips-declines (yes), stamps-history | 15: the kernel proof and every design check |
 | booking | 18 of 18 | calendar-py, desk-node, custom-py | drops-cancelled, drops-ledger (yes), default-buffer (yes) | 2: the runtime and profile choices |
@@ -20,9 +23,9 @@ Each previous release rebuilt from 8e63d7b had exactly the digest the v0.11.0 ca
 In every pack the upgrade is classified behavioral, naming the records the RFC lists; the reference application judged
 under the new release with the old evidence offered is accepted and reuses nothing; the old deployment record does not
 cover the new artifact; every migration passes all seven steps (old artifact, populate, unrecognised state refused,
-migrate, migrate again, verify, rollback stated). For the reservation, booking and approval packs, whose old evidence
-awaits a human approval, the migration is bound to that evidence by `upgrades.py` (same artifact and release digests)
-rather than by `migrate.py --old-evidence`.
+migrate, migrate again, verify, rollback stated). For the reservation and booking packs, whose old evidence awaits
+a human approval, the migration was first bound to that evidence by `upgrades.py` itself, and after the evaluator
+addition by `migrate.py --old-evidence --allow-not-ready` (`from.awaiting_review: [human_approval]`).
 
 ### each pack under its new release
 - Every example accepted with the pristine release (reservation: build-a, build-b, club-desk, office-desk; booking,
