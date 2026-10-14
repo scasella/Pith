@@ -18,6 +18,7 @@ not_covered:
   - the library is judged against the core only by test (lifecycle, boundary, property-based conformance); no proof covers the candidate's code
   - Python atomicity across threads is tested by bursts on one key at one instant, not proven; Node.js atomicity is assumed from run-to-completion
   - distributed quotas (several processes or hosts sharing one quota), wall-clock time sources, clock skew, leap seconds
-  - token buckets, leaky buckets, per-key limits, refunds, quota resets, priorities (outside the contract: INTENT.md)
+  - token buckets, leaky buckets, changing a key's limit after the limiter is made, refunds, quota resets, priorities (outside the contract: INTENT.md)
+  - the upgrade from version 1 (MIG1) is judged by gate/migrate.py on one populated set of dumps the accepted version 1 library made (a test of the mapping, not a proof); dumps of other version 1 libraries are the candidate's migrate entrypoint's business
   - performance: the core is linear in the log and its retry search linear in the window; the candidate's complexity is not judged beyond LI3's bound on retained state
   - liveness (that every call returns)

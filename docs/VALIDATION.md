@@ -1,3 +1,57 @@
+# Validation record — Pith v0.12.0 (contract upgrades on the main packs, the reservation kernels as a composition, a model-agent handoff)
+
+Releases: reservation `f78d43798f1da2e0ddfe423f02810aabacdc326c619ac10c17d0f5fd20a6e32d`, booking
+`9bf4ebbc9fb4b7cb05ae28feaf54eff6d53afc24e1c3cbe1587945a48bf48f90`, approval
+`c5465e546a9f292a34b2864f4f0dc265bbf43a57496090e64ac4ac01b9054fdd`, quota
+`492425a27b1c24a0c417f1d161bc0fa8f9eb0809db8dcbc085c02e41fd5448ee`; demonstrations unchanged. Local runs (advisory
+isolation, unsandboxed browser) as before; CI runs the same steps, the new `upgrades` job and the enforced `isolated`
+run. RFC: `docs/rfc/0006-upgrading-the-main-packs.md`.
+
+### the contract upgrades (validation/upgrades.py; upgrades-record-<pack>.json)
+Each previous release rebuilt from 8e63d7b had exactly the digest the v0.11.0 catalog recorded.
+
+| Pack | Expectations | Old examples accepted, then migrated | Known-wrong migrations refused at verify (passing the ordinary judge) | Old results the classification says hold |
+|---|---|---|---|---|
+| reservation | 18 of 18 | build-a, build-b, club-desk, office-desk | skips-declines (yes), stamps-history | 15: the kernel proof and every design check |
+| booking | 18 of 18 | calendar-py, desk-node, custom-py | drops-cancelled, drops-ledger (yes), default-buffer (yes) | 2: the runtime and profile choices |
+| approval | 18 of 18 | approvals-py, approvals-node, adopt-handbook | drops-stale-approvals (yes), drops-request-ledger (yes), creates-not-requalified | 1: the runtime choice |
+| quota | 16 of 16 | sliding-log-py, tally-node | clock-from-log (yes), counts-only (yes), closed-expiry | 1: the runtime choice |
+
+In every pack the upgrade is classified behavioral, naming the records the RFC lists; the reference application judged
+under the new release with the old evidence offered is accepted and reuses nothing; the old deployment record does not
+cover the new artifact; every migration passes all seven steps (old artifact, populate, unrecognised state refused,
+migrate, migrate again, verify, rollback stated). For the reservation, booking and approval packs, whose old evidence
+awaits a human approval, the migration is bound to that evidence by `upgrades.py` (same artifact and release digests)
+rather than by `migrate.py --old-evidence`.
+
+### each pack under its new release
+- Every example accepted with the pristine release (reservation: build-a, build-b, club-desk, office-desk; booking,
+  approval, quota: all listed in the catalog). Every known-wrong application refused for exactly its defect,
+  including the new `retry-not-released`, `buffer-ignored-on-move` and `retry-default-limit`; the entries of booking's
+  and quota's `expected.yaml` that now also fail a new test seeing the same defect are listed in the RFC.
+- Proofs and models: booking's core re-verifies (13), its 11 known-wrong cores fail, 15 traces pass; approval's model
+  (30628 states) holds and its 10 known-wrong designs are rejected, refinement and 14 traces pass; quota's core
+  re-verifies (17), 5 known-wrong cores rejected, 10 traces hold. The reservation kernels are unchanged.
+- `compare_m1.py`: the same scoped results as the v0.6.0 judge, the claim-text differences being the new receipts
+  wording; `evidence_reuse.py`, `test_packet.py`, `packets.py`, `adoption.py`, `governance.py`, `evolution.py`,
+  `domain_free.py` (6 packs, 172 terms), `pack check` on every pack and `catalog.py check` pass.
+
+### the reservation kernels as a composition (validation/compositions.py)
+- `compose.py check compositions/reservation-kernels`: the integration keeps `AuthInv`, `PostingInv`, the permitted
+  effects, `INV1` and `CaptureAgrees`; `ignores-posting`, `capture-forgets-posting` and `split-capture` each keep both
+  kernels' rules and violate exactly the invariants they name. `ledger-receipts` as before.
+- TLC: the integration refines `obligations/design/CoreActions.tla` and `CoreActions` refines the integration;
+  `ignores-posting` does not refine `CoreActions`.
+
+### the handoff between model agents (evolution/handoff; validation/handoff.py)
+- One run, 2026-10-13. Agent A: one judge run, accepted; its migration, written without a description of version 1's
+  state, passes every step on the state the accepted tally 1 application produced. Agent B: planned (integration),
+  changed `service/run.py` only, classified (integration; the model checks hold), judged once with A's evidence:
+  accepted, the two model checks reused, the three service checks run again; refused the bound change for counter
+  `vip` as a contract change. `validation/handoff.py` re-checks all of it (11 expectations) without running a model.
+- Findings by the agents: the tally 2 release lacks its intent document and known-wrong examples, and nothing in it
+  describes version 1's state.
+
 # Validation record — Pith v0.11.0 (M6: governance, compatibility, catalog, experiment harness)
 
 Releases: reservation `b6a58ad409fd80070f39c35e402dd3fb46e659be8b123c11b73b4f65e083ffa7`, booking

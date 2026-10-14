@@ -9,18 +9,19 @@ delivery adapter runs as the candidate's user and judges from its output. The co
 ## Workflows
 
 - **LW1 quickstart.** The examples in `harness/LIBRARY.md § The API` run as written: the names import, the keyword
-  arguments (properties) are accepted, a decision has `granted`, `remaining` and `retry_after` (`retryAfter`), and
-  the values are the ones the contract gives.
+  arguments (properties) are accepted, including a key with a limit of its own, a decision has `granted`,
+  `remaining` and `retry_after` (`retryAfter`), `limit_for` (`limitFor`) gives a key's limit, and the values are the
+  ones the contract gives.
 - **LW2 backoff client.** A client that, when denied, waits exactly the `retry_after` it was given and asks again is
   granted at that instant, never earlier and never after a second denial (when nothing else was granted
   meanwhile), over a bursty workload. The schedule it ends up with is the one the verified core gives.
 - **LW3 errors a caller can handle.** One `except LimiterError` (`catch` + `instanceof LimiterError`) handles both
   `InvalidArgument` and `ClockRegression`; in Python `InvalidArgument` is also a `ValueError`, in Node.js every
-  error is an `Error`. `InvalidArgument.argument` names the offending parameter (`limit`, `window`, `key`, `cost`,
-  `now`, `text`); `ClockRegression.clock` is the limiter's clock; every message is non-empty.
-- **LW4 persistence across processes.** One process makes calls and hands `dump()`'s text to a second process (as a
-  command-line argument); the second `Limiter.load`s it and continues; its decisions are the ones the original would
-  have made.
+  error is an `Error`. `InvalidArgument.argument` names the offending parameter (`limit`, `window`, `limits`, `key`,
+  `cost`, `now`, `text`); `ClockRegression.clock` is the limiter's clock; every message is non-empty.
+- **LW4 persistence across processes.** One process makes calls on a limiter with a key that has a limit of its own and
+  hands `dump()`'s text to a second process (as a command-line argument); the second `Limiter.load`s it and continues;
+  its decisions are the ones the original would have made, that key's own limit included.
 
 ## Interaction obligations
 

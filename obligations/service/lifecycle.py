@@ -63,6 +63,19 @@ def test_capture_is_exact_terminal_and_idempotent(svc):
     svc.kill(); c = svc.start().client
     assert c.account(1)[1]["posted"] == 60 and c.capture(1, 1)[1]["replayed"] is True             # survives restart
 
+def test_receipts_are_returned_on_retry_across_a_crash(svc):
+    """Contract: Receipts, Durability."""
+    c = svc.client; c.create(1, 100); c.authorize(1, 1, 30); c.authorize(1, 2, 50)
+    assert c.release(1, 1)[1] == {"request_id": 1, "released": True, "replayed": False}
+    assert c.capture(1, 2)[1] == {"request_id": 2, "captured": True, "amount": 50, "replayed": False}
+    svc.kill(); c = svc.start().client                                                             # the responses were lost
+    assert c.release(1, 1)[1] == {"request_id": 1, "released": True, "replayed": True}             # the receipt, not "not released"
+    assert c.capture(1, 2)[1] == {"request_id": 2, "captured": True, "amount": 50, "replayed": True}
+    assert c.authorize(1, 1, 30)[1] == {"request_id": 1, "decision": "AUTHORIZED", "available_at_decision": 100, "replayed": True}
+    assert c.release(1, 2)[1]["released"] is False and c.capture(1, 1)[1]["captured"] is False      # a receipt answers only its own operation
+    _, evs = c.events(); types = [e["type"] for e in evs]
+    assert types.count("reservation.released") == 1 and types.count("capture.posted") == 1 and c.account(1)[1]["posted"] == 50
+
 def test_event_contract(svc):
     """Contract: EventContract."""
     c = svc.client; c.create(1, 100); c.authorize(1, 1, 60); c.authorize(1, 2, 60); c.release(1, 1); c.authorize(1, 3, 40); c.capture(1, 3)

@@ -69,7 +69,7 @@ observables = {k: v["observed"] for k, v in GLOSS["atoms"].items()}
 # ---- OpenAPI -----------------------------------------------------------------
 openapi = {
   "openapi": "3.0.3",
-  "info": {"title": "authorization-core service", "version": "1",
+  "info": {"title": "authorization-core service", "version": "3",
            "description": "Generated from kernel/spec/AuthSpec.dfy and kernel/glossary.yaml by obligations/boundary/generate.py. Do not edit.\n"
                           "Requirement: " + GLOSS["requirement"].strip()},
   "paths": {
@@ -85,8 +85,8 @@ openapi = {
     "/accounts/{id}/release": {"post": {"summary": "Release(a, request_id)",
         "parameters": [{"name": "id", "in": "path", "required": True, "schema": {"type": "integer"}}],
         "requestBody": {"required": True, "content": {"application/json": {"schema": {"type": "object", "required": ["request_id"], "properties": {"request_id": json_type("ReqId")}}}}},
-        "responses": {"200": {"description": "released or no-op"}}}},
-    "/accounts/{id}/capture": {"post": {"summary": "Capture(a, request_id): post the held amount in full (posting kernel); idempotent for a captured request",
+        "responses": {"200": {"description": "released, replayed (the receipt of an earlier release of this request), or no-op", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ReleaseResponse"}}}}}}},
+    "/accounts/{id}/capture": {"post": {"summary": "Capture(a, request_id): post the held amount in full (posting kernel); a retry returns the receipt, amount included",
         "parameters": [{"name": "id", "in": "path", "required": True, "schema": {"type": "integer"}}],
         "requestBody": {"required": True, "content": {"application/json": {"schema": {"type": "object", "required": ["request_id"], "additionalProperties": False, "properties": {"request_id": json_type("ReqId")}}}}},
         "responses": {"200": {"description": "captured, replayed, or no-op", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CaptureResponse"}}}}}}},
@@ -96,10 +96,14 @@ openapi = {
   "components": {"schemas": {**schemas,
     "AuthorizeRequest": {"type": "object", "required": ["request_id", "amount"], "additionalProperties": False,
         "properties": {"request_id": {"type": "integer", "minimum": 0, "maximum": 2**53 - 1}, "amount": {"type": "integer", "minimum": 1, "maximum": 2**53 - 1}}},
-    "AuthorizeResponse": {"type": "object", "required": ["request_id", "decision"], "properties": {
+    # every write's result is its receipt (contract authorization-and-posting/v3, record Receipts): `replayed` says
+    # whether this answer is the recorded receipt of an earlier, identical request
+    "AuthorizeResponse": {"type": "object", "required": ["request_id", "decision", "available_at_decision", "replayed"], "properties": {
         "request_id": json_type("ReqId"), "decision": {"type": "string", "enum": ["AUTHORIZED", "DECLINED"]},
         "available_at_decision": {"type": "integer"}, "replayed": {"type": "boolean"}}, "additionalProperties": False},
-    "CaptureResponse": {"type": "object", "required": ["request_id", "captured"], "additionalProperties": False, "properties": {
+    "ReleaseResponse": {"type": "object", "required": ["request_id", "released", "replayed"], "additionalProperties": False, "properties": {
+        "request_id": json_type("ReqId"), "released": {"type": "boolean"}, "replayed": {"type": "boolean"}}},
+    "CaptureResponse": {"type": "object", "required": ["request_id", "captured", "replayed"], "additionalProperties": False, "properties": {
         "request_id": json_type("ReqId"), "captured": {"type": "boolean"}, "amount": json_type("nat"), "replayed": {"type": "boolean"}}},
     "AccountView": {"type": "object", "required": ["id", "limit", "posted", "available", "holds", "status"], "properties": {
         "id": {"type": "integer"}, "limit": json_type("nat"), "posted": json_type("nat"), "available": {"type": "integer"},

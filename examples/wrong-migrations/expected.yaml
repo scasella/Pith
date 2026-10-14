@@ -1,0 +1,13 @@
+# Known-wrong migrations of the reservation pack (MIG1): each is an overlay on its base application (only the files
+# listed here differ: service/migrate.py, with the defect marked DEFECT). Each passes the ordinary judge, because the
+# judge never runs a migration, and must fail `gate/migrate.py run` at the verify step for exactly the tests listed
+# (validation/upgrades.py).
+skips-declines:
+  base: examples/build-a
+  failing_tests: [test_every_acknowledged_decision_is_replayed_identically]
+  contracts: [MIG1]
+  judged: true
+stamps-history:
+  base: examples/build-a
+  failing_tests: [test_history_is_kept_byte_for_byte_and_continues]
+  contracts: [MIG1]

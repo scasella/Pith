@@ -31,7 +31,7 @@ function route(method, url, body) {
   let b;
   try { b = JSON.parse(body || "null"); } catch { throw new InvalidRequest("body is not JSON"); }
   if (b === null || typeof b !== "object" || Array.isArray(b)) throw new InvalidRequest("body must be a JSON object");
-  if (p === "/resources") return [201, store.createResource(b.id, b.name)];
+  if (p === "/resources") return [201, store.createResource(b.id, b.name, "buffer" in b ? b.buffer : 0)];
   if ((m = p.match(/^\/resources\/(\d+)\/bookings$/))) return [200, store.book(b.request_id, Number(m[1]), b.start, b.end)];
   if ((m = p.match(/^\/bookings\/(\d+)\/cancel$/))) return [200, store.cancel(b.request_id, Number(m[1]))];
   if ((m = p.match(/^\/bookings\/(\d+)\/reschedule$/))) return [200, store.reschedule(b.request_id, Number(m[1]), b.start, b.end)];

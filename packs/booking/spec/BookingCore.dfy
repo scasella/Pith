@@ -5,18 +5,18 @@ include "BookingSpec.dfy"
 module BookingCore {
   import opened BookingSpec
 
-  // The first slot that blocks [s, e) for a booking other than `except`, or -1 when the interval is free.
-  method FindBlocker(c: Calendar, s: nat, e: nat, except: Id) returns (k: int)
+  // The first slot within the buffer g of [s, e), other than `except`, or -1 when the interval is free.
+  method FindBlocker(c: Calendar, s: nat, e: nat, except: Id, g: nat) returns (k: int)
     ensures -1 <= k < |c|
-    ensures k == -1 <==> Free(c, s, e, except)
-    ensures k >= 0 ==> Blocks(c[k], s, e, except)
+    ensures k == -1 <==> Free(c, s, e, except, g)
+    ensures k >= 0 ==> Blocks(c[k], s, e, except, g)
   {
     k := 0;
     while k < |c|
       invariant 0 <= k <= |c|
-      invariant forall i :: 0 <= i < k ==> !Blocks(c[i], s, e, except)
+      invariant forall i :: 0 <= i < k ==> !Blocks(c[i], s, e, except, g)
     {
-      if Blocks(c[k], s, e, except) { return; }
+      if Blocks(c[k], s, e, except, g) { return; }
       k := k + 1;
     }
     k := -1;
@@ -42,30 +42,30 @@ module BookingCore {
 
     constructor () {}
 
-    method Book(c: Calendar, id: Id, s: nat, e: nat) returns (o: Outcome, c': Calendar)
-      requires Valid(c) && !Has(c, id)
-      ensures Valid(c')
+    method Book(c: Calendar, g: nat, id: Id, s: nat, e: nat) returns (o: Outcome, c': Calendar)
+      requires Valid(c, g) && !Has(c, id)
+      ensures Valid(c', g)
       ensures o == Invalid <==> !WellFormed(s, e)
-      ensures o == Accepted <==> WellFormed(s, e) && Free(c, s, e, id)
+      ensures o == Accepted <==> WellFormed(s, e) && Free(c, s, e, id, g)
       ensures o == Accepted ==> c' == c + [Slot(id, s, e, true)]
       ensures o != Accepted ==> c' == c
-      ensures o.Conflict? ==> exists i :: 0 <= i < |c| && c[i].id == o.with && Blocks(c[i], s, e, id)
+      ensures o.Conflict? ==> exists i :: 0 <= i < |c| && c[i].id == o.with && Blocks(c[i], s, e, id, g)
       ensures !o.NotActive?
     {
       if !WellFormed(s, e) { return Invalid, c; }
-      var k := FindBlocker(c, s, e, id);
+      var k := FindBlocker(c, s, e, id, g);
       if k >= 0 { return Conflict(c[k].id), c; }
       o, c' := Accepted, c + [Slot(id, s, e, true)];
       forall i, j | 0 <= i < j < |c'| && c'[i].active && c'[j].active
-        ensures !Overlaps(c'[i].start, c'[i].end, c'[j].start, c'[j].end)
+        ensures !Near(c'[i].start, c'[i].end, c'[j].start, c'[j].end, g)
       {
-        if j == |c| { assert !Blocks(c[i], s, e, id); }
+        if j == |c| { assert !Blocks(c[i], s, e, id, g); }
       }
     }
 
-    method Cancel(c: Calendar, id: Id) returns (ok: bool, c': Calendar)
-      requires Valid(c)
-      ensures Valid(c')
+    method Cancel(c: Calendar, g: nat, id: Id) returns (ok: bool, c': Calendar)
+      requires Valid(c, g)
+      ensures Valid(c', g)
       ensures ok <==> IsActive(c, id)
       ensures ok ==> |c'| == |c| && forall i :: 0 <= i < |c| ==> c'[i] == (if c[i].id == id then c[i].(active := false) else c[i])
       ensures !ok ==> c' == c
@@ -78,30 +78,30 @@ module BookingCore {
       }
     }
 
-    method Reschedule(c: Calendar, id: Id, s: nat, e: nat) returns (o: Outcome, c': Calendar)
-      requires Valid(c)
-      ensures Valid(c')
+    method Reschedule(c: Calendar, g: nat, id: Id, s: nat, e: nat) returns (o: Outcome, c': Calendar)
+      requires Valid(c, g)
+      ensures Valid(c', g)
       ensures o == NotActive <==> !IsActive(c, id)
       ensures o == Invalid <==> IsActive(c, id) && !WellFormed(s, e)
-      ensures o == Accepted <==> IsActive(c, id) && WellFormed(s, e) && Free(c, s, e, id)
+      ensures o == Accepted <==> IsActive(c, id) && WellFormed(s, e) && Free(c, s, e, id, g)
       ensures o == Accepted ==> |c'| == |c| && forall i :: 0 <= i < |c| ==> c'[i] == (if c[i].id == id then c[i].(start := s, end := e) else c[i])
       ensures o != Accepted ==> c' == c
-      ensures o.Conflict? ==> exists i :: 0 <= i < |c| && c[i].id == o.with && Blocks(c[i], s, e, id)
+      ensures o.Conflict? ==> exists i :: 0 <= i < |c| && c[i].id == o.with && Blocks(c[i], s, e, id, g)
     {
       var k := IndexOf(c, id);
       if k < 0 || !c[k].active { return NotActive, c; }
       if !WellFormed(s, e) { return Invalid, c; }
-      var b := FindBlocker(c, s, e, id);
+      var b := FindBlocker(c, s, e, id, g);
       if b >= 0 { return Conflict(c[b].id), c; }
       o, c' := Accepted, c[k := c[k].(start := s, end := e)];
       forall i | 0 <= i < |c| ensures c'[i] == (if c[i].id == id then c[i].(start := s, end := e) else c[i]) {
         if i != k { assert c[i].id != c[k].id; }
       }
       forall i, j | 0 <= i < j < |c'| && c'[i].active && c'[j].active
-        ensures !Overlaps(c'[i].start, c'[i].end, c'[j].start, c'[j].end)
+        ensures !Near(c'[i].start, c'[i].end, c'[j].start, c'[j].end, g)
       {
-        if i == k { assert !Blocks(c[j], s, e, id); }
-        else if j == k { assert !Blocks(c[i], s, e, id); }
+        if i == k { assert !Blocks(c[j], s, e, id, g); }
+        else if j == k { assert !Blocks(c[i], s, e, id, g); }
       }
     }
   }

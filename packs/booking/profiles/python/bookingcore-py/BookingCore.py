@@ -15,11 +15,11 @@ class default__:
         pass
 
     @staticmethod
-    def FindBlocker(c, s, e, except_):
+    def FindBlocker(c, s, e, except_, g):
         k: int = int(0)
         k = 0
         while (k) < (len(c)):
-            if BookingSpec.default__.Blocks((c)[k], s, e, except_):
+            if BookingSpec.default__.Blocks((c)[k], s, e, except_, g):
                 return k
             k = (k) + (1)
         k = -1
@@ -47,7 +47,7 @@ class Core(BookingSpec.Booker, BookingSpec.Canceller, BookingSpec.Rescheduler):
         pass
         pass
 
-    def Book(self, c, id_, s, e):
+    def Book(self, c, g, id_, s, e):
         o: BookingSpec.Outcome = BookingSpec.Outcome.default()()
         c_k: _dafny.Seq = _dafny.Seq({})
         if not(BookingSpec.default__.WellFormed(s, e)):
@@ -58,7 +58,7 @@ class Core(BookingSpec.Booker, BookingSpec.Canceller, BookingSpec.Rescheduler):
             return o, c_k
         d_0_k_: int
         out0_: int
-        out0_ = default__.FindBlocker(c, s, e, id_)
+        out0_ = default__.FindBlocker(c, s, e, id_, g)
         d_0_k_ = out0_
         if (d_0_k_) >= (0):
             rhs2_ = BookingSpec.Outcome_Conflict(((c)[d_0_k_]).id_)
@@ -72,7 +72,7 @@ class Core(BookingSpec.Booker, BookingSpec.Canceller, BookingSpec.Rescheduler):
         c_k = rhs5_
         return o, c_k
 
-    def Cancel(self, c, id_):
+    def Cancel(self, c, g, id_):
         ok: bool = False
         c_k: _dafny.Seq = _dafny.Seq({})
         d_0_k_: int
@@ -99,7 +99,7 @@ class Core(BookingSpec.Booker, BookingSpec.Canceller, BookingSpec.Rescheduler):
         c_k = rhs3_
         return ok, c_k
 
-    def Reschedule(self, c, id_, s, e):
+    def Reschedule(self, c, g, id_, s, e):
         o: BookingSpec.Outcome = BookingSpec.Outcome.default()()
         c_k: _dafny.Seq = _dafny.Seq({})
         d_0_k_: int
@@ -120,7 +120,7 @@ class Core(BookingSpec.Booker, BookingSpec.Canceller, BookingSpec.Rescheduler):
             return o, c_k
         d_1_b_: int
         out1_: int
-        out1_ = default__.FindBlocker(c, s, e, id_)
+        out1_ = default__.FindBlocker(c, s, e, id_, g)
         d_1_b_ = out1_
         if (d_1_b_) >= (0):
             rhs4_ = BookingSpec.Outcome_Conflict(((c)[d_1_b_]).id_)

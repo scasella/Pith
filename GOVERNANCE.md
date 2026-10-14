@@ -4,7 +4,7 @@ How packs and the evaluator are published, reviewed, supported, corrected and re
 several maintainers can publish, evaluate, upgrade and retire packs under a written process, and that nobody,
 including the project's author, certifies their own acceptance checks.
 
-**Where this stands (v0.11.0).** The project has one maintainer, so every role below is held by the same person
+**Where this stands (v0.12.0).** The project has one maintainer, so every role below is held by the same person
 and no change has yet had the independent review this document requires. The process is written and the tools that
 enforce its mechanical parts exist (`gate/cli.py pack check --release`, `gate/review.py sign-pack`,
 `gate/catalog.py`, `revocations.yaml`). Until a second maintainer and an independent reviewer exist, every pack in

@@ -1,8 +1,9 @@
 """A sliding-window quota limiter: a per-key log of grants, pruned as they expire.
 
     from limiter import Limiter
-    lim = Limiter(limit=3, window=60)
+    lim = Limiter(limit=3, window=60, limits={"vip": 10})     # "vip" has 10 per window, every other key 3
     d = lim.acquire("alice", now=10)          # Decision(granted=True, remaining=2, retry_after=None)
+    lim.limit_for("vip")                      # 10
 
 Time is whatever the caller says it is (`now`), so the limiter is deterministic and testable. One Limiter may be
 shared by threads.
@@ -16,6 +17,8 @@ __all__ = ["Limiter", "Decision", "LimiterError", "InvalidArgument", "ClockRegre
 
 _MAX31, _MAX53 = 2 ** 31 - 1, 2 ** 53 - 1
 _KEY = re.compile(r"[A-Za-z0-9_.:-]{1,64}")
+_FORMAT = "sliding-log/2"                    # version 1 dumps ("sliding-log/1") are converted by lib/migrate.py
+_OMITTED = object()
 
 
 class LimiterError(Exception):
@@ -53,10 +56,20 @@ def _key(k):
     return k
 
 
+def _limits(v):
+    if not isinstance(v, dict):
+        raise InvalidArgument("limits", f"must be a dict from keys to whole numbers, got {v!r}")
+    for k, n in v.items():
+        if not isinstance(k, str) or not _KEY.fullmatch(k) or type(n) is not int or not 1 <= n <= _MAX31:
+            raise InvalidArgument("limits", f"{k!r}: {n!r} is not a key with a whole number in [1, {_MAX31}]")
+    return dict(v)
+
+
 class Limiter:
-    def __init__(self, *, limit, window):
+    def __init__(self, *, limit, window, limits=_OMITTED):
         self.limit = _whole("limit", limit, 1, _MAX31)
         self.window = _whole("window", window, 1, _MAX31)
+        self._limits = {} if limits is _OMITTED else _limits(limits)      # keys with a limit of their own
         self._clock = 0
         self._log = {}                       # key -> deque[(t, cost)], oldest first, only grants that may still count
         self._lock = contextlib.nullcontext()   # DEFECT: no lock; check-then-append races between threads
@@ -73,30 +86,35 @@ class Limiter:
         if not q: del self._log[key]; return deque(), 0
         return q, sum(c for _, c in q)
 
-    def _retry_after(self, q, used, cost, now):
-        if cost > self.limit: return None
-        need = used + cost - self.limit                             # how much must expire first
+    def _retry_after(self, q, used, cost, now, limit):
+        if cost > limit: return None
+        need = used + cost - limit                                  # how much must expire first
         for t, c in q:
             need -= c
             if need <= 0: return t + self.window - now
         raise AssertionError("unreachable: everything expires within one window")
 
     # -- the API --
+    def limit_for(self, key):
+        """The limit `key` is held to: its own if the limiter was given one, the default otherwise."""
+        return self._limits.get(_key(key), self.limit)
+
     def acquire(self, key, *, now, cost=1):
         key = _key(key); cost = _whole("cost", cost, 1, _MAX31); now = _whole("now", now, 0, _MAX53)
+        limit = self._limits.get(key, self.limit)
         with self._lock:
             self._advance(now)
             q, used = self._live(key, now)
-            if used + cost <= self.limit:
+            if used + cost <= limit:
                 self._log.setdefault(key, q).append((now, cost))
-                return Decision(True, self.limit - used - cost, None)
-            return Decision(False, self.limit - used, self._retry_after(q, used, cost, now))
+                return Decision(True, limit - used - cost, None)
+            return Decision(False, limit - used, self._retry_after(q, used, cost, now, limit))
 
     def peek(self, key, *, now):
         key = _key(key); now = _whole("now", now, 0, _MAX53)
         with self._lock:
             self._advance(now)
-            return self.limit - self._live(key, now)[1]
+            return self._limits.get(key, self.limit) - self._live(key, now)[1]
 
     def dump(self):
         with self._lock:
@@ -104,15 +122,15 @@ class Limiter:
             for k in list(self._log):
                 q, _ = self._live(k, self._clock)
                 if q: log[k] = [list(e) for e in q]
-            return json.dumps({"format": "sliding-log/1", "limit": self.limit, "window": self.window, "clock": self._clock, "log": log},
+            return json.dumps({"format": _FORMAT, "limit": self.limit, "window": self.window, "limits": self._limits, "clock": self._clock, "log": log},
                               sort_keys=True, separators=(",", ":"))
 
     @classmethod
     def load(cls, text):
         try:
             d = json.loads(text) if isinstance(text, str) else None
-            assert isinstance(d, dict) and d.get("format") == "sliding-log/1"
-            lim = cls(limit=d["limit"], window=d["window"])
+            assert isinstance(d, dict) and d.get("format") == _FORMAT
+            lim = cls(limit=d["limit"], window=d["window"], limits=d["limits"])
             lim._clock = _whole("clock", d["clock"], 0, _MAX53)
             assert isinstance(d["log"], dict)
             for k, entries in d["log"].items():
@@ -121,7 +139,7 @@ class Limiter:
                     _whole("t", t, 0, lim._clock); _whole("c", c, 1, _MAX31)
                     assert prev <= t and t + lim.window > lim._clock; prev = t
                     q.append((t, c))
-                assert q and sum(c for _, c in q) <= lim.limit
+                assert q and sum(c for _, c in q) <= lim._limits.get(k, lim.limit)
                 lim._log[k] = q
             return lim
         except (AssertionError, LimiterError, KeyError, TypeError, ValueError) as e:

@@ -15,7 +15,18 @@ class default__:
 
     @staticmethod
     def ValidConfig(c):
-        return (((c).limit) >= (1)) and (((c).window) >= (1))
+        def lambda0_(forall_var_0_):
+            d_0_k_: _dafny.Seq = forall_var_0_
+            return not ((d_0_k_) in ((c).limits)) or ((((c).limits)[d_0_k_]) >= (1))
+
+        return ((((c).limit) >= (1)) and (((c).window) >= (1))) and (_dafny.quantifier(((c).limits).keys.Elements, True, lambda0_))
+
+    @staticmethod
+    def LimitOf(c, k):
+        if (k) in ((c).limits):
+            return ((c).limits)[k]
+        elif True:
+            return (c).limit
 
     @staticmethod
     def Initial():
@@ -47,7 +58,7 @@ class default__:
 
     @staticmethod
     def FitsAt(c, log, k, cost, t):
-        return ((default__.Used(log, k, t, (c).window)) + (cost)) <= ((c).limit)
+        return ((default__.Used(log, k, t, (c).window)) + (cost)) <= (default__.LimitOf(c, k))
 
     @staticmethod
     def FitsAfter(c, log, k, cost, now, r):
@@ -57,18 +68,18 @@ class default__:
 class Config:
     @classmethod
     def default(cls, ):
-        return lambda: Config_Config(int(0), int(0))
+        return lambda: Config_Config(int(0), int(0), _dafny.Map({}))
     def __ne__(self, __o: object) -> bool:
         return not self.__eq__(__o)
     @property
     def is_Config(self) -> bool:
         return isinstance(self, Config_Config)
 
-class Config_Config(Config, NamedTuple('Config', [('limit', Any), ('window', Any)])):
+class Config_Config(Config, NamedTuple('Config', [('limit', Any), ('window', Any), ('limits', Any)])):
     def __dafnystr__(self) -> str:
-        return f'QuotaSpec.Config.Config({_dafny.string_of(self.limit)}, {_dafny.string_of(self.window)})'
+        return f'QuotaSpec.Config.Config({_dafny.string_of(self.limit)}, {_dafny.string_of(self.window)}, {_dafny.string_of(self.limits)})'
     def __eq__(self, __o: object) -> bool:
-        return isinstance(__o, Config_Config) and self.limit == __o.limit and self.window == __o.window
+        return isinstance(__o, Config_Config) and self.limit == __o.limit and self.window == __o.window and self.limits == __o.limits
     def __hash__(self) -> int:
         return super().__hash__()
 
@@ -191,5 +202,11 @@ class Acquirer:
 class Peeker:
     pass
     def Peek(self, c, s, k, now):
+        pass
+
+
+class LimitReporter:
+    pass
+    def LimitFor(self, c, k):
         pass
 

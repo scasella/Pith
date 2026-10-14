@@ -14,11 +14,21 @@ Contract (checked by obligations/adapter/harness.py; a custom profile must meet 
   - reads use their own connection and never observe an uncommitted transaction
   - the replay oracle is rebuilt from the durable event log on open (not from stored state), so verify_replay()
     is an independent check after a restart
+  - every write's result is its receipt (v0.12.0, contract authorization-and-posting/v3, record Receipts): stored in
+    the same transaction, and a retry of the same operation returns it with replayed=true (a retried release
+    released=true, a retried capture its amount); a receipt is never rewritten
+  - the database records the contract version of its state (meta.schema = 3); a database written for an earlier
+    contract is refused until it is migrated (profiles/sqlite/migrate.py, migrations/from-v2.yaml), so a retry of an
+    old request can never miss its receipt
 """
 import sqlite3, json, threading, tempfile, os, hashlib, uuid
 from . import core, codec
 
 ZERO = "0" * 64
+SCHEMA = "3"                                   # the contract version of the state this profile writes
+TABLES = {"accounts", "events", "receipts", "meta"}
+RECEIPTS_DDL = "CREATE TABLE IF NOT EXISTS receipts(account_id INTEGER NOT NULL, request_id INTEGER NOT NULL, op TEXT NOT NULL, amount INTEGER, body TEXT NOT NULL, PRIMARY KEY(account_id, request_id, op))"
+META_DDL = "CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL)"
 def canonical(obj): return json.dumps(obj, sort_keys=True, separators=(",", ":"))
 def seal(body: dict, prev: str) -> dict:
     """Hash-chain an event: hash = sha256(canonical(body + prev_hash)). Detects alteration of a committed log;
@@ -26,6 +36,9 @@ def seal(body: dict, prev: str) -> dict:
     body = dict(body, prev_hash=prev); body["hash"] = hashlib.sha256(canonical(body).encode()).hexdigest(); return body
 
 class CorruptCore(RuntimeError): pass
+class UnmigratedState(RuntimeError): pass
+
+def tables(conn): return {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")} - {"sqlite_sequence"}
 
 def _valid(a):
     """Valid(a) from the spec, on concrete state: INV1, P2, P2'."""
@@ -67,8 +80,16 @@ class Repo:
         self.path = path or os.path.join(tempfile.mkdtemp(prefix="authrepo-"), "auth.db")
         self.w = sqlite3.connect(self.path, isolation_level=None, check_same_thread=False)
         self.w.execute("PRAGMA journal_mode=WAL")
+        self.w.execute("BEGIN IMMEDIATE")
+        have = tables(self.w)
+        if have and (have != TABLES or self.w.execute("SELECT value FROM meta WHERE key='schema'").fetchone() != (SCHEMA,)):
+            self.w.execute("ROLLBACK"); self.w.close()
+            raise UnmigratedState(f"{self.path} holds state written for another contract (tables {sorted(have)}): migrate it first (python3 -I service/migrate.py --db PATH)")
         self.w.execute("CREATE TABLE IF NOT EXISTS accounts(id INTEGER PRIMARY KEY, state TEXT NOT NULL)")
         self.w.execute("CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER, body TEXT NOT NULL)")
+        self.w.execute(RECEIPTS_DDL); self.w.execute(META_DDL)
+        self.w.execute("INSERT OR IGNORE INTO meta(key, value) VALUES('schema', ?)", (SCHEMA,))
+        self.w.execute("COMMIT")
         self.r = sqlite3.connect(f"file:{self.path}?mode=ro", uri=True, isolation_level=None, check_same_thread=False)
         self.core = core.Core(); self.poster = core.Poster()
         self._wlock = threading.Lock(); self._rlock = threading.Lock()
@@ -116,6 +137,15 @@ class Repo:
         self._emit({"type": "op.committed", "account_id": acct_id, "request_id": req_id, "op": op,
                     "state_after": {"limit": int(a_after.limit), "posted": int(a_after.posted), "reserved": sum(core.holds(a_after).values())}})
 
+    def _receipt(self, acct_id, req_id, op):
+        """(amount, body) of the recorded receipt of one operation on one request, or None."""
+        row = self.w.execute("SELECT amount, body FROM receipts WHERE account_id=? AND request_id=? AND op=?", (acct_id, req_id, op)).fetchone()
+        return (row[0], json.loads(row[1])) if row else None
+    def _record(self, acct_id, req_id, op, body, amount=None):
+        """Store a receipt in the operation's transaction. INSERT, never REPLACE: a receipt is never rewritten."""
+        self.w.execute("INSERT INTO receipts(account_id, request_id, op, amount, body) VALUES(?, ?, ?, ?, ?)", (acct_id, req_id, op, amount, json.dumps(body)))
+        return dict(body, replayed=False)
+
     def _tx(self, fn):
         """Run fn inside BEGIN IMMEDIATE; roll back on any exception; oracle updated only after COMMIT."""
         with self._wlock:
@@ -146,11 +176,11 @@ class Repo:
         acct_id, req_id, amount = core.validate_id(acct_id, "account_id"), core.validate_id(req_id, "request_id"), core.validate_amount(amount)
         def body():
             a = self._load(acct_id); st = core.status(a)
-            if req_id in st:                                                        # idempotent replay
-                prior = self.w.execute("SELECT body FROM events WHERE account_id=? AND body LIKE ? ORDER BY seq", (acct_id, '%"auth.decided"%')).fetchall()
-                rec = next(json.loads(b) for (b,) in prior if json.loads(b)["request_id"] == req_id)
-                if rec["amount"] != amount: raise core.ConflictingReplay(f"request {req_id} was {rec['amount']}, replay says {amount}")
-                return {"request_id": req_id, "decision": rec["decision"], "available_at_decision": rec["available_at_decision"], "replayed": True}, None
+            if req_id in st:                                                        # idempotent replay: the recorded receipt
+                rec = self._receipt(acct_id, req_id, "authorize")
+                if rec is None: raise CorruptCore(f"request {req_id} was decided but has no receipt")
+                if rec[0] != amount: raise core.ConflictingReplay(f"request {req_id} was {rec[0]}, replay says {amount}")
+                return dict(rec[1], replayed=True), None
             avail = core.available(a)
             d, a2 = self.core.Decide(a, core.Request(req_id, amount))
             check_decide_post(a, req_id, amount, d, a2)
@@ -160,7 +190,7 @@ class Repo:
             if d.is_Authorized: self._emit({"type": "reservation.created", "account_id": acct_id, "request_id": req_id, "amount": amount})
             self._committed(acct_id, req_id, "authorize", a2)
             def upd(): _, self._oracle[acct_id] = self.core.Decide(self._oracle[acct_id], core.Request(req_id, amount))
-            return {"request_id": req_id, "decision": decision, "available_at_decision": avail, "replayed": False}, upd
+            return self._record(acct_id, req_id, "authorize", {"request_id": req_id, "decision": decision, "available_at_decision": avail}, amount), upd
         return self._tx(body)
 
     def release(self, acct_id, req_id):
@@ -168,14 +198,16 @@ class Repo:
         def body():
             a = self._load(acct_id)
             if req_id not in core.holds(a):
-                return {"request_id": req_id, "released": False}, None                 # no-op, no event
+                rec = self._receipt(acct_id, req_id, "release")
+                if rec: return dict(rec[1], replayed=True), None                       # a retried release: its receipt
+                return {"request_id": req_id, "released": False, "replayed": False}, None   # no live hold, never released here: no-op, no event
             a2 = self.core.Release(a, req_id)
             check_release_post(a, req_id, a2)
             self._store(acct_id, a2)
             self._emit({"type": "reservation.released", "account_id": acct_id, "request_id": req_id})
             self._committed(acct_id, req_id, "release", a2)
             def upd(): self._oracle[acct_id] = self.core.Release(self._oracle[acct_id], req_id)
-            return {"request_id": req_id, "released": True}, upd
+            return self._record(acct_id, req_id, "release", {"request_id": req_id, "released": True}), upd
         return self._tx(body)
 
     def capture(self, acct_id, req_id):
@@ -184,8 +216,10 @@ class Repo:
         def body():
             a = self._load(acct_id); st = core.status(a)
             if req_id not in core.holds(a):
-                if st.get(req_id) == "POST": return {"request_id": req_id, "captured": True, "replayed": True}, None
-                return {"request_id": req_id, "captured": False}, None                  # no live hold: no-op, no event
+                rec = self._receipt(acct_id, req_id, "capture")
+                if rec: return dict(rec[1], replayed=True), None                       # a retried capture: its receipt, amount included
+                if st.get(req_id) == "POST": raise CorruptCore(f"request {req_id} was captured but has no receipt")
+                return {"request_id": req_id, "captured": False, "replayed": False}, None   # no live hold: no-op, no event
             amount = core.holds(a)[req_id]
             a2 = self.poster.Capture(a, req_id)
             check_capture_post(a, req_id, a2)
@@ -193,7 +227,7 @@ class Repo:
             self._emit({"type": "capture.posted", "account_id": acct_id, "request_id": req_id, "amount": amount})
             self._committed(acct_id, req_id, "capture", a2)
             def upd(): self._oracle[acct_id] = self.poster.Capture(self._oracle[acct_id], req_id)
-            return {"request_id": req_id, "captured": True, "amount": amount, "replayed": False}, upd
+            return self._record(acct_id, req_id, "capture", {"request_id": req_id, "captured": True, "amount": amount}), upd
         return self._tx(body)
 
     # -- reads (own connection; WAL => never sees an uncommitted write) -------

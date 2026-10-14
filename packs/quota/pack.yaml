@@ -5,17 +5,23 @@
 # port, no state directory, no crash/restart), time is an input with a half-open sliding window, and the
 # retry hint is an "earliest instant" (a minimality obligation). Friction met on the way: AUTHORING-NOTES.md.
 # Build the release with `python3 gate/release.py build --pack packs/quota`.
+#
+# 0.2.0 (sliding-window-quota/v2): a limit per key. A limiter may give named keys a limit of their own; every other key
+# keeps the default (Q0 Q1 Q3 Q4 Q5 Persistence BoundaryConformance version 2, KEYLIMIT added), and a deployment's
+# stored version 1 dumps are migrated (MIG1, migrations/from-v1.yaml), forward-only.
 
 format: pith.pack/v1
 pack:
   id: pith.quota
-  version: 0.1.1
-  title: Sliding-window quotas (half-open windows, exact retry hints, a caller-supplied clock) delivered as a Python or Node.js library
-  contract_version: sliding-window-quota/v1
+  version: 0.2.0
+  title: Sliding-window quotas (half-open windows, a limit per key, exact retry hints, a caller-supplied clock) delivered as a Python or Node.js library
+  contract_version: sliding-window-quota/v2
   intent: packs/quota/INTENT.md
-  maintainers: [outside-author]
+  # The v0.12.0 upgrade (0.1.1 -> 0.2.0, sliding-window-quota/v1 -> v2) was made by the project's maintainer, scasella,
+  # and has not been reviewed by the pack's author (AUTHORING-NOTES.md, "The v0.12.0 upgrade").
+  maintainers: [outside-author, scasella]
 
-policy_dirs: [spec, harness, delivery]                           # frozen pack content; the evaluator adds gate/ and this file
+policy_dirs: [spec, harness, delivery, migrations]               # frozen pack content; the evaluator adds gate/ and this file
 
 candidate:
   owned_dirs: [lib]                                              # plus app.manifest.yaml
@@ -97,14 +103,14 @@ checks:
     kind: command
     command: "{DAFNY} verify spec/QuotaCore.dfy"
     count: 'finished with (\d+) verified'
-    claim: "Acquire and Peek proven to refine the spec's traits: Q0 preserved, Q1-Q5, WINDOW, CLOCK ({count} verified)"
+    claim: "Acquire, Peek and LimitFor proven to refine the spec's traits: Q0 preserved, Q1-Q5, WINDOW, CLOCK, KEYLIMIT, each key against its own limit ({count} verified)"
     status: contract_assurance
     method: proof
     inputs: ["spec/**"]
     tools: [dafny]
     cacheable: true
     depends_on: [core.tcb]
-    establishes: [Q0, Q1, Q2, Q3, Q4, Q5, WINDOW, CLOCK]
+    establishes: [Q0, Q1, Q2, Q3, Q4, Q5, WINDOW, CLOCK, KEYLIMIT]
     assumptions: spec/tcb.yaml
 
   - id: core.adequacy
@@ -182,7 +188,7 @@ checks:
     command: "{pytest} harness/lifecycle.py"
     why_tail: 12000      # the pytest summary must survive long failure messages: judge_wrong.py reads test names from it
     count: '(\d+) passed'
-    claim: "through the library: the reviewed traces, the half-open window at every boundary, no window over the limit, independent limiters, dump/load carrying the clock and every live grant, regressions without effect, no wall-clock dependence, threads sharing one limiter, extreme values ({count} checks)"
+    claim: "through the library: the reviewed traces, the half-open window at every boundary, no window over a key's own limit, limit_for, independent limiters, dump/load carrying the per-key limits, the clock and every live grant, regressions without effect, no wall-clock dependence, threads sharing one limiter, extreme values ({count} checks)"
     status: behavioral_assurance
     method: test
     inputs: ["lib/**", "app.manifest.yaml", "harness/**", "spec/TraceData.dfy"]
@@ -196,7 +202,7 @@ checks:
     command: "{pytest} harness/boundary.py"
     why_tail: 12000      # the pytest summary must survive long failure messages: judge_wrong.py reads test names from it
     count: '(\d+) passed'
-    claim: "malformed configurations, keys, costs, instants and dump texts refused as InvalidArgument without effect on the log or the clock; arguments checked before the clock; the decision types ({count} checks)"
+    claim: "malformed configurations (per-key limits included), keys, costs, instants and dump texts refused as InvalidArgument without effect on the log or the clock; arguments checked before the clock; the decision types ({count} checks)"
     status: behavioral_assurance
     method: test
     inputs: ["lib/**", "app.manifest.yaml", "harness/**"]
@@ -210,7 +216,7 @@ checks:
     command: "{pytest} harness/conformance.py"
     why_tail: 12000      # the pytest summary must survive long failure messages: judge_wrong.py reads test names from it
     count: '(\d+) passed'
-    claim: "200 generated call sequences with regressions and dump/load round trips: every decision, remaining count, retry hint and error equal the verified core's (property-based, black-box)"
+    claim: "200 generated call sequences with per-key limits, regressions, limit_for and dump/load round trips: every decision, remaining count, retry hint, key limit and error equal the verified core's (property-based, black-box)"
     status: behavioral_assurance
     method: test
     inputs: ["lib/**", "app.manifest.yaml", "harness/**", "spec/**"]
@@ -233,30 +239,35 @@ checks:
     establishes: [LW1, LW2, LW3, LW4, LI1, LI2, LI3]
 
 contracts:
-  - { id: Q0, version: 1, intent: "In every window of the configured length, at every instant, no key is granted more than the limit.", semantics: { dafny: "spec/QuotaSpec.dfy WindowSafe [Q0]" },
+  - { id: Q0, version: 2, intent: "In every window of the configured length, at every instant, no key is granted more than its own limit.", semantics: { dafny: "spec/QuotaSpec.dfy WindowSafe [Q0]" },
       timing: "invariant of every reachable state, quantified over all instants, not only those a call named",
       verified_by: [core.verify, library.lifecycle, library.conformance], wrong: [spec/wrong/fixed_window.dfy, spec/wrong/denied_counted.dfy, packs/quota/examples/wrong/fixed-window], change: behavioral }
   - { id: WINDOW, version: 1, intent: "The window ending at t is (t - window, t]: a grant stops counting at exactly its instant plus the window.", semantics: { dafny: "spec/QuotaSpec.dfy Counts [WINDOW]" },
       verified_by: [core.verify, core.traces, library.lifecycle], examples: [spec/TraceData.dfy T1_GrantExpiresExactlyOneWindowLater], wrong: [spec/wrong/closed_window.dfy, packs/quota/examples/wrong/closed-window], change: behavioral }
-  - { id: Q1, version: 1, intent: "A request is granted exactly when it fits in the sliding window: no needless denial.", semantics: { dafny: "spec/QuotaSpec.dfy Acquirer [Q1]" }, timing: "against the state left by the previous call",
-      verified_by: [core.verify, library.conformance], wrong: [spec/wrong/fixed_window.dfy, spec/wrong/closed_window.dfy], change: behavioral }
+  - { id: Q1, version: 2, intent: "A request is granted exactly when it fits in the sliding window under its key's own limit: no needless denial.", semantics: { dafny: "spec/QuotaSpec.dfy Acquirer [Q1]" }, timing: "against the state left by the previous call",
+      verified_by: [core.verify, core.traces, library.conformance], examples: [spec/TraceData.dfy T9_EachKeyIsHeldToItsOwnLimit, spec/TraceData.dfy T10_AKeyCanHaveALowerLimit],
+      wrong: [spec/wrong/fixed_window.dfy, spec/wrong/closed_window.dfy], change: behavioral }
   - { id: Q2, version: 1, intent: "A grant records exactly itself; a denial consumes nothing.", semantics: { dafny: "spec/QuotaSpec.dfy Acquirer [Q2]" },
       verified_by: [core.verify, core.traces, library.conformance], examples: [spec/TraceData.dfy T3_DenialsConsumeNothing], wrong: [spec/wrong/denied_counted.dfy], change: behavioral }
-  - { id: Q3, version: 1, intent: "remaining is what is left after the decision.", semantics: { dafny: "spec/QuotaSpec.dfy Acquirer [Q3]" }, verified_by: [core.verify, library.conformance], change: behavioral }
-  - { id: Q4, version: 1, intent: "A denial's retry hint is the earliest instant at which the same request would be granted; none when it can never fit.", semantics: { dafny: "spec/QuotaSpec.dfy Acquirer FitsAfter [Q4]" },
+  - { id: Q3, version: 2, intent: "remaining is what is left of the key's own limit after the decision.", semantics: { dafny: "spec/QuotaSpec.dfy Acquirer [Q3]" }, verified_by: [core.verify, library.conformance], change: behavioral }
+  - { id: Q4, version: 2, intent: "A denial's retry hint is the earliest instant at which the same request would be granted under its key's own limit; none when it can never fit that limit.", semantics: { dafny: "spec/QuotaSpec.dfy Acquirer FitsAfter [Q4]" },
       timing: "if nothing else is granted to the key meanwhile",
-      verified_by: [core.verify, core.traces, library.conformance, delivery], examples: [spec/TraceData.dfy T4_RetryWaitsUntilEnoughHasExpired], wrong: [spec/wrong/retry_after_oldest.dfy], change: behavioral }
-  - { id: Q5, version: 1, intent: "A peek reports what is left and grants nothing.", semantics: { dafny: "spec/QuotaSpec.dfy Peeker [Q5]" }, verified_by: [core.verify, library.conformance], change: behavioral }
+      verified_by: [core.verify, core.traces, library.conformance, delivery], examples: [spec/TraceData.dfy T4_RetryWaitsUntilEnoughHasExpired, spec/TraceData.dfy T9_EachKeyIsHeldToItsOwnLimit],
+      wrong: [spec/wrong/retry_after_oldest.dfy, spec/wrong/retry_default_limit.dfy, packs/quota/examples/wrong/retry-default-limit], change: behavioral }
+  - { id: Q5, version: 2, intent: "A peek reports what is left of the key's own limit and grants nothing.", semantics: { dafny: "spec/QuotaSpec.dfy Peeker [Q5]" }, verified_by: [core.verify, library.conformance], change: behavioral }
+  - { id: KEYLIMIT, version: 1, intent: "A key's limit is its own when the limiter names one, the default otherwise; limit_for reports it and changes nothing.", semantics: { dafny: "spec/QuotaSpec.dfy LimitOf LimitReporter [KEYLIMIT]", markdown: "harness/LIBRARY.md § The semantics" },
+      verified_by: [core.verify, core.traces, library.lifecycle, library.conformance, delivery], examples: [spec/TraceData.dfy T9_EachKeyIsHeldToItsOwnLimit, spec/TraceData.dfy T10_AKeyCanHaveALowerLimit],
+      wrong: [spec/wrong/retry_default_limit.dfy, packs/quota/examples/wrong/retry-default-limit], change: behavioral }
   - { id: CLOCK, version: 1, intent: "The clock never runs backwards; a call naming an earlier instant raises ClockRegression and changes nothing.", semantics: { dafny: "spec/QuotaSpec.dfy [CLOCK]", markdown: "harness/LIBRARY.md § The semantics" },
       verified_by: [core.verify, core.traces, library.lifecycle, library.conformance], change: behavioral }
   - { id: InstanceIsolation, version: 1, intent: "Separate limiters, and separate keys, are independent quotas.", semantics: { python: "harness/lifecycle.py test_limiters_are_independent" },
       verified_by: [library.lifecycle], wrong: [packs/quota/examples/wrong/shared-state], change: integration }
-  - { id: Persistence, version: 1, intent: "dump/load carries configuration, clock and every grant that can still count.", semantics: { markdown: "harness/LIBRARY.md § The semantics" }, timing: "from the dump, for every later sequence of calls",
+  - { id: Persistence, version: 2, intent: "dump/load carries the configuration with its per-key limits, the clock and every grant that can still count.", semantics: { markdown: "harness/LIBRARY.md § The semantics" }, timing: "from the dump, for every later sequence of calls",
       verified_by: [library.lifecycle, library.conformance, delivery], change: integration }
   - { id: Atomicity, version: 1, intent: "A Python limiter shared by threads decides each call against the state left by the calls before it.", semantics: { python: "harness/lifecycle.py test_one_limiter_shared_by_threads_grants_exactly_the_limit" },
       assumptions: ["Node.js: run-to-completion of a synchronous call (spec/tcb.yaml)"], verified_by: [library.lifecycle], wrong: [packs/quota/examples/wrong/unlocked], change: integration }
   - { id: Determinism, version: 1, intent: "Decisions depend only on the calls, never on the wall clock.", semantics: { python: "harness/lifecycle.py test_decisions_do_not_depend_on_the_wall_clock" }, verified_by: [library.lifecycle], change: integration }
-  - { id: BoundaryConformance, version: 1, intent: "Malformed arguments raise InvalidArgument and change nothing.", semantics: { markdown: "harness/LIBRARY.md § Values" }, verified_by: [library.boundary], change: integration }
+  - { id: BoundaryConformance, version: 2, intent: "Malformed arguments, per-key limits included, raise InvalidArgument and change nothing.", semantics: { markdown: "harness/LIBRARY.md § Values" }, verified_by: [library.boundary], change: integration }
   - { id: CoreConformance, version: 1, intent: "The library gives the verified core's decisions for the same calls.", semantics: { python: "harness/conformance.py" }, verified_by: [library.conformance], change: integration }
   - { id: LW1, version: 1, intent: "The documented examples run as written.", semantics: { yaml: "delivery/delivery.yaml LW1" }, verified_by: [delivery], change: presentation }
   - { id: LW2, version: 1, intent: "Waiting exactly retry_after is enough.", semantics: { yaml: "delivery/delivery.yaml LW2" }, verified_by: [delivery], change: presentation }
@@ -265,5 +276,14 @@ contracts:
   - { id: LI1, version: 1, intent: "Importing is silent.", semantics: { markdown: "delivery/CONSUMER-CONTRACT.md LI1" }, verified_by: [delivery], change: presentation }
   - { id: LI2, version: 1, intent: "Decisions are values.", semantics: { markdown: "delivery/CONSUMER-CONTRACT.md LI2" }, verified_by: [delivery], change: presentation }
   - { id: LI3, version: 1, intent: "Retained state follows the window, not the history.", semantics: { markdown: "delivery/CONSUMER-CONTRACT.md LI3" }, verified_by: [delivery], wrong: [packs/quota/examples/wrong/never-prunes], change: presentation }
+  - { id: MIG1, version: 1, change: behavioral,
+      intent: "Upgrading a version 1 deployment keeps its state: every stored dump loads and gives exactly version 1's later decisions (configuration, clock and every grant that can still count, old keys under the default limit, earlier instants still regressions), grants made after a dump are never invented, and nothing is decided twice.",
+      semantics: { yaml: "migrations/from-v1.yaml", markdown: "harness/LIBRARY.md#upgrading-from-version-1" },
+      migration: migrations/from-v1.yaml,
+      wrong: [examples/wrong-migrations/clock-from-log, examples/wrong-migrations/closed-expiry, examples/wrong-migrations/counts-only] }
 
-domain_vocabulary: [quota, limiter, QuotaSpec, QuotaCore, TraceData, retry_after, retryAfter, ClockRegression, sliding window, lib/limiter, oracle-py, spec/wrong, harness/, delivery/]
+migrations:                                                      # gate/migrate.py; the evidence for MIG1 is its report, not a judge run
+  - { from: sliding-window-quota/v1, spec: migrations/from-v1.yaml }
+
+domain_vocabulary: [quota, limiter, QuotaSpec, QuotaCore, TraceData, retry_after, retryAfter, ClockRegression, sliding window, lib/limiter, oracle-py, spec/wrong, harness/, delivery/,
+                    limit_for, limitFor, LimitOf, LimitReporter, per-key limit, lib/migrate]

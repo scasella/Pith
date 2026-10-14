@@ -37,6 +37,28 @@ exactly as a hold did, so available does not recover when a hold is captured.
 | Posting never decreases | `PostedExact` (design obligations) |
 | Capture is idempotent; a no-op when there is no hold and the request is not posted | lifecycle and boundary harnesses |
 
+## Receipts and upgrades (v0.12.0, contract authorization-and-posting/v3)
+
+Every write answers with its receipt, and a retry of the same operation returns that receipt with `replayed: true`
+(`Receipts`). Before v0.12.0 this held for authorizations only: a client that retried a release after losing the
+response was told `released: false`, which reads as "nothing was released" although the hold was gone. That is the
+service-side twin of the receipt defects the interaction obligations exist for (I4, I5), so it is now part of the
+contract. No proven kernel changed: a receipt records what a kernel transition already did, and a no-op (a release
+or capture with nothing to act on) has no receipt.
+
+| Decision | Where |
+|---|---|
+| A retried release answers `released: true, replayed: true`; a retried capture carries its amount | `Receipts`; lifecycle and boundary harnesses |
+| A receipt is stored in the transaction of its write and never rewritten | `profiles/sqlite/repo.py`; lifecycle harness across SIGKILL |
+| A running v2 deployment is upgraded with its state: accounts and events kept byte for byte, each acknowledged write turned into its receipt from the event log, an in-flight request decided at most once | `MIG1`; `migrations/from-v2.yaml`, judged by `gate/migrate.py` |
+| State that was not migrated is refused, so an old retry can never miss its receipt | `profiles/sqlite/repo.py`; profile tests |
+| Rollback is forward-only | `migrations/from-v2.yaml` |
+
+This change followed the route for a behavioural change that does not touch the core: the contract records first
+(`Receipts`, `MIG1`), then the generated interface (`obligations/boundary/generate.py`), the harnesses, the shipped
+profile and its migration, a known-wrong application (`examples/wrong/retry-not-released`) and two known-wrong
+migrations (`examples/wrong-migrations/`), and a new release. `migrations/README.md` has the details for clients.
+
 ## What this core does not decide
 
 Eligibility beyond the limit (fraud, velocity, merchant rules), currency, expiry of holds, partial

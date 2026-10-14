@@ -1202,13 +1202,16 @@ let BookingSpec = (function() {
     static Overlaps(s1, e1, s2, e2) {
       return ((s1).isLessThan(e2)) && ((s2).isLessThan(e1));
     };
-    static Blocks(x, s, e, except) {
-      return (((x).dtor_active) && (!((x).dtor_id).isEqualTo(except))) && (BookingSpec.__default.Overlaps((x).dtor_start, (x).dtor_end, s, e));
+    static Near(s1, e1, s2, e2, g) {
+      return BookingSpec.__default.Overlaps(s1, (e1).plus(g), s2, (e2).plus(g));
     };
-    static Free(c, s, e, except) {
+    static Blocks(x, s, e, except, g) {
+      return (((x).dtor_active) && (!((x).dtor_id).isEqualTo(except))) && (BookingSpec.__default.Near((x).dtor_start, (x).dtor_end, s, e, g));
+    };
+    static Free(c, s, e, except, g) {
       return _dafny.Quantifier(_dafny.IntegerRange(_dafny.ZERO, new BigNumber((c).length)), true, function (_forall_var_0) {
         let _0_i = _forall_var_0;
-        return !(((_dafny.ZERO).isLessThanOrEqualTo(_0_i)) && ((_0_i).isLessThan(new BigNumber((c).length)))) || (!(BookingSpec.__default.Blocks((c)[_0_i], s, e, except)));
+        return !(((_dafny.ZERO).isLessThanOrEqualTo(_0_i)) && ((_0_i).isLessThan(new BigNumber((c).length)))) || (!(BookingSpec.__default.Blocks((c)[_0_i], s, e, except, g)));
       });
     };
     static Has(c, id) {
@@ -1356,11 +1359,11 @@ let BookingCore = (function() {
     _parentTraits() {
       return [];
     }
-    static FindBlocker(c, s, e, except) {
+    static FindBlocker(c, s, e, except, g) {
       let k = _dafny.ZERO;
       k = _dafny.ZERO;
       while ((k).isLessThan(new BigNumber((c).length))) {
-        if (BookingSpec.__default.Blocks((c)[k], s, e, except)) {
+        if (BookingSpec.__default.Blocks((c)[k], s, e, except, g)) {
           return k;
         }
         k = (k).plus(_dafny.ONE);
@@ -1393,7 +1396,7 @@ let BookingCore = (function() {
       let _this = this;
       return;
     }
-    Book(c, id, s, e) {
+    Book(c, g, id, s, e) {
       let _this = this;
       let o = BookingSpec.Outcome.Default();
       let c_k = _dafny.Seq.of();
@@ -1406,7 +1409,7 @@ let BookingCore = (function() {
       }
       let _0_k;
       let _out0;
-      _out0 = BookingCore.__default.FindBlocker(c, s, e, id);
+      _out0 = BookingCore.__default.FindBlocker(c, s, e, id, g);
       _0_k = _out0;
       if ((_dafny.ZERO).isLessThanOrEqualTo(_0_k)) {
         let _rhs2 = BookingSpec.Outcome.create_Conflict(((c)[_0_k]).dtor_id);
@@ -1421,7 +1424,7 @@ let BookingCore = (function() {
       c_k = _rhs5;
       return [o, c_k];
     }
-    Cancel(c, id) {
+    Cancel(c, g, id) {
       let _this = this;
       let ok = false;
       let c_k = _dafny.Seq.of();
@@ -1450,7 +1453,7 @@ let BookingCore = (function() {
       c_k = _rhs3;
       return [ok, c_k];
     }
-    Reschedule(c, id, s, e) {
+    Reschedule(c, g, id, s, e) {
       let _this = this;
       let o = BookingSpec.Outcome.Default();
       let c_k = _dafny.Seq.of();
@@ -1474,7 +1477,7 @@ let BookingCore = (function() {
       }
       let _1_b;
       let _out1;
-      _out1 = BookingCore.__default.FindBlocker(c, s, e, id);
+      _out1 = BookingCore.__default.FindBlocker(c, s, e, id, g);
       _1_b = _out1;
       if ((_dafny.ZERO).isLessThanOrEqualTo(_1_b)) {
         let _rhs4 = BookingSpec.Outcome.create_Conflict(((c)[_1_b]).dtor_id);

@@ -21,19 +21,20 @@ module Wrong {
       ensures d.Granted? <==> now >= s.clock && FitsAt(c, s.log, k, cost, now)               // [Q1]
       ensures d.Granted? ==> s'.log == s.log + [Entry(k, now, cost)]                          // [Q2]
       ensures d.Denied? ==> s'.log == s.log                                                   // [Q2]
-      ensures d.Granted? ==> d.remaining == c.limit - Used(s.log, k, now, c.window) - cost    // [Q3]
-      ensures d.Denied? ==> d.remaining == c.limit - Used(s.log, k, now, c.window)            // [Q3]
-      ensures d.Denied? ==> (d.retryAfter.None? <==> cost > c.limit)                         // [Q4]
+      ensures d.Granted? ==> d.remaining == LimitOf(c, k) - Used(s.log, k, now, c.window) - cost  // [Q3]
+      ensures d.Denied? ==> d.remaining == LimitOf(c, k) - Used(s.log, k, now, c.window)         // [Q3]
+      ensures d.Denied? ==> (d.retryAfter.None? <==> cost > LimitOf(c, k))                    // [Q4]
       ensures d.Denied? && d.retryAfter.Some? ==>                                             // [Q4]
                 d.retryAfter.value >= 1 && FitsAfter(c, s.log, k, cost, now, d.retryAfter.value) &&     // [Q4]
                 forall r :: 1 <= r < d.retryAfter.value ==> !FitsAfter(c, s.log, k, cost, now, r)       // [Q4]
     {
       if now < s.clock { return Regressed, s; }
+      var lim := LimitOf(c, k);
       var u := UsedClosed(s.log, k, now, c.window);
-      if u + cost <= c.limit {
-        d, s' := Granted(c.limit - u - cost), State(now, s.log + [Entry(k, now, cost)]);
+      if u + cost <= lim {
+        d, s' := Granted(lim - u - cost), State(now, s.log + [Entry(k, now, cost)]);
       } else {
-        d, s' := Denied(if u <= c.limit then c.limit - u else 0, if cost > c.limit then None else Some(1)), State(now, s.log);
+        d, s' := Denied(if u <= lim then lim - u else 0, if cost > lim then None else Some(1)), State(now, s.log);
       }
     }
   }

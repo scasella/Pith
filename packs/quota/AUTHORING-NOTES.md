@@ -179,3 +179,21 @@ nothing changed, and I do not know why. I did not investigate further.
 
 Reading `gate/` source took longer than any single authoring step except the harness. That time is the cost of
 the gaps above.
+
+## The v0.12.0 upgrade (2026-10-13): not written or reviewed by this pack's author
+
+Everything above is the outside author's, unchanged. This section is not. For v0.12.0 the project's maintainer
+(scasella) made the pack's first contract upgrade, 0.1.1 -> 0.2.0 (`sliding-window-quota/v1` -> `v2`), as one of the
+four main-pack upgrades; `pack.yaml` now lists `maintainers: [outside-author, scasella]`. **The pack's author has not
+reviewed this upgrade.** What it changed:
+
+- **A limit per key.** `Limiter(limit=3, window=60, limits={"vip": 10})` (Node.js `limits: { vip: 10 }`) and
+  `limit_for(key)` / `limitFor(key)`. The spec gained `Config.limits`, `LimitOf` and a `LimitReporter` trait; Q0, Q1,
+  Q3, Q4, Q5, Persistence and BoundaryConformance went to version 2; KEYLIMIT is new. Two traces (T9, T10) and one
+  known-wrong core (`spec/wrong/retry_default_limit.dfy`, the retry hint still against the default) with its library
+  twin (`examples/wrong/retry-default-limit`). The existing wrong cores and libraries were moved onto the key's limit
+  and keep exactly their defects.
+- **The upgrade of a deployment** (MIG1, `migrations/`): a library's durable state is its stored dumps, so the
+  migration converts a directory of version 1 dumps that the accepted version 1 library made. Forward-only.
+- `limit` itself still cannot go in `domain_vocabulary` (gate/ says `limits`), so the new terms listed are
+  `limit_for`, `limitFor`, `LimitOf`, `LimitReporter`, `per-key limit`, `lib/migrate`.

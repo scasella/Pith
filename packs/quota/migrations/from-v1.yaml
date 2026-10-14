@@ -1,0 +1,42 @@
+# How a sliding-window-quota/v1 deployment becomes a sliding-window-quota/v2 one, with its state (format:
+# docs/rfc/0004-safe-evolution.md § 4). `python3 gate/migrate.py run` executes it: the populate script drives the OLD
+# judged artifact's library to produce real version 1 state, the candidate's migrate command transforms it (twice: it
+# must be re-runnable), and the verify harness judges the NEW library on the migrated state. Frozen with the release.
+format: pith.migration/v1
+from: { pack: pith.quota, contract_version: sliding-window-quota/v1 }
+to: { pack: pith.quota, contract_version: sliding-window-quota/v2 }
+records: [MIG1]
+state: >
+  a directory of stored dumps, one `<name>.dump` file each holding exactly the text a version 1 `dump()` returned. A
+  library has no service and no database of its own: the durable state of a deployment is the dumps it stored to hand
+  to `Limiter.load` later (LW4). The old library makes them here, in the middle of real activity.
+mapping: >
+  every version 1 dump becomes, in place, a version 2 dump with the same configuration (limit, window), no per-key
+  limits, the same clock, and every grant that can still count at that clock with its instant and cost; nothing is
+  dropped, added or re-decided. Version 2's `load` reads only version 2 dumps: the entrypoint converts, it does not
+  rely on `load` reading the old format. Loaded, a migrated dump gives exactly the decisions version 1's `load` of the
+  same dump gave for every later call (old keys held to the default limit, the same retry hints, ClockRegression
+  naming the same clock for every earlier instant); a deployment gets per-key limits by making new limiters with
+  `limits`, never by the upgrade changing an old key's limit.
+retries: >
+  a library's calls carry no request identifiers, so there is nothing to replay and no ledger to keep: a caller that
+  asks again after the upgrade gets a new decision, and it is version 1's decision for that call because the dump's
+  clock and every grant that can still count are carried exactly (verify replays the old library's own answers to the
+  same later calls). Every decision version 1 acknowledged before a dump is in it as the grant it recorded, or as
+  nothing for a denial, which consumed nothing.
+in_flight: >
+  a dump is a snapshot. A dump taken while its process kept granting is the in-flight case: grants made after it are
+  not in it, the upgrade does not invent them, and a limiter loaded from the migrated dump decides as version 1's load
+  of the same dump does (populate grants on the old limiter after dumping "mid"; verify finds that key's whole limit
+  available in the migrated "mid"). Each grant is therefore counted at most once: by the dump that holds it, never by
+  the upgrade.
+rollback:
+  policy: forward-only
+  why: >
+    a version 2 dump of a limiter made with per-key limits has no version 1 meaning (version 1 would hold every key to
+    the default), and this release does not verify a downgrade even of migrated dumps that gained none. Backing out is
+    a forward repair in a new release, not a downgrade; a deployment that wants a way back keeps its version 1 dumps.
+populate: "{python} -I migrations/populate.py --old {old} --state {state} --out {observed}"
+migrate: "{python} -I migrations/migrate.py --state {state}"
+verify: "{pytest} migrations/verify.py"
+unrecognised: { files: { stored.dump: "this is not a limiter dump\n" } }

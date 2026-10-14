@@ -1,7 +1,7 @@
 """
 harness/lifecycle.py — the approval service judged BLACK-BOX, through its HTTP API, as a separate process. FROZEN.
-Separation of duties, revision-bound approvals, the quorum, publishing, idempotency, crash and restart, and
-concurrent approvals and edits. Nothing here imports candidate code.
+Separation of duties, revision-bound approvals, each document's quorum (chosen at creation, never changed),
+publishing, idempotency, crash and restart, and concurrent approvals and edits. Nothing here imports candidate code.
 """
 import itertools, pathlib, sys
 from concurrent.futures import ThreadPoolExecutor
@@ -134,6 +134,61 @@ def test_concurrent_approvals_reach_the_quorum_exactly_once(svc):
         d = c.document(doc)[1]
         assert [r["outcome"] for r in res].count("OK") == 2 and d["status"] == "approved" and len(d["current_votes"]) == 2, (res, d)
         assert sorted(r["reason"] for r in res if r["outcome"] == "REFUSED") == ["WRONG_STATE", "WRONG_STATE"]
+
+
+def test_the_quorum_is_the_documents_chosen_at_creation(svc):
+    """Contract: A3, A9."""
+    c = svc.client
+    code, r = c.create(next(RQ), "board", "alice", quorum=3); assert code == 200 and ok(r) and r["document"]["quorum"] == 3
+    assert c.document("board")[1]["quorum"] == 3
+    do(c, "submit", "board", "alice", 1)
+    assert ok(do(c, "approve", "board", "bob", 1)) and ok(do(c, "approve", "board", "carol", 1))
+    d = c.document("board")[1]; assert d["status"] == "in_review" and d["current_votes"] == ["bob", "carol"]          # two of three
+    assert why(do(c, "publish", "board", "dave", 1)) == "WRONG_STATE"
+    r = do(c, "approve", "board", "erin", 1); assert ok(r) and r["document"]["status"] == "approved" and r["document"]["quorum"] == 3
+    assert why(do(c, "approve", "board", "frank", 1)) == "WRONG_STATE"
+    assert ok(do(c, "publish", "board", "dave", 1)) and c.document("board")[1]["quorum"] == 3
+    r = do(c, "create", "plain", "bob"); assert r["document"]["quorum"] == 2                                            # omitted: 2
+    do(c, "submit", "plain", "bob", 1); do(c, "approve", "plain", "alice", 1)
+    assert ok(do(c, "approve", "plain", "carol", 1)) and c.document("plain")[1]["status"] == "approved"
+
+
+def test_the_quorum_never_changes_after_creation(svc):
+    """Contract: A9, A3, Durability."""
+    c = svc.client
+    c.create(next(RQ), "charter", "alice", quorum=3); do(c, "submit", "charter", "alice", 1); do(c, "approve", "charter", "carol", 1)
+    do(c, "edit", "charter", "bob"); do(c, "submit", "charter", "bob", 2)                     # an edit starts review over; the quorum stays
+    assert ok(do(c, "approve", "charter", "alice", 2)) and ok(do(c, "approve", "charter", "carol", 2))
+    d = c.document("charter")[1]; assert d["quorum"] == 3 and d["status"] == "in_review" and d["current_votes"] == ["alice", "carol"]
+    c = svc.restart().client
+    assert c.document("charter")[1]["quorum"] == 3
+    assert ok(do(c, "approve", "charter", "erin", 2)) and c.document("charter")[1]["status"] == "approved"
+    assert {"revision": 1, "actor": "carol"} in c.document("charter")[1]["approvals"]                                   # stale votes stay history
+    for args in (("charter", "carol", 1), ("charter", "frank", 2)):                          # no command takes or changes a quorum
+        assert c.cmd("approve", next(RQ), *args)[0] == 200
+    assert c.document("charter")[1]["quorum"] == 3
+
+
+def test_create_replays_and_the_quorum_is_part_of_the_command(svc):
+    """Contract: Idempotency, A9."""
+    c = svc.client
+    a = c.create(401, "q-doc", "alice", quorum=4)[1]; b = c.create(401, "q-doc", "alice", quorum=4)[1]
+    assert b["replayed"] is True and b["document"]["quorum"] == 4 and a["document"] == b["document"]
+    assert c.create(401, "q-doc", "alice", quorum=3)[0] == 409 and c.create(401, "q-doc", "alice")[0] == 409
+    r = c.create(402, "d-doc", "bob")[1]; again = c.create(402, "d-doc", "bob", quorum=2)[1]                          # omitting it is naming 2
+    assert again["replayed"] is True and again["document"] == r["document"] and r["document"]["quorum"] == 2
+    assert c.document("q-doc")[1]["quorum"] == 4
+
+
+def test_concurrent_approvals_reach_a_larger_quorum_exactly_once(svc):
+    """Contract: Atomicity, A3."""
+    c = svc.client
+    for k in range(4):
+        doc = f"q3-{k}"; c.create(next(RQ), doc, "alice", quorum=3); do(c, "submit", doc, "alice", 1)
+        with ThreadPoolExecutor(4) as ex: res = list(ex.map(lambda a: do(c, "approve", doc, a, 1), ["bob", "carol", "erin", "frank"]))
+        d = c.document(doc)[1]
+        assert [r["outcome"] for r in res].count("OK") == 3 and d["status"] == "approved" and len(d["current_votes"]) == 3, (res, d)
+        assert [r["reason"] for r in res if r["outcome"] == "REFUSED"] == ["WRONG_STATE"]
 
 
 def test_concurrent_edits_and_approvals_never_approve_a_superseded_revision(svc):

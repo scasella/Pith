@@ -4,15 +4,15 @@ include "../BookingSpec.dfy"
 module Wrong {
   import opened BookingSpec
   class C extends Rescheduler {
-    method Reschedule(c: Calendar, id: Id, s: nat, e: nat) returns (o: Outcome, c': Calendar)
-      requires Valid(c)
-      ensures Valid(c')
+    method Reschedule(c: Calendar, g: nat, id: Id, s: nat, e: nat) returns (o: Outcome, c': Calendar)
+      requires Valid(c, g)
+      ensures Valid(c', g)
       ensures o == NotActive <==> !IsActive(c, id)
       ensures o == Invalid <==> IsActive(c, id) && !WellFormed(s, e)
-      ensures o == Accepted <==> IsActive(c, id) && WellFormed(s, e) && Free(c, s, e, id)
+      ensures o == Accepted <==> IsActive(c, id) && WellFormed(s, e) && Free(c, s, e, id, g)
       ensures o == Accepted ==> |c'| == |c| && forall i :: 0 <= i < |c| ==> c'[i] == (if c[i].id == id then c[i].(start := s, end := e) else c[i])
       ensures o != Accepted ==> c' == c
-      ensures o.Conflict? ==> exists i :: 0 <= i < |c| && c[i].id == o.with && Blocks(c[i], s, e, id)
+      ensures o.Conflict? ==> exists i :: 0 <= i < |c| && c[i].id == o.with && Blocks(c[i], s, e, id, g)
     {
       var k := 0;
       while k < |c| && c[k].id != id invariant 0 <= k <= |c| { k := k + 1; }
@@ -21,7 +21,7 @@ module Wrong {
       var freed := c[k := c[k].(active := false)];
       var b := 0;
       while b < |freed| invariant 0 <= b <= |freed| {
-        if Blocks(freed[b], s, e, id) { return Conflict(freed[b].id), freed; }
+        if Blocks(freed[b], s, e, id, g) { return Conflict(freed[b].id), freed; }
         b := b + 1;
       }
       return Accepted, c[k := c[k].(start := s, end := e)];

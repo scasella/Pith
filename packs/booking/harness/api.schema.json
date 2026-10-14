@@ -4,7 +4,8 @@
   "$defs": {
     "id": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
     "outcome": { "enum": ["ACCEPTED", "CONFLICT", "INVALID", "NOT_ACTIVE"] },
-    "resource": { "type": "object", "required": ["id", "name"], "properties": { "id": { "$ref": "#/$defs/id" }, "name": { "type": "string", "minLength": 1 } } },
+    "buffer": { "type": "integer", "minimum": 0, "maximum": 1440, "$comment": "a resource's turnaround buffer in minutes (interval-booking-core/v2)" },
+    "resource": { "type": "object", "required": ["id", "name", "buffer"], "properties": { "id": { "$ref": "#/$defs/id" }, "name": { "type": "string", "minLength": 1 }, "buffer": { "$ref": "#/$defs/buffer" } } },
     "slot": { "type": "object", "required": ["id", "start", "end", "active"],
               "properties": { "id": { "$ref": "#/$defs/id" }, "start": { "$ref": "#/$defs/id" }, "end": { "$ref": "#/$defs/id" }, "active": { "type": "boolean" } } },
     "resource_view": { "allOf": [{ "$ref": "#/$defs/resource" }, { "type": "object", "required": ["bookings"], "properties": { "bookings": { "type": "array", "items": { "$ref": "#/$defs/slot" } } } }] },

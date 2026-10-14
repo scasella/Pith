@@ -2,8 +2,8 @@
 
 The decisions come from harness/oracle-py (the Python translation of spec/QuotaCore.dfy, reproduced on every judge).
 What the core assumes and the library must establish itself is written here, from harness/LIBRARY.md, and is not
-verified: the domain of whole numbers and keys (the translated core checks no preconditions), which error a malformed
-call raises, that arguments are checked before the clock, that a `burst` is a sequence of acquires, and that dump/load
+verified: the domain of whole numbers, keys and per-key limits (the translated core checks no preconditions), which
+error a malformed call raises, that arguments are checked before the clock, that a `burst` is a sequence of acquires, and that dump/load
 carries the whole state. `expected(program, runtime)` returns the results a conforming library's driver prints, in
 the drivers' shapes, up to `comparable()` (which drops what this harness does not judge: messages, dump texts, the
 error attributes that delivery/ judges).
@@ -35,10 +35,19 @@ def need(ok, argument):
 def dkey(k): return _dafny.SeqWithoutIsStrInference(map(_dafny.CodePoint, k))
 
 
+def valid_limits(v, runtime):
+    """`limits` as LIBRARY.md § Values defines it: a mapping (a JSON object) from keys to whole numbers in [1, 2^31 - 1]."""
+    return isinstance(v, dict) and all(isinstance(k, str) and KEY.fullmatch(k) and whole(x, runtime, 1, U31) for k, x in v.items())
+
+
 class Ref:
-    """One limiter: a configuration and a State of the verified core."""
-    def __init__(self, limit, window):
-        self.c = QuotaSpec.Config_Config(int(limit), int(window)); self.s = QuotaSpec.State_State(0, _dafny.SeqWithoutIsStrInference([]))
+    """One limiter: a configuration (with its per-key limits) and a State of the verified core."""
+    def __init__(self, limit, window, limits=None):
+        own = _dafny.Map({dkey(k): int(x) for k, x in (limits or {}).items()})
+        self.c = QuotaSpec.Config_Config(int(limit), int(window), own); self.s = QuotaSpec.State_State(0, _dafny.SeqWithoutIsStrInference([]))
+
+    def limit_for(self, key):
+        return {"ok": int(CORE.LimitFor(self.c, dkey(key)))}
 
     def acquire(self, key, now, cost):
         d, s2 = CORE.Acquire(self.c, self.s, dkey(key), int(cost), int(now))
@@ -63,7 +72,11 @@ def expected(program, runtime):
         try:
             if op == "new":
                 need(whole(s.get("limit"), runtime, 1, U31), "limit"); need(whole(s.get("window"), runtime, 1, U31), "window")
-                lims[s["id"]] = Ref(s["limit"], s["window"]); r = {"ok": None}
+                if "limits" in s: need(valid_limits(s["limits"], runtime), "limits")      # omitted: no key has a limit of its own
+                lims[s["id"]] = Ref(s["limit"], s["window"], s.get("limits")); r = {"ok": None}
+            elif op == "limit_for":
+                need(isinstance(s.get("key"), str) and KEY.fullmatch(s["key"]) is not None, "key")
+                r = lims[s["id"]].limit_for(s["key"])
             elif op in ("acquire", "peek", "burst"):
                 need(isinstance(s.get("key"), str) and KEY.fullmatch(s["key"]) is not None, "key")
                 if op != "peek" and "cost" in s: need(whole(s["cost"], runtime, 1, U31), "cost")

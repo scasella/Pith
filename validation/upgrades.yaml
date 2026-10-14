@@ -1,0 +1,43 @@
+# The contract upgrades of the main packs (docs/rfc/0006-upgrading-the-main-packs.md), judged by validation/upgrades.py.
+# from_commit is where every previous release was published (v0.11.0 on main); old_release is the digest catalog.yaml
+# recorded for it, which the rebuilt release must equal. `applications` are migrated from the same example at that
+# commit (`old` when the path differs); the first one is the reference application. `contract_changes` are the
+# records the classification must name; `holds` the checks it must say still hold (inputs and contract records the
+# upgrade did not reach; the judge re-runs them anyway, because evidence is bound to its release). Known-wrong
+# migrations are overlays on a base application (<wrong_migrations>/<name>/ holds only what differs), listed in
+# <wrong_migrations>/expected.yaml.
+from_commit: 8e63d7b45cc3f104097c54b0686f19b177c366b3
+packs:
+  reservation:
+    pack: .
+    old_release: b6a58ad409fd80070f39c35e402dd3fb46e659be8b123c11b73b4f65e083ffa7
+    applications: [{new: examples/build-a}, {new: examples/build-b}, {new: examples/club-desk}, {new: examples/office-desk}]
+    contract_changes: {Receipts: added, MIG1: added}
+    # the kernels, their proofs and the design obligations did not change, so the classification says these results hold
+    holds: ['core state only via core actions', 'design coverage (CovCapture)', 'design coverage (CovCaptureContention)', 'design coverage (CovContention)',
+            'design coverage (CovDecided)', 'design coverage (CovDecline)', 'design coverage (CovRelease)', 'design coverage (CovRetry)', 'design extends obligations',
+            'design interface', 'design model (safety)', 'design module present', 'integration profile', 'kernel gate', 'obligations reject the known-bad design']
+    wrong_migrations: examples/wrong-migrations
+  approval:
+    pack: packs/approval
+    old_release: a0c27100b0d0c7838041e6e822238883ebb072e46f0ba813c8b1da89c2f8118f
+    applications: [{new: packs/approval/examples/approvals-py}, {new: packs/approval/examples/approvals-node}, {new: packs/approval/examples/adopt-handbook}]
+    contract_changes: {A3: "version 1 -> 2", A9: added, BoundaryConformance: "version 1 -> 2", MIG1: added}
+    wrong_migrations: packs/approval/examples/wrong-migrations
+    holds: ["candidate runtime"]
+  quota:
+    pack: packs/quota
+    old_release: b10e8147eade371f29522ef47d170e39ed1eef40c7e38308e8ee5c3883fea8bc
+    applications: [{new: packs/quota/examples/sliding-log-py}, {new: packs/quota/examples/tally-node}]
+    contract_changes: {Q0: "version 1 -> 2", Q1: "version 1 -> 2", Q3: "version 1 -> 2", Q4: "version 1 -> 2", Q5: "version 1 -> 2",
+                       Persistence: "version 1 -> 2", BoundaryConformance: "version 1 -> 2", KEYLIMIT: added, MIG1: added}
+    holds: [candidate runtime]       # the runtime preflight: same manifest key and value, same check, no contract record
+    wrong_migrations: packs/quota/examples/wrong-migrations
+  booking:
+    pack: packs/booking
+    old_release: 4b2171324020b247ee1675d207f7778e8a30fc1d21143e26c8b0b7a3d65de774
+    applications: [{new: packs/booking/examples/calendar-py}, {new: packs/booking/examples/desk-node}, {new: packs/booking/examples/custom-py}]
+    contract_changes: {B0: "version 1 -> 2", HalfOpen: "version 1 -> 2", B2: "version 1 -> 2", B5: "version 1 -> 2", M1: "version 1 -> 2",
+                       BoundaryConformance: "version 1 -> 2", Turnaround: added, MIG1: added}
+    holds: [candidate runtime, integration profile]     # the two manifest_choice preflights: they read only app.manifest.yaml runtime/profile and establish no record
+    wrong_migrations: packs/booking/examples/wrong-migrations

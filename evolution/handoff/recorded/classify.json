@@ -1,0 +1,74 @@
+{
+ "format": "pith.change-impact/v1",
+ "authoritative": false,
+ "note": "advisory: an inference from declared routes and from which checks read which files; the judge decides acceptance",
+ "from": {
+  "release_digest": "e7bf373c80b4a359a02e1242f1ffe76aee54f6c3c772c34b865c48d7c7c434b3",
+  "evaluator_digest": "dd37b73da994d09c9f2f285e2c693f97c9589153b2020d0ed97016d23d4391ca",
+  "artifact_digest": "44cb8bea75d745b227474a2d91cb1e9acb4aeee1ffba59db0cd7852d7d5fbae9",
+  "digest": "2a71bd0546dde37c6a76fbf05937acb9d2f52d6a174dd2ffab16b156ac9f8872",
+  "pack": {
+   "id": "demo.tally",
+   "version": "2.0.0",
+   "contract_version": "tally/v2"
+  }
+ },
+ "to": {
+  "pack": {
+   "id": "demo.tally",
+   "version": "2.0.0"
+  }
+ },
+ "route": "integration",
+ "ambiguous": [],
+ "required": "re-establish the runtime assumptions and correspondence: re-run every invalidated check (a run with --reuse re-checks only those)",
+ "contract_changes": [],
+ "files": [
+  {
+   "path": "service/run.py",
+   "route": "integration",
+   "declared": [
+    {
+     "route": "integration",
+     "why": "the service: correspondence to the model, through the black-box harness"
+    }
+   ],
+   "read_by": [
+    "service.entrypoint",
+    "service.lifecycle",
+    "service.migrate"
+   ],
+   "records": [
+    "Durability",
+    "Idempotency",
+    "T1",
+    "T2"
+   ]
+  }
+ ],
+ "evidence": {
+  "holds": [
+   "model checked",
+   "the model rejects a bound checked on counter default only"
+  ],
+  "invalidated": [
+   {
+    "check": "service entrypoint",
+    "why": "inputs changed: ['service/run.py']"
+   },
+   {
+    "check": "migration entrypoint",
+    "why": "inputs changed: ['service/run.py']"
+   },
+   {
+    "check": "lifecycle harness (black-box)",
+    "why": "inputs changed: ['service/run.py']"
+   }
+  ]
+ },
+ "rerun": [
+  "lifecycle harness (black-box)",
+  "migration entrypoint",
+  "service entrypoint"
+ ]
+}

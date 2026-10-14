@@ -16,7 +16,8 @@ class Client:
         except urllib.error.HTTPError as e:
             try: return e.code, json.loads(e.read() or b"null")
             except ValueError: return e.code, None
-    def create(self, rid, name="Room"):            return self._req("POST", "/resources", {"id": rid, "name": name})
+    def create(self, rid, name="Room", buffer=None):                       # buffer None: omitted (the service's default, 0)
+        return self._req("POST", "/resources", {"id": rid, "name": name, **({} if buffer is None else {"buffer": buffer})})
     def resources(self):                            return self._req("GET", "/resources")
     def resource(self, rid):                        return self._req("GET", f"/resources/{rid}")
     def book(self, rid, request_id, start, end):    return self._req("POST", f"/resources/{rid}/bookings", {"request_id": request_id, "start": start, "end": end})

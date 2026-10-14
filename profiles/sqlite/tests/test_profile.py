@@ -134,10 +134,55 @@ def test_capture_posts_exactly_and_is_terminal():
     assert r.capture(1, 1) == {"request_id": 1, "captured": True, "amount": 60, "replayed": False}
     v = r.account(1); assert v["posted"] == 60 and v["holds"] == {} and v["status"][1] == "POST" and v["available"] == 40
     assert r.capture(1, 1)["replayed"] is True and r.account(1)["posted"] == 60          # idempotent, no double post
-    assert r.release(1, 1) == {"request_id": 1, "released": False}                        # cannot release a posted request
+    assert r.release(1, 1) == {"request_id": 1, "released": False, "replayed": False}     # cannot release a posted request
     assert r.authorize(1, 2, 40)["decision"] == "AUTHORIZED" and r.authorize(1, 3, 1)["decision"] == "DECLINED"
-    assert r.capture(1, 9) == {"request_id": 9, "captured": False} and r.verify_replay() == []
+    assert r.capture(1, 9) == {"request_id": 9, "captured": False, "replayed": False} and r.verify_replay() == []
     r.close()
+
+# ---------------------------------------------------------------- receipts (contract authorization-and-posting/v3)
+def test_retries_return_the_recorded_receipt_across_a_reopen():
+    r = Repo(); r.create_account(1, 100); r.authorize(1, 1, 30); r.authorize(1, 2, 50)
+    assert r.release(1, 1) == {"request_id": 1, "released": True, "replayed": False}
+    assert r.capture(1, 2) == {"request_id": 2, "captured": True, "amount": 50, "replayed": False}
+    n = len(r.events()); path = r.path; r.close(); r = Repo(path)
+    assert r.release(1, 1) == {"request_id": 1, "released": True, "replayed": True}
+    assert r.capture(1, 2) == {"request_id": 2, "captured": True, "amount": 50, "replayed": True}
+    assert r.authorize(1, 2, 50) == {"request_id": 2, "decision": "AUTHORIZED", "available_at_decision": 70, "replayed": True}
+    assert len(r.events()) == n and r.verify_replay() == []                                         # a receipt is not an operation
+    r.close()
+
+def _as_previous_contract(path):
+    """The database as the previous contract's profile wrote it: the same accounts and events, no receipts, no schema."""
+    import sqlite3
+    db = sqlite3.connect(path, isolation_level=None); db.execute("DROP TABLE receipts"); db.execute("DROP TABLE meta"); db.close()
+
+def test_state_from_the_previous_contract_is_refused_until_migrated():
+    from profiles.sqlite.repo import UnmigratedState
+    from profiles.sqlite.migrate import migrate
+    r = Repo(); r.create_account(1, 100); r.authorize(1, 1, 30); r.authorize(1, 2, 90); r.authorize(1, 3, 20); r.release(1, 1); r.capture(1, 3)
+    before = r.events(); path = r.path; r.close(); _as_previous_contract(path)
+    with pytest.raises(UnmigratedState): Repo(path)
+    assert "receipts" in migrate(path) and "nothing to do" in migrate(path)                         # re-runnable
+    r = Repo(path)
+    assert r.events() == before and r.verify_replay() == []                                         # history kept byte for byte
+    assert r.authorize(1, 2, 90) == {"request_id": 2, "decision": "DECLINED", "available_at_decision": 70, "replayed": True}
+    assert r.release(1, 1) == {"request_id": 1, "released": True, "replayed": True}
+    assert r.capture(1, 3) == {"request_id": 3, "captured": True, "amount": 20, "replayed": True}
+    with pytest.raises(ValueError): r.authorize(1, 1, 31)                                            # still a conflict
+    r.close()
+
+def test_migration_refuses_unrecognised_or_tampered_state(tmp_path):
+    import sqlite3
+    from profiles.sqlite.migrate import migrate, Refused
+    junk = tmp_path / "auth.db"; junk.write_text("not a database\n")
+    with pytest.raises(Refused): migrate(str(junk))
+    assert junk.read_text() == "not a database\n"
+    with pytest.raises(Refused): migrate(str(tmp_path / "missing.db"))
+    r = Repo(); r.create_account(1, 100); r.authorize(1, 1, 30); path = r.path; r.close(); _as_previous_contract(path)
+    db = sqlite3.connect(path, isolation_level=None)
+    db.execute("UPDATE events SET body = replace(body, '\"amount\": 30', '\"amount\": 31') WHERE body LIKE '%auth.decided%'"); db.close()
+    with pytest.raises(Refused): migrate(path)                                                      # the chain no longer verifies
+    db = sqlite3.connect(path); assert {t for (t,) in db.execute("SELECT name FROM sqlite_master WHERE type='table'")} == {"accounts", "events", "sqlite_sequence"}; db.close()
 
 # ---------------------------------------------------------------- stateful replay against the proven core
 class Machine(RuleBasedStateMachine):

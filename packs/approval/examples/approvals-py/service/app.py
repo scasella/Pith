@@ -2,6 +2,7 @@
 import json, re, threading
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from service.store import Invalid, Conflict, Missing
+from service import workflow as W
 
 OPS = ("edit", "submit", "approve", "reject", "publish")
 
@@ -31,7 +32,7 @@ def serve(store, port):
                 b = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"null")
                 if not isinstance(b, dict): raise Invalid("body must be a JSON object")
                 if self.path == "/actors": return 201, store.add_actor(b.get("id"), b.get("roles"))
-                if self.path == "/documents": return 200, store.create(b.get("request_id"), b.get("id"), b.get("actor"), b.get("title"), b.get("body"))
+                if self.path == "/documents": return 200, store.create(b.get("request_id"), b.get("id"), b.get("actor"), b.get("title"), b.get("body"), b["quorum"] if "quorum" in b else W.DEFAULT_QUORUM)
                 if (m := re.fullmatch(r"/documents/([^/]+)/(\w+)", self.path)) and m[2] in OPS:
                     return 200, store.command(m[2], b.get("request_id"), m[1], b.get("actor"), b.get("revision"), b.get("body"))
                 return 404, {"error": "not found"}

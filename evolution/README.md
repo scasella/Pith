@@ -24,4 +24,5 @@ What `validation/evolution.py OUT` shows, each step recorded in `OUT/evolution-r
    produced (`gate/migrate.py`), and the known-wrong migrations are refused for their defect;
 4. **composed workflow** — `gate/compose.py check compositions/ledger-receipts`.
 
-These are scripted: the "agents" are scripted edits. Measuring real agents is the experiment harness's job (M6).
+These are scripted: the "agents" are scripted edits. `handoff/` records the same handoff done once by two model agents
+(v0.12.0), re-checked by `validation/handoff.py`; measuring agents is the experiment harness's job (M6).

@@ -1,0 +1,35 @@
+# How an authorization-and-posting-core/v2 deployment becomes an authorization-and-posting/v3 one, with its state
+# (format: docs/rfc/0004-safe-evolution.md § 4; prose: migrations/README.md). `python3 gate/migrate.py run` executes it:
+# populate drives the OLD judged artifact's own service to produce real version 2 state, the candidate's migrate
+# command transforms it (twice: it must be re-runnable), and the verify harness judges the NEW service on the migrated
+# state. Frozen with the release.
+format: pith.migration/v1
+from: { pack: pith.reservation, contract_version: authorization-and-posting-core/v2 }
+to: { pack: pith.reservation, contract_version: authorization-and-posting/v3 }
+records: [MIG1, Receipts]
+state: the version 2 service's database (the --db path and anything beside it, e.g. SQLite's -wal and -shm files)
+mapping: >
+  every account, hold, request status, the posted total and every event are kept unchanged, byte for byte; every write
+  version 2 acknowledged becomes its receipt, read from the event log (the only place version 2 kept it): an
+  authorization from its auth.decided event (decision, available_at_decision, amount), a release from its
+  reservation.released event, a capture from its capture.posted event (amount); nothing is re-decided and no event is
+  added, removed or rewritten
+retries: >
+  a version 2 client retrying an authorization gets the recorded decision and available_at_decision with
+  replayed=true, as before; retrying it with another amount is still a conflict. A retried release, which version 2
+  answered {released: false} once the hold was gone, is now answered with its receipt {released: true, replayed: true};
+  a retried capture, which version 2 answered without the amount, now carries it. Those two answers change on purpose:
+  they are what the Receipts record adds.
+in_flight: >
+  a request the version 2 service may or may not have committed before it stopped is decided at most once: replayed
+  from its receipt if version 2 committed it, decided by version 3 otherwise, never both
+rollback:
+  policy: forward-only
+  why: >
+    version 3 refuses state without receipts, and version 2 does not maintain them: a version 2 service started on
+    migrated state would keep answering, but every write it made would have no receipt, so returning to version 3 later
+    would replay those requests wrongly. Backing out is a forward repair in a new release, not a downgrade.
+populate: "{python} -I migrations/populate.py --old {old} --state {state} --out {observed}"
+migrate: "{python} -I service/migrate.py --db {state}/auth.db"
+verify: "{pytest} migrations/verify.py"
+unrecognised: { files: { auth.db: "this is not an authorization database\n" } }

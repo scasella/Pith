@@ -1,6 +1,6 @@
 # packs/quota/examples/wrong/expected.yaml — known-wrong pith.quota candidates and the verdict the pristine gate must
 # reach (validation/judge_wrong.py --pack packs/quota). Each is a conforming example (../sliding-log-py or
-# ../tally-node) with ONE defect, marked DEFECT in its source. A refused candidate must be refused at exactly
+# ../tally-node, at the current contract version) with ONE defect, marked DEFECT in its source. A refused candidate must be refused at exactly
 # `refused_at`, by exactly the `failing_tests` (pytest function names; the reviewed traces are one parametrized test);
 # a delivery defect must pass behavioral assurance and fail exactly `must_fail`. Since v0.9.0 the task packet must put
 # the first failure in `category` and name at least `contracts` (gate/packet.py).
@@ -8,20 +8,23 @@ fixed-window:
   source: sliding-log-py counting only the current fixed bucket, the library twin of spec/wrong/fixed_window.dfy
   refused_at: library.lifecycle
   failing_tests: [test_reviewed_traces, test_window_is_half_open_at_every_boundary, test_no_window_ever_holds_more_than_the_limit,
-                  test_dump_and_load_carry_the_whole_state, test_decisions_do_not_depend_on_the_wall_clock]
+                  test_dump_and_load_carry_the_whole_state, test_decisions_do_not_depend_on_the_wall_clock,
+                  test_no_window_ever_holds_more_than_the_keys_own_limit]                            # 0.2.0: the per-key test sees the same defect
   category: violation
   contracts: [WINDOW]
 closed-window:
   source: tally-node whose grants still count at t + window, the library twin of spec/wrong/closed_window.dfy
   refused_at: library.lifecycle
   failing_tests: [test_reviewed_traces, test_window_is_half_open_at_every_boundary, test_no_window_ever_holds_more_than_the_limit,
-                  test_dump_and_load_carry_the_whole_state, test_decisions_do_not_depend_on_the_wall_clock, test_extreme_values]
+                  test_dump_and_load_carry_the_whole_state, test_decisions_do_not_depend_on_the_wall_clock, test_extreme_values,
+                  test_no_window_ever_holds_more_than_the_keys_own_limit, test_dump_and_load_carry_the_per_key_limits]   # 0.2.0: the per-key tests see the same defect
   category: violation
   contracts: [WINDOW]
 shared-state:
   source: tally-node whose tallies live in one module-level table shared by every limiter
   refused_at: library.lifecycle
-  failing_tests: [test_limiters_are_independent, test_dump_and_load_carry_the_whole_state, test_dump_is_a_snapshot]
+  failing_tests: [test_limiters_are_independent, test_dump_and_load_carry_the_whole_state, test_dump_is_a_snapshot,
+                  test_dump_and_load_carry_the_per_key_limits]                                       # 0.2.0: a second limiter in one process again
   category: violation
   contracts: [InstanceIsolation]
 unlocked:
@@ -40,3 +43,9 @@ never-prunes:
   must_fail: [LI3]
   category: violation
   contracts: [LI3]
+retry-default-limit:
+  source: sliding-log-py whose retry hint is still worked out against the default limit, the library twin of spec/wrong/retry_default_limit.dfy (added in 0.2.0)
+  refused_at: library.lifecycle
+  failing_tests: [test_reviewed_traces, test_no_window_ever_holds_more_than_the_keys_own_limit, test_dump_and_load_carry_the_per_key_limits]
+  category: violation
+  contracts: [KEYLIMIT]

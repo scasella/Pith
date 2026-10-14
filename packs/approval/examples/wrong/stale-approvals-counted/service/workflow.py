@@ -1,6 +1,7 @@
 """service/workflow.py — the approval rules (harness/SERVICE.md), written by this application. Pure functions over a
 document dict; the store decides nothing itself."""
-QUORUM = 2
+DEFAULT_QUORUM = 2                 # a create without `quorum`; every version 1 document (service/migrate.py)
+QUORUMS = range(2, 6)
 NEEDS = {"submit": None, "approve": "approver", "reject": "approver", "publish": "publisher"}
 FROM = {"submit": "draft", "approve": "in_review", "reject": "in_review", "publish": "approved"}
 
@@ -8,9 +9,9 @@ FROM = {"submit": "draft", "approve": "in_review", "reject": "in_review", "publi
 def votes(doc, rev): return sorted(a for r, a in doc["approvals"] if r == rev)
 
 
-def create(actor_roles, actor, doc_id, title, body):
+def create(actor_roles, actor, doc_id, title, body, quorum=DEFAULT_QUORUM):
     if "editor" not in actor_roles: return "ROLE", None
-    return None, {"id": doc_id, "title": title, "status": "draft", "revisions": [{"revision": 1, "author": actor, "body": body}], "approvals": []}
+    return None, {"id": doc_id, "title": title, "status": "draft", "quorum": quorum, "revisions": [{"revision": 1, "author": actor, "body": body}], "approvals": []}
 
 
 def apply(doc, op, actor, actor_roles, revision=None, body=None):
@@ -30,7 +31,7 @@ def apply(doc, op, actor, actor_roles, revision=None, body=None):
         if [cur, actor] in doc["approvals"]: return "ALREADY_APPROVED", doc
         ap = doc["approvals"] + [[cur, actor]]
         # DEFECT: the quorum counts approvals of every revision, so approvals of a superseded revision still count after an edit
-        return None, {**doc, "approvals": ap, "status": "approved" if len({a for r, a in ap}) >= QUORUM else "in_review"}
+        return None, {**doc, "approvals": ap, "status": "approved" if len({a for r, a in ap}) >= doc["quorum"] else "in_review"}
     if op == "reject": return None, {**doc, "status": "rejected"}
     return None, {**doc, "status": "published"}
 
@@ -38,5 +39,5 @@ def apply(doc, op, actor, actor_roles, revision=None, body=None):
 def view(doc):
     if doc is None: return None
     cur = len(doc["revisions"])
-    return {"id": doc["id"], "title": doc["title"], "status": doc["status"], "revision": cur, "revisions": doc["revisions"],
+    return {"id": doc["id"], "title": doc["title"], "status": doc["status"], "revision": cur, "quorum": doc["quorum"], "revisions": doc["revisions"],
             "approvals": [{"revision": r, "actor": a} for r, a in sorted(map(tuple, doc["approvals"]))], "current_votes": votes(doc, cur)}

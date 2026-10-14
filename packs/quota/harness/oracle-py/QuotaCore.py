@@ -34,7 +34,7 @@ class default__:
         out0_: int
         out0_ = default__.ComputeUsed(log, k, (now) + (r), (c).window)
         d_0_u_ = out0_
-        while ((d_0_u_) + (cost)) > ((c).limit):
+        while ((d_0_u_) + (cost)) > (QuotaSpec.default__.LimitOf(c, k)):
             r = (r) + (1)
             out1_: int
             out1_ = default__.ComputeUsed(log, k, (now) + (r), (c).window)
@@ -42,7 +42,7 @@ class default__:
         return r
 
 
-class Core(QuotaSpec.Acquirer, QuotaSpec.Peeker):
+class Core(QuotaSpec.Acquirer, QuotaSpec.Peeker, QuotaSpec.LimitReporter):
     def  __init__(self):
         pass
 
@@ -61,22 +61,24 @@ class Core(QuotaSpec.Acquirer, QuotaSpec.Peeker):
             d = rhs0_
             s_k = rhs1_
             return d, s_k
-        d_0_u_: int
+        d_0_lim_: int
+        d_0_lim_ = QuotaSpec.default__.LimitOf(c, k)
+        d_1_u_: int
         out0_: int
         out0_ = default__.ComputeUsed((s).log, k, now, (c).window)
-        d_0_u_ = out0_
-        if ((d_0_u_) + (cost)) <= ((c).limit):
-            d = QuotaSpec.Decision_Granted((((c).limit) - (d_0_u_)) - (cost))
+        d_1_u_ = out0_
+        if ((d_1_u_) + (cost)) <= (d_0_lim_):
+            d = QuotaSpec.Decision_Granted(((d_0_lim_) - (d_1_u_)) - (cost))
             s_k = QuotaSpec.State_State(now, ((s).log) + (_dafny.SeqWithoutIsStrInference([QuotaSpec.Entry_Entry(k, now, cost)])))
-        elif (cost) > ((c).limit):
-            d = QuotaSpec.Decision_Denied(((c).limit) - (d_0_u_), QuotaSpec.Option_None())
+        elif (cost) > (d_0_lim_):
+            d = QuotaSpec.Decision_Denied((d_0_lim_) - (d_1_u_), QuotaSpec.Option_None())
             s_k = QuotaSpec.State_State(now, (s).log)
         elif True:
-            d_1_r_: int
+            d_2_r_: int
             out1_: int
             out1_ = default__.EarliestFit(c, (s).log, k, cost, now)
-            d_1_r_ = out1_
-            d = QuotaSpec.Decision_Denied(((c).limit) - (d_0_u_), QuotaSpec.Option_Some(d_1_r_))
+            d_2_r_ = out1_
+            d = QuotaSpec.Decision_Denied((d_0_lim_) - (d_1_u_), QuotaSpec.Option_Some(d_2_r_))
             s_k = QuotaSpec.State_State(now, (s).log)
         return d, s_k
 
@@ -97,11 +99,16 @@ class Core(QuotaSpec.Acquirer, QuotaSpec.Peeker):
         out0_ = default__.ComputeUsed((s).log, k, now, (c).window)
         d_0_u_ = out0_
         rhs3_ = False
-        rhs4_ = ((c).limit) - (d_0_u_)
+        rhs4_ = (QuotaSpec.default__.LimitOf(c, k)) - (d_0_u_)
         rhs5_ = QuotaSpec.State_State(now, (s).log)
         regressed = rhs3_
         remaining = rhs4_
         s_k = rhs5_
         return regressed, remaining, s_k
         return regressed, remaining, s_k
+
+    def LimitFor(self, c, k):
+        l: int = int(0)
+        l = QuotaSpec.default__.LimitOf(c, k)
+        return l
 

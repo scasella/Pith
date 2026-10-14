@@ -25,3 +25,9 @@ office-desk:
     I6: "Related finding: receipt scope is missing on account switches"
   category: violation
   contracts: [I1, I2, I3, I4, I5, I6]
+retry-not-released:
+  source: "examples/build-a with one change in service/app.py (marked DEFECT): a retried release is answered with what that call did ({released: false}) instead of the receipt; the v0.11.0 contract allowed this"
+  refused_at: lifecycle
+  failing_tests: [test_receipts_are_returned_on_retry_across_a_crash]
+  category: violation
+  contracts: [Receipts]
