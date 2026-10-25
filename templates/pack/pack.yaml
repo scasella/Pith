@@ -36,7 +36,7 @@ pytest: "{python} -m pytest -q -p no:cacheprovider --noconftest -c /dev/null --r
 statuses:
   model_assurance:
     rule: all_pass
-    passed: "passed; scoped: model/Spec.tla's invariants hold over model/MC.cfg, and the known-wrong design violates them"
+    passed: "passed; scoped: model/Spec.tla's invariants hold over model/MC.cfg, and every known-wrong design in model/wrong violates them"
     ready: { startswith: passed }
   behavioral_assurance:
     rule: all_pass
@@ -65,19 +65,16 @@ checks:
     cacheable: true
     establishes: [T1, T2]
 
-  - id: model.adequacy
+  - id: model.adequacy                                           # every known-wrong design, against what model.safety checks
     about: release
     area: model
-    name: the model rejects a tally without its bound
-    kind: tlc
-    jar: "{TLA2TOOLS}"
-    workdir: model
-    copy: { from: model/wrong, suffixes: [.tla, .cfg] }
-    module: MCWrongUnbounded.tla
-    cfg: MCWrongUnbounded.cfg
-    expect: { violated: Bounded }
-    claim: a design that ignores the bound violates Bounded
-    why: model/wrong/WrongUnbounded.tla no longer violates Bounded
+    name: "the model rejects {item}"
+    kind: command
+    each: { glob: "model/wrong/*.tla" }
+    command: "TLA2TOOLS={TLA2TOOLS} {python} model/redteam_tlc.py --design {item}"
+    expect_exit: nonzero
+    claim: "known-wrong design {item} violates the invariants model/MC.cfg checks"
+    why: "{item} passes model/MC.cfg: the checked invariants no longer reject this known-wrong design"
     status: model_assurance
     method: model-check
     inputs: ["model/**"]
@@ -119,3 +116,13 @@ contracts:
       verified_by: [service.lifecycle], change: integration }
 
 domain_vocabulary: [tally, WrongUnbounded, harness/lifecycle.py]
+
+redteam:                                                         # gate/redteam.py (docs/rfc/0007 § 4); the gap record is the pack's, not the release's
+  gaps: redteam/gaps.yaml
+  examples: { base: examples/basic, mutate: ["service/**"] }
+  witness: "{pytest} {witness}"
+  spec:
+    reference: model/Spec.tla
+    accepts: "TLA2TOOLS={TLA2TOOLS} {python} model/redteam_tlc.py --design {design} --work {work}"
+    violates: "TLA2TOOLS={TLA2TOOLS} {python} model/redteam_tlc.py --design {design} --property {property} --work {work}"
+    wrong_dir: model/wrong

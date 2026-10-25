@@ -117,8 +117,11 @@ What a harness author needs to know before writing one:
   `redteam/gaps.yaml`, and `pack check --release` refuses the pack until you tighten the checks; then `pack redteam
   --promote` writes it into `examples/wrong/` (or the model's wrong directory) with the refusal it got. Generated mutants
   without a witness are reported `unkilled`: candidates for a gap, or equivalent mutants, never counted as gaps.
-  `validation/redteam/underspecified` is a scaffold with two gaps left in on purpose; `validation/redteam.py` shows the
-  ratchet closing them.
+  The scaffold's `pack.yaml` has a `redteam` section for its example contract, and its `model.adequacy` runs every
+  `model/wrong/*.tla` against the invariants `model/MC.cfg` checks (`model/redteam_tlc.py`): a design you or `--promote`
+  add there is checked, and dropping an invariant from `MC.cfg` that a known-wrong design violates is refused.
+  `validation/redteam/underspecified` is a copy of the earlier scaffold with two gaps left in on purpose;
+  `validation/redteam.py` shows the ratchet closing them.
 - **Make failures readable without your harness** (v0.13.0, RFC 0007 § 5). Every run writes a redacted packet
   (`task-packet.distilled.json`) for agents that must not see your harness: no host paths, no stack frames, no code-shaped
   name from your release's code unless your documents use it. Name those documents in `packet.vocabulary`. Where a test

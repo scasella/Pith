@@ -18,7 +18,10 @@ changes throughout, so every release digest changes.
   generated mutants and saboteur packets (a mutant and a witness); a mutant the gate accepts although its witness shows
   it wrong is an open gap in `redteam/gaps.yaml`, `pack check --release` refuses the pack until it is closed, and
   `--promote` writes it into the known-wrong suite. `validation/redteam.py` closes the two gaps left on purpose in
-  `validation/redteam/underspecified`.
+  `validation/redteam/underspecified`. The first was the scaffold's own: `templates/pack`'s `model.adequacy` now runs
+  every `model/wrong/*.tla` against the invariants `model/MC.cfg` checks (`model/redteam_tlc.py`; the `MCWrongUnbounded`
+  wrapper is gone), so a scaffold whose `MC.cfg` drops `Bounded` is refused, and the scaffold declares a `redteam`
+  section. `evolution/tally-v1` and `tally-v2` are sealed and keep the old shape.
 - **Distilled counterexamples** (§ 5; `gate/packet.py`, `gate/shrink.py`, `pith packet distill`): every run also writes
   `task-packet.distilled.json` and `TASK.distilled.md`: no host path, no stack frame, no code-shaped name from the
   release's code, and a structured counterexample (from a harness's `pith-counterexample` line, a TLC trace, a delivery
