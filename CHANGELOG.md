@@ -1,8 +1,9 @@
 # Changelog
 
-## v0.13.0 — 2026-10-24
+## v0.13.0 — 2026-10-25
 Milestone 7: assurance that runs with less of a person in the loop, each piece with a known-wrong case it must refuse
-for exactly its reason. RFC: `docs/rfc/0007-autonomous-assurance-and-runtime-composition.md`. No format identifier is
+for exactly its reason. RFC: `docs/rfc/0007-autonomous-assurance-and-runtime-composition.md`. Release notes for users of
+Pith: `docs/release-notes/v0.13.0.md`. No format identifier is
 withdrawn or changed: every format change adds an optional field or a new identifier (`COMPATIBILITY.md`). Evaluator
 changes throughout, so every release digest changes.
 
