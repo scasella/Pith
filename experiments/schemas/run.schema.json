@@ -32,6 +32,9 @@
         "interventions": {"type": "array", "items": {"type": "object", "required": ["who", "what"],
           "properties": {"who": {"enum": ["maintainer", "user", "none"]}, "what": {"type": "string"}, "why_instructions_were_not_enough": {"type": "string"}}}},
         "setup_failures": {"type": "array", "items": {"type": "object", "required": ["what"], "properties": {"what": {"type": "string"}, "how_resolved": {"type": "string"}, "minutes_lost": {"type": "number"}}}},
+        "feedback": {"type": "array", "description": "optional (v0.13.0): what the agent was handed after each refused turn: the digest of the distilled task packet (gate/packet.py: redacted, a structured counterexample) and its first failure's check. The packet itself is never recorded here; experiments/harness.py feedback prints it from the evidence",
+          "items": {"type": "object", "required": ["turn", "digest"],
+            "properties": {"turn": {"type": "integer", "minimum": 1}, "digest": {"type": "string"}, "check": {"type": ["string", "null"]}, "disclosure": {"const": "redacted"}}}},
         "abandoned": {"type": "boolean"}, "abandon_reason": {"type": "string"},
         "workspace_digest": {"type": ["string", "null"]}, "transcript_sha256": {"type": ["string", "null"]}
       }}

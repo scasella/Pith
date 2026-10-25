@@ -4,17 +4,28 @@ Nothing here imports candidate code. The supervisor (gate/service.py) starts the
 runtime entrypoint, kills it mid-flight (SIGKILL) and restarts it on the same state directory. Resources created
 without a buffer have buffer 0 (version 1's convention); the buffer tests create resources with one.
 """
-import pathlib, sys, threading
+import itertools, json, pathlib, sys, threading
 from concurrent.futures import ThreadPoolExecutor
 import pytest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from harness.supervisor import Service
+from harness.supervisor import Service, Interleaved, manifest
+from gate import interleave as IL
 
 
 @pytest.fixture
 def svc():
     s = Service(ROOT).start()
+    try: yield s
+    finally: s.stop()
+
+
+@pytest.fixture
+def controlled():
+    """A separate instance of the service, started under the interleaving controller (harness/supervisor.py Interleaved)."""
+    if (manifest(ROOT).get("runtime") or "python") != "python":
+        pytest.skip("a Node.js service runs single-threaded JavaScript: no two requests interleave inside a handler, and the burst tests cover it")
+    s = Interleaved(ROOT).start()
     try: yield s
     finally: s.stop()
 
@@ -203,3 +214,28 @@ def test_every_operation_commits_once_with_the_resulting_calendar(svc):
     assert [e["request_id"] for e in commits] == [1, 2, 3, 4, 5]
     assert [sorted(map(tuple, e["active"])) for e in commits] == [[(1, 0, 60)], [(1, 0, 60)], [(1, 60, 120)], [], [(5, 0, 30)]]
     assert commits[-1]["active"] == [list(x) for x in active(c, 1)]
+
+
+def test_interleaved_bookings_of_one_interval_accept_exactly_one(controlled):
+    """Contract: Atomicity, B0. Python: every schedule of two requests booking the same interval of a fresh resource, with at most one
+    preemption (gate/interleave.py: the requests are held at their first line in service/, run one at a time and switch at every
+    lock, sleep and SQL statement), accepts exactly one and leaves exactly one active booking: not a timing test, so the same defect is
+    found on every run. A service whose request threads the controller never sees, or whose code has no lock, sleep or SQL statement
+    to switch at, is refused as inconclusive, never passed. Node.js: single-threaded JavaScript, nothing to interleave; the burst tests
+    cover it."""
+    c, E, ids = controlled.client, IL.ServiceEpisodes(controlled.control), itertools.count(1)
+    def setup():
+        rid = next(ids); c.create(rid); return rid, (1000 + 2 * rid, 1001 + 2 * rid)
+    def book(i): return lambda ctx: c.book(ctx[0], ctx[1][i], 600, 660)
+    def check(ctx, results):
+        rid, _ = ctx
+        if any(r[0] != "ok" or r[1][0] != 200 for r in results): return f"a request failed: {results}"
+        out = sorted(r[1][1]["outcome"] for r in results); acc = active(c, rid)
+        if out != ["ACCEPTED", "CONFLICT"]: return f"outcomes {out}, not one ACCEPTED and one CONFLICT; {len(acc)} active booking(s)"
+        if len(acc) != 1: return f"one ACCEPTED but {len(acc)} active bookings {acc}"
+    rep = E.explore(setup, [book(0), book(1)], check, bound=1)
+    first = rep["first"]
+    print("pith-interleave " + json.dumps({"schedules": rep["schedules"], "violations": len(rep["violations"]), "complete": rep["complete"], "first": first and first["schedule"]}, sort_keys=True))
+    assert not rep["violations"], f"Atomicity: {len(rep['violations'])} of {rep['schedules']} schedules double-book the interval; first violating schedule {first['schedule']}: {first['violation']}"
+    assert rep["schedules"] > 2 and rep["complete"] and not rep["inconclusive"] and not rep["deadlocks"], \
+        f"Atomicity: the exploration did not finish ({rep['schedules']} schedules; 2 are the serial orders and nothing else can run if no lock, sleep or SQL statement is reached; complete={rep['complete']}, inconclusive={rep['inconclusive']}, deadlocks={rep['deadlocks']})"

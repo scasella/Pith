@@ -1,0 +1,64 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Authorization console</title>
+<style>
+:root{--ink:#14202b;--muted:#506070;--line:#dde3e8;--card:#fff;--bg:#eef2f5;--ok:#0b6b5c;--okbg:#e2f3ef;--no:#a3261a;--nobg:#fbe9e6;--warn:#7a4b00;--warnbg:#fdf3d7}
+*{box-sizing:border-box}body{font:15px/1.5 ui-sans-serif,system-ui,sans-serif;margin:0;color:var(--ink);background:var(--bg)}
+header{background:#14202b;color:#f4f7f9;padding:.9rem 1.2rem}header h1{font-size:1.15rem;margin:0;letter-spacing:.01em}header p{margin:.2rem 0 0;color:#b9c6d1;font-size:.85rem}
+main{max-width:1040px;margin:0 auto;padding:1rem;display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+fieldset{border:1px solid var(--line);border-radius:10px;margin:0;padding:.9rem 1rem;background:var(--card);box-shadow:0 1px 2px rgba(20,32,43,.05)}
+fieldset.wide{grid-column:1/-1}legend{font-weight:650;padding:0 .35rem;font-size:.92rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+label{display:inline-flex;flex-direction:column;font-size:.8rem;color:var(--muted);margin:.2rem .8rem .4rem 0}input{width:8rem;padding:.35rem .5rem;border:1px solid var(--line);border-radius:6px;font:inherit}
+button{padding:.35rem .9rem;cursor:pointer;border-radius:6px;border:1px solid #2a3b4c;background:#2a3b4c;color:#fff;font:inherit;font-size:.88rem}button:disabled{opacity:.45;cursor:not-allowed}
+.dec{display:inline-block;padding:.12rem .55rem;border-radius:999px;font-weight:650;font-size:.85rem}.AUTHORIZED{background:var(--okbg);color:var(--ok)}.DECLINED{background:var(--nobg);color:var(--no)}.REJECTED,.UNKNOWN{background:var(--warnbg);color:var(--warn)}
+[data-decision="AUTHORIZED"]{color:var(--ok)}[data-decision="DECLINED"]{color:var(--no)}
+table{border-collapse:collapse;width:100%;font-size:.9rem}td,th{text-align:left;padding:.4rem .5rem;border-bottom:1px solid var(--line)}th{color:var(--muted);font-weight:600;font-size:.8rem}
+pre{background:#0f1922;color:#d6e2ea;border-radius:8px;padding:.7rem;max-height:14rem;overflow:auto;font-size:.76rem;margin:0}
+.note{color:var(--muted);font-size:.85rem}.stale{color:var(--warn)}#schema{grid-column:1/-1;margin:0}
+</style></head><body>
+<header><h1>Authorization console</h1><p>Displays what the service decided. It computes nothing: decisions are the core's (P0, P1), availability is the service's (INV1).
+Actions act on the account shown below, not on the number typed in the id field until you press Load.</p></header>
+<main>
+<p id="schema" class="note"></p>
+<fieldset><legend>Account</legend>
+ <label>id <input id="aid" data-testid="acct-id" type="number" value="1"></label><label>limit <input id="lim" data-testid="acct-limit" type="number" value="100"></label>
+ <button data-testid="btn-create" onclick="createAcct()">Create</button> <button data-testid="btn-load" onclick="loadAcct()">Load</button>
+ <div id="acct" data-testid="loaded-account"><p class="note">no account loaded</p></div><p id="problem" class="note"></p></fieldset>
+<fieldset><legend>Authorize</legend>
+ <label>request id <input id="rid" data-testid="req-id" type="number" value="1"></label><label>amount <input id="amt" data-testid="req-amount" type="number" value="60"></label>
+ <button data-testid="btn-authorize" onclick="authorize()">Authorize</button><div id="decision"></div></fieldset>
+<fieldset class="wide"><legend>Holds</legend><table id="holds"><thead><tr><th>request</th><th>amount</th><th></th></tr></thead><tbody></tbody></table></fieldset>
+<fieldset class="wide"><legend>Events (what the monitor sees)</legend><pre id="events" data-testid="events"></pre></fieldset>
+</main>
+<script src="/lib/pith-view.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const esc=x=>String(x).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const view=PithView.create({onChange:render});
+const NOTE={REJECTED:'refused by the service — nothing was decided',UNKNOWN:'no response — the outcome is unknown; retry with the same request id'};
+function render(s){
+ const L=s.loaded, acct=$('acct');
+ if(L){acct.dataset.accountId=L.account;acct.dataset.state=L.state;
+  acct.innerHTML=`<p>account <b>${L.account}</b> · limit <b>${L.data.limit}</b> · posted <b data-testid="posted">${L.data.posted}</b> · available <b data-testid="available">${L.data.available}</b>${L.state==='stale'?' <span class="stale">(could not refresh — figures may be out of date; press Load)</span>':''}</p>`;}
+ $('problem').textContent=s.problem?`account ${s.problem.account} could not be loaded (${s.problem.message})${L?`; still showing account ${L.account}`:''}`:'';
+ const R=s.receipt&&s.receipt.op==='authorize'?s.receipt:null;
+ if(R){const b=R.body||{}, d=R.decision;
+  $('decision').innerHTML=`<p data-testid="decision" data-decision="${d}" data-account-id="${R.account}" data-request-id="${R.request}"><span class="dec ${d}">${d}</span> account ${R.account} · request ${R.request}${b.replayed?' (replayed receipt — not a new decision)':''}${b.available_at_decision!==undefined?` · available at decision ${b.available_at_decision}`:''}${NOTE[d]?` · ${NOTE[d]}${b.error?` (${esc(b.error)})`:''}`:''}</p>`;}
+ $('holds').tBodies[0].innerHTML=PithView.rows(s).map(r=>`<tr data-testid="hold-row" data-account-id="${r.account}" data-request-id="${r.request}"><td>${r.request}</td><td>${r.amount}</td><td><button data-testid="btn-release" onclick="act('release',${r.account},${r.request})">Release</button> <button data-testid="btn-capture" onclick="act('capture',${r.account},${r.request})">Capture</button></td></tr>`).join('')||'<tr><td colspan=3 class="note">no live holds</td></tr>';
+}
+async function events(){const r=await view.events();if(r.status===200)$('events').textContent=r.data.slice(-30).map(e=>JSON.stringify(e)).join('\n');}
+async function createAcct(){await view.create(+$('aid').value,+$('lim').value);events();}
+async function loadAcct(){await view.load(+$('aid').value);events();}
+async function authorize(){if(!view.state.loaded){$('problem').textContent='load an account first';return;}
+ const s=await view.authorize(+$('rid').value,+$('amt').value);if(s&&s.receipt&&s.receipt.outcome==='OK')$('rid').value=+$('rid').value+1;events();}
+async function act(op,account,request){await view.act(op,{account,request});events();}
+async function bounds(){   // the amount field's bounds come from the service's own API description
+ const r=await fetch('/openapi.yaml',{cache:'no-store'});
+ if(!r.ok)throw new Error(`/openapi.yaml answered ${r.status}`);
+ const t=await r.text(), req=t.slice(t.indexOf('AuthorizeRequest:')), lo=/amount:[\s\S]*?minimum:\s*(\d+)/.exec(req), hi=/amount:[\s\S]*?maximum:\s*(\d+)/.exec(req);
+ if(t.indexOf('AuthorizeRequest:')<0||!lo)throw new Error('no amount bounds for an authorization in /openapi.yaml');
+ $('amt').min=lo[1]; if(hi)$('amt').max=hi[1];
+ $('schema').textContent=`amounts from ${lo[1]}${hi?` to ${hi[1]}`:''}, as the service's API description says`;}
+document.querySelectorAll('button').forEach(b=>b.disabled=true);
+bounds().then(()=>document.querySelectorAll('button').forEach(b=>b.disabled=false))
+        .catch(e=>{$('schema').textContent=`the API description could not be read (${e.message}): actions are disabled`;});
+</script></body></html>

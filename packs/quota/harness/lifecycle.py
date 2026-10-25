@@ -5,7 +5,7 @@ Every program runs in a fresh driver process started as the candidate (harness/r
 traces (spec/TraceData.dfy), the verified core (harness/oracle.py) or, where the core is too slow to ask (a window of
 2^31 - 1 instants), arithmetic written out in the test.
 """
-import pathlib, sys
+import json, pathlib, sys
 import pytest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -148,6 +148,24 @@ def test_one_limiter_shared_by_threads_grants_exactly_the_limit():
         got = R.run(steps, ROOT)
         assert got[1] == {"ok": {"granted": limit * (keys or 1), "errors": []}}, f"{8 * calls} calls over {keys or 1} key(s) with limit {limit}: {got[1]}"
         assert got[2] == {"ok": 0}, f"after the burst, peek gave {got[2]}"
+
+
+def test_interleaved_acquires_of_the_last_unit_grant_exactly_once():
+    """Contract: Atomicity. Python: every schedule of K threads calling acquire for a key's last unit on a fresh limiter, with at most
+    one preemption (gate/interleave.py: the threads run one at a time and switch at every lock, sleep and line of lib/), grants it
+    exactly once: not a timing test, so the same defect is found on every run. Node.js: a library runs single-threaded JavaScript, so
+    there is nothing to interleave; the calls in turn (test_one_limiter_shared_by_threads_grants_exactly_the_limit) cover it."""
+    if RT == "node": pytest.skip("a Node.js library runs single-threaded JavaScript: no two calls interleave, and the calls in turn are covered by the burst test")
+    for case in ({"limit": 1, "window": 100, "key": "k", "now": 5},                                  # the only unit, two callers
+                 {"limit": 3, "window": 100, "key": "k", "now": 5, "preload": 2},                    # the last of three, two callers
+                 {"limit": 1, "window": 100, "key": "k", "now": 5, "threads": 3}):                   # the only unit, three callers
+        rep = R.interleave(case, ROOT)
+        print("pith-interleave " + json.dumps({"case": case, "schedules": rep["schedules"], "violations": rep["violations"], "complete": rep["complete"],
+                                                "first": rep["first"] and rep["first"]["schedule"]}, sort_keys=True))
+        first = rep["first"] and f"first violating schedule {rep['first']['schedule']}: {rep['first']['violation']} (results {rep['first']['results']})"
+        assert rep["violations"] == 0, f"Atomicity: {rep['violations']} of {rep['schedules']} schedules of {case} break the limit; {first}"
+        assert rep["schedules"] > 0 and rep["complete"] and not rep["inconclusive"] and not rep["deadlocks"], \
+            f"Atomicity: {case}: the exploration did not finish ({rep['schedules']} schedules, complete={rep['complete']}, inconclusive={rep['inconclusive']}, deadlocks={rep['deadlocks']})"
 
 
 def test_extreme_values():

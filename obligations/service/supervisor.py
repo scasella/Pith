@@ -26,9 +26,20 @@ except ImportError:                                  # imported with obligations
 
 
 class Service:
-    def __init__(self, root: pathlib.Path, db: pathlib.Path | None = None):
+    def __init__(self, root: pathlib.Path, db: pathlib.Path | None = None, interleave: bool = False):
+        """interleave (v0.13.0, docs/rfc/0007 § 6): start the same entrypoint under the controller of gate/interleave.py, which holds each
+        request at its first line in service/, then runs the requests one at a time, switching at every lock, sleep and SQL statement
+        (the store of this pack's shipped profile is SQLite; a custom adapter's locks are threading locks, which the controller
+        replaces) in the order a schedule says. `control` is the directory the judge and the controller exchange episodes through; it
+        is created here and handed to the candidate's identity like the database directory."""
         self.root = pathlib.Path(root); self.db = pathlib.Path(db) if db else pathlib.Path(tempfile.mkdtemp(prefix="judged-db-")) / "state.db"
         self.proc = None; self.port = None; self.log = None; self.client = None
+        self.control = None
+        if interleave:
+            self.control = self.db.parent / "interleave"; self.control.mkdir(parents=True, exist_ok=True)
+            ident = candidate_identity()
+            if ident: os.chown(self.control, *ident)
+    def __repr__(self): return "<service>"      # a failing test's output shows its fixtures: not the harness's module path (gate/packet.py distills what an agent reads)
     def _free_port(self):
         with socket.socket() as s: s.bind(("127.0.0.1", 0)); return s.getsockname()[1]
     def start(self, timeout=20.0):
@@ -38,8 +49,9 @@ class Service:
         self.logpath = self.db.parent / f"service-{self.port}.log"; self.log = open(self.logpath, "ab")
         ident = candidate_identity()
         if ident: os.chown(self.db.parent, *ident); self.db.parent.chmod(0o700)     # the only place the candidate may write
-        self.proc = subprocess.Popen([sys.executable, "-I", "service/run.py", "--port", str(self.port), "--db", str(self.db)],
-                                     cwd=self.root, env=env, stdout=self.log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+        argv = [sys.executable, "-I", "service/run.py", "--port", str(self.port), "--db", str(self.db)]
+        if self.control: argv = [sys.executable, "-I", "gate/interleave.py", "serve", "--control", str(self.control), "--root", "service", "--dbapi", "sqlite3", "--"] + argv[2:]
+        self.proc = subprocess.Popen(argv, cwd=self.root, env=env, stdout=self.log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                                      preexec_fn=_demote(ident))
         self.client = Client(f"http://127.0.0.1:{self.port}")
         t0 = time.time()

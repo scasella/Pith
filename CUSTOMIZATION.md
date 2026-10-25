@@ -8,7 +8,7 @@ may differ freely.
 | Category | Examples | What it owes |
 |---|---|---|
 | **Presentation** (unrestricted) | layout, visual design, copy, navigation, device targets, UI framework | the required workflows and interaction obligations in `obligations/app/delivery.yaml` (judged in the browser through `UI-CONTRACT.md`) and the human evaluations there. Presentation is free; the mapping from what is shown and selected to the operation submitted is not |
-| **Supported integration profiles** | persistence backend, concurrency strategy, deployment arrangement, client framework | `profile: custom`; never imported by the judge; must pass `obligations/service/lifecycle.py` and the boundary harness black-box through its service. The shipped `sqlite` profile is the reference; no profile inherits assurance from another |
+| **Supported integration profiles** | persistence backend, concurrency strategy, deployment arrangement, client framework | `profile: custom`; never imported by the judge; must pass `obligations/service/lifecycle.py` and the boundary harness black-box through its service. The shipped `sqlite` profile is the reference, and `sqlite-occ` (v0.13.0) a second shipped profile with optimistic concurrency, judged by its own tests; no profile inherits assurance from another |
 | **Behavioural extensions** | new authorization policies (fraud, velocity), partial capture, refunds, expiry, limit changes, multi-currency | a spec change (`INTENT.md` § How a behavioural change is made) with new obligations, adequacy candidates and evidence; never implemented around the core |
 
 The three categories are the three change routes every contract record names (`change` in `pack.yaml`), and

@@ -11,7 +11,7 @@
 format: pith.pack/v1
 pack:
   id: pith.booking
-  version: 0.12.0
+  version: 0.13.0
   title: Interval booking (half-open intervals, a turnaround buffer per resource, cancellation, atomic rescheduling) with a browser-delivered application and two backend stacks
   contract_version: interval-booking-core/v2
   intent: packs/booking/INTENT.md
@@ -283,6 +283,7 @@ checks:
     name: conformance to the verified core
     kind: command
     command: "{pytest} harness/conformance.py"
+    why_tail: 16000      # the counterexample line (pith-counterexample, gate/packet.py) must survive a failure's long source echo and example listing
     count: '(\d+) passed'
     claim: "80 generated operation sequences, each on a resource with a generated buffer: every outcome, named conflict and resulting calendar equal the verified core's (property-based, black-box)"
     status: behavioral_assurance
@@ -344,8 +345,8 @@ contracts:
       verified_by: [core.verify, core.traces, service.lifecycle], wrong: [spec/wrong/reschedule_cancel_then_book.dfy], change: behavioral }
   - { id: Turnaround, version: 1, intent: "A resource's buffer is a whole number of minutes in [0, 1440], 0 unless given, fixed when the resource is created, and applies to every booking and move on it.",
       semantics: { markdown: "harness/SERVICE.md#semantics", dafny: "spec/BookingSpec.dfy [Turnaround]" }, verified_by: [service.lifecycle, service.boundary, service.conformance], wrong: [examples/wrong/buffer-ignored-on-move], change: behavioral }
-  - { id: Atomicity, version: 1, intent: "The deployed stack decides each operation against the latest committed calendar, one at a time.", semantics: { python: "profiles/python/tests/test_profile.py", javascript: "profiles/node/tests/store.test.mjs" },
-      verified_by: [profile.python, profile.node, service.lifecycle], change: integration }
+  - { id: Atomicity, version: 1, intent: "The deployed stack decides each operation against the latest committed calendar, one at a time.", semantics: { python: "profiles/python/tests/test_profile.py", javascript: "profiles/node/tests/store.test.mjs", python-interleaved: "harness/lifecycle.py test_interleaved_bookings_of_one_interval_accept_exactly_one" },
+      verified_by: [profile.python, profile.node, service.lifecycle], wrong: [examples/wrong/check-then-insert], change: integration }
   - { id: Durability, version: 1, intent: "An acknowledged operation survives a crash and restart.", semantics: { python: "harness/lifecycle.py" }, timing: after acknowledgement, verified_by: [profile.python, profile.node, service.lifecycle], change: integration }
   - { id: Idempotency, version: 1, intent: "request_id is the idempotency key of every write; a reuse for something else is refused.", semantics: { markdown: "harness/SERVICE.md" }, verified_by: [service.lifecycle], change: integration }
   - { id: Independence, version: 1, intent: "Bookings on one resource never block another.", semantics: { python: "harness/lifecycle.py" }, verified_by: [service.lifecycle], change: integration }
@@ -369,5 +370,9 @@ contracts:
 
 migrations:                                                      # gate/migrate.py; the evidence for MIG1 is its report, not a judge run
   - { from: interval-booking-core/v1, spec: migrations/from-v1.yaml }
+
+# v0.13.0 (docs/rfc/0007 § 5): the documents whose words are this pack's domain vocabulary, which a distilled task packet may repeat
+packet:
+  vocabulary: [harness/SERVICE.md, delivery/UI-CONTRACT.md]
 
 domain_vocabulary: [booking, reschedul, BookingCore, BookingSpec, bookingcore, calendar, half-open, interval, harness/, delivery/, spec/wrong, conflicts_with, turnaround]

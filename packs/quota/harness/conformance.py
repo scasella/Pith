@@ -13,8 +13,25 @@ from hypothesis import given, settings, strategies as st, HealthCheck
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from harness import run as R, oracle as O
+from gate.packet import cx_line
 
 RT = R.runtime(ROOT)
+
+
+def plain(r):
+    """A result in the contract's words: what this harness judges (decisions, peeks, which error; not messages or dump texts)."""
+    if "error" in r: return {"error": r["error"]}
+    v = r["ok"]
+    return {"type": v["type"]} if isinstance(v, dict) and "type" in v else (v if isinstance(v, dict) and "errors" not in v else
+            {"granted": v["granted"], "errors": v["errors"]} if isinstance(v, dict) else v)
+
+
+def cx(steps, got, want, i):
+    """The one-line counterexample the task packet carries (gate/packet.py): the program up to the step where the library and the
+    verified core part, each step with what the library gave and, on the last, the answer the core gives."""
+    sent = [{"step": n + 1, "action": s["op"], "args": {k: v for k, v in s.items() if k != "op"}, "observed": plain(got[n])} for n, s in enumerate(steps[:i + 1])]
+    sent[-1]["expected"] = plain(want[i])
+    return cx_line(sent, expected=plain(want[i]), observed=plain(got[i]), violated=["CoreConformance"], diverged_at=i, replayable=False, source="oracle discrepancy")
 
 
 @st.composite
@@ -43,4 +60,4 @@ def programs(draw):
 def test_library_agrees_with_the_verified_core(steps):
     got, want = R.run(steps, ROOT), O.expected({"steps": steps}, RT)
     for i, (g, w) in enumerate(zip(got, want)):
-        assert O.comparable(g) == O.comparable(w), f"step {i} {steps[i]}: library gave {g}, the verified core gives {w}"
+        assert O.comparable(g) == O.comparable(w), f"step {i} {steps[i]}: library gave {g}, the verified core gives {w} " + cx(steps, got, want, i)

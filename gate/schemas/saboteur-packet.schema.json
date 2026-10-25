@@ -1,0 +1,40 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/scasella/Pith/blob/main/gate/schemas/saboteur-packet.schema.json",
+ "title": "pith.saboteur-packet/v1",
+ "$comment": "A candidate adequacy gap brought to gate/redteam.py from outside (an agent or a person): a mutant the pack's gate should refuse, the intent it violates, and a witness that shows it. docs/rfc/0007-autonomous-assurance-and-runtime-composition.md § 4. FROZEN with the evaluator.",
+ "type": "object",
+ "required": ["format", "id", "pack", "target", "claims", "mutant", "witness"],
+ "properties": {
+  "format": {"const": "pith.saboteur-packet/v1"},
+  "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"},
+  "pack": {"type": "string"},
+  "target": {"enum": ["examples", "spec"]},
+  "author": {"type": "string"},
+  "claims": {
+   "type": "object", "required": ["records", "intent"],
+   "properties": {"records": {"type": "array", "items": {"type": "string"}, "minItems": 1}, "intent": {"type": "string", "minLength": 1}}
+  },
+  "mutant": {
+   "type": "object",
+   "properties": {
+    "base": {"type": "string", "description": "examples: the reference example the files are overlaid on (default: the pack's redteam.examples.base)"},
+    "files": {"type": "object", "additionalProperties": {"type": "string"}, "description": "examples: candidate-relative path -> full content"},
+    "generated": {"type": "string", "description": "examples: the id of a mutant `gate/redteam.py run --generate` reported, instead of files"},
+    "design": {"type": "object", "required": ["name", "content"], "properties": {"name": {"type": "string"}, "content": {"type": "string"}},
+               "description": "spec: a design module the release's checked properties should reject"}
+   }
+  },
+  "witness": {
+   "type": "object",
+   "properties": {
+    "test": {"type": "string", "description": "examples: a pytest module run from the judged workspace's root; it must fail on the mutant and pass on the reference"},
+    "property": {"type": "string", "description": "spec: a property the reference satisfies and the design violates"}
+   }
+  }
+ },
+ "allOf": [
+  {"if": {"properties": {"target": {"const": "examples"}}}, "then": {"properties": {"mutant": {"anyOf": [{"required": ["files"]}, {"required": ["generated"]}]}, "witness": {"required": ["test"]}}}},
+  {"if": {"properties": {"target": {"const": "spec"}}}, "then": {"properties": {"mutant": {"required": ["design"]}, "witness": {"required": ["property"]}}}}
+ ]
+}

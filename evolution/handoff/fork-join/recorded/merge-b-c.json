@@ -1,0 +1,296 @@
+{
+ "format": "pith.merge-report/v1",
+ "authoritative": false,
+ "note": "advisory: disjoint partitions say which evidence carries over, never that the merged application works; the judge run on the merged tree decides",
+ "conflicts": [],
+ "problems": [],
+ "branches": [
+  {
+   "name": "agent-b",
+   "dir": "<run>/fork-join/handoff-fork-join-cand/build-a+agent-b",
+   "changed": [
+    {
+     "path": "ui/index.html",
+     "partition": "presentation",
+     "deleted": false
+    }
+   ],
+   "partitions": [
+    "presentation"
+   ],
+   "evidence_digest": "a3d25bc5ffaf57c4b917354677bed7e85f716170536e707a5926bef07dfd9fd7"
+  },
+  {
+   "name": "agent-c",
+   "dir": "<run>/fork-join/handoff-fork-join-cand/build-a+agent-c",
+   "changed": [
+    {
+     "path": "service/app.py",
+     "partition": "integration",
+     "deleted": false
+    }
+   ],
+   "partitions": [
+    "integration"
+   ],
+   "evidence_digest": "23445f656c3d28777c6359523ac1a37e7a773950e0236f6c3e0e9f72cd80358d"
+  }
+ ],
+ "base": {
+  "evidence_digest": "cd994f1fdb2812225bfc32a15cb39f93086f8f4337e30679835ccf2622531018",
+  "artifact_digest": "d371b4a3936e428881286eb1c3428bf36c3c34d75473c2ce33bc63f5947b3564",
+  "release_digest": "5d7f29267112f767f306ce1c8a4c37e154b986d5659cdac794d105a9df4f0b80"
+ },
+ "merged": {
+  "dir": "<run>/fork-join/handoff-fork-join-agent-b_agent-c/merged",
+  "partitions": {
+   "migration": "a798649a135b5352450468c9626e94e6a4b7b5801c63c660e66994b3793f5b2f",
+   "design": "3767e691a5e4b2dfbc46cfc52252b74a3146ed51b4fdbdf64a36ab87563cca75",
+   "integration": "8d756939768955c8bb8c18a6976261262ca3ab77c6dd6dca967a335255bf94d8",
+   "presentation": "08a249494603b3e207a93decc649aad90750ae44db2866667686a7333907cc99",
+   "interface": "6537a3e7a8f6d7950d01d4e0324d74880d64ebf6fb487f91932a5b55cef7f74a",
+   "unpartitioned": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+  },
+  "seal": "332a21128e38b2175b6dfea751df373f09f6a4dc7bf913fd5763df23686ea5fe"
+ },
+ "evidence": {
+  "holds": [
+   {
+    "check": "profile",
+    "source": "base",
+    "cacheable": false,
+    "reused_by_judge": false
+   },
+   {
+    "check": "kernel",
+    "source": "base",
+    "cacheable": true,
+    "reused_by_judge": true
+   },
+   {
+    "check": "design.present",
+    "source": "base",
+    "cacheable": false,
+    "reused_by_judge": false
+   },
+   {
+    "check": "design.extends",
+    "source": "base",
+    "cacheable": false,
+    "reused_by_judge": false
+   },
+   {
+    "check": "design.core-state",
+    "source": "base",
+    "cacheable": false,
+    "reused_by_judge": false
+   },
+   {
+    "check": "design.interface",
+    "source": "base",
+    "cacheable": false,
+    "reused_by_judge": false
+   },
+   {
+    "check": "design.safety",
+    "source": "base",
+    "cacheable": true,
+    "reused_by_judge": true
+   },
+   {
+    "check": "design.coverage/CovDecided",
+    "source": "base",
+    "cacheable": true,
+    "reused_by_judge": true
+   },
+   {
+    "check": "design.coverage/CovContention",
+    "source": "base",
+    "cacheable": true,
+    "reused_by_judge": true
+   },
+   {
+    "check": "design.coverage/CovDecline",
+    "source": "base",
+    "cacheable": true,
+    "reused_by_judge": true
+   },
+   {
+    "check": "design.coverage/CovRelease",
+    "source": "base",
+    "cacheable": true,
+    "reused_by_judge": true
+   },
+   {
+    "check": "design.coverage/CovCapture",
+    "source": "base",
+    "cacheable": true,
+    "reused_by_judge": true
+   },
+   {
+    "check": "design.coverage/CovCaptureContention",
+    "source": "base",
+    "cacheable": true,
+    "reused_by_judge": true
+   },
+   {
+    "check": "design.coverage/CovRetry",
+    "source": "base",
+    "cacheable": true,
+    "reused_by_judge": true
+   },
+   {
+    "check": "design.adequacy",
+    "source": "base",
+    "cacheable": true,
+    "reused_by_judge": true
+   },
+   {
+    "check": "gen.present",
+    "source": "base",
+    "cacheable": false,
+    "reused_by_judge": false
+   },
+   {
+    "check": "gen.current",
+    "source": "base",
+    "cacheable": false,
+    "reused_by_judge": false
+   },
+   {
+    "check": "service.entrypoint",
+    "source": "agent-c",
+    "cacheable": false,
+    "reused_by_judge": false
+   },
+   {
+    "check": "profile.tests",
+    "source": "base",
+    "cacheable": false,
+    "reused_by_judge": false
+   },
+   {
+    "check": "monitor",
+    "source": "base",
+    "cacheable": false,
+    "reused_by_judge": false
+   }
+  ],
+  "rerun": [
+   {
+    "check": "lifecycle",
+    "source": null,
+    "cacheable": false
+   },
+   {
+    "check": "boundary",
+    "source": null,
+    "cacheable": false
+   },
+   {
+    "check": "delivery",
+    "source": null,
+    "cacheable": false
+   },
+   {
+    "check": "approval",
+    "source": null,
+    "cacheable": false
+   }
+  ],
+  "cross_partition": [
+   {
+    "branch": "agent-b",
+    "check": "profile",
+    "rests_on": [
+     "integration"
+    ],
+    "why": "this branch's result read files in a partition another branch changed: it does not carry over"
+   },
+   {
+    "branch": "agent-b",
+    "check": "service.entrypoint",
+    "rests_on": [
+     "integration"
+    ],
+    "why": "this branch's result read files in a partition another branch changed: it does not carry over"
+   },
+   {
+    "branch": "agent-b",
+    "check": "lifecycle",
+    "rests_on": [
+     "integration"
+    ],
+    "why": "this branch's result read files in a partition another branch changed: it does not carry over"
+   },
+   {
+    "branch": "agent-b",
+    "check": "boundary",
+    "rests_on": [
+     "integration"
+    ],
+    "why": "this branch's result read files in a partition another branch changed: it does not carry over"
+   },
+   {
+    "branch": "agent-b",
+    "check": "delivery",
+    "rests_on": [
+     "integration"
+    ],
+    "why": "this branch's result read files in a partition another branch changed: it does not carry over"
+   },
+   {
+    "branch": "agent-c",
+    "check": "lifecycle",
+    "rests_on": [
+     "presentation"
+    ],
+    "why": "this branch's result read files in a partition another branch changed: it does not carry over"
+   },
+   {
+    "branch": "agent-c",
+    "check": "boundary",
+    "rests_on": [
+     "presentation"
+    ],
+    "why": "this branch's result read files in a partition another branch changed: it does not carry over"
+   },
+   {
+    "branch": "agent-c",
+    "check": "delivery",
+    "rests_on": [
+     "presentation"
+    ],
+    "why": "this branch's result read files in a partition another branch changed: it does not carry over"
+   }
+  ],
+  "rule": "only cacheable results (proofs, model checks) are reused by the judge; every check that starts the service runs again on the merged tree"
+ },
+ "judge": {
+  "evidence": "<run>/fork-join/handoff-fork-join-agent-b_agent-c/evidence",
+  "exit": 2,
+  "statuses": {
+   "behavioral_assurance": "passed; scoped: ring0 proven under kernel/tcb.yaml; ring1 design model-checked within configured bounds and service not falsified by the frozen black-box lifecycle harness; ring2 not falsified by the frozen boundary harness; conformance of the implementation to the design model is by test only",
+   "application_delivery": "failed",
+   "human_approval": "pending"
+  },
+  "unready": [
+   "application_delivery"
+  ],
+  "reused": [
+   "design.adequacy",
+   "design.coverage/CovCapture",
+   "design.coverage/CovCaptureContention",
+   "design.coverage/CovContention",
+   "design.coverage/CovDecided",
+   "design.coverage/CovDecline",
+   "design.coverage/CovRelease",
+   "design.coverage/CovRetry",
+   "design.safety",
+   "kernel"
+  ],
+  "first_failure": "delivery",
+  "accepted": false
+ },
+ "ok": false
+}

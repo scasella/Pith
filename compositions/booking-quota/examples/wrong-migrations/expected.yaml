@@ -1,0 +1,20 @@
+# compositions/booking-quota/examples/wrong-migrations/expected.yaml — known-wrong staggered upgrades of the booking component and the step
+# at which `gate/compose.py stagger` must refuse each (validation/judge_wrong.py --composition compositions/booking-quota). Each is ../basic
+# (the new composed candidate) with ONE defect in booking's migrate path, marked DEFECT in its source, upgrading from ../basic-v1.
+# touches-quota-store is something no per-pack check can see (booking's own migration judge looks at booking's store only); drops-compensated is
+# a defect booking's own pack also names (its MIG1), and here the composition refuses it independently, through a receipt that names a booking
+# that is gone.
+touches-quota-store:
+  tool: compose stagger
+  component: booking
+  old_candidate: examples/basic-v1
+  source: booking's migrate also stamps the neighbouring quota store (components/booking/service/migrate.py), a store it does not own
+  refused_step: every other component's state is untouched
+drops-compensated:
+  tool: compose stagger
+  component: booking
+  old_candidate: examples/basic-v1
+  source: booking's migrate deletes cancelled bookings as dead rows (components/booking/service/store.py), so a compensated reservation's receipt names a booking that is gone
+  refused_step: "verify: the new composed candidate on the migrated state"
+  failing_tests: [test_observed_receipts_agree_with_the_migrated_components]
+  violates: [ReceiptAgrees]

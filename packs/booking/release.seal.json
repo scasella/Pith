@@ -1,9 +1,9 @@
 {
   "format": 2,
-  "created": "2026-10-14T00:41:00Z",
+  "created": "2026-10-24T18:41:16Z",
   "pack": {
     "id": "pith.booking",
-    "version": "0.12.0"
+    "version": "0.13.0"
   },
   "policy_dirs": [
     "gate",
@@ -13,6 +13,6 @@
     "delivery",
     "migrations"
   ],
-  "files": 73,
-  "release_digest": "3adf212726d64e3b2f9ba12673f3e39d5a7da7d05bb39b85ce893611ef737cbc"
+  "files": 78,
+  "release_digest": "5f3087f0733584f4c9282eb94c557170c6f6213f92c4aef2dc9f79b58db19022"
 }

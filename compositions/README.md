@@ -20,6 +20,14 @@ python3 gate/cli.py compose check compositions/ledger-receipts
   invariants they name. `correspondence/` shows with TLC, in both directions, that the integration has the same
   behaviours as the pack's frozen design obligations (`obligations/design/CoreActions.tla`), so this contract is a
   restatement of what the pack already required, not a second definition (`validation/compositions.py`).
+- `booking-quota/` — a runtime composition (v0.13.0, `docs/rfc/0007-autonomous-assurance-and-runtime-composition.md` § 3): a booking
+  component (a `pith.booking` service), a quota component (a `pith.quota` library behind an idempotent wrapper) and a coordinator that
+  owns the saga log and the receipts. Shared invariants `QuotaMatchesBookings` and `ReceiptAgrees`. `gate/compose.py check` model-checks
+  it; `compose verify` runs the three processes behind judge-owned fault proxies, kills the coordinator between the steps of a
+  reservation, drops answers and severs the compensating cancel, and reads the invariants from the components' own state;
+  `compose stagger` upgrades the booking component from v1 to v2 while the other two keep their state. `split-saga-leak` and
+  `orphan-receipt-on-abort` (model twins and runtime candidates), `touches-quota-store` and `drops-compensated` (staggered migrations)
+  must each be refused for exactly their defect (`validation/compositions.py`).
 
 The check is bounded model checking of the model, and holds only under the stated atomicity assumptions; whether an
 implementation's transactions match the modelled steps is a separate obligation the check does not discharge.

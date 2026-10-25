@@ -68,6 +68,21 @@ def validate(P, root):
         need(c.get("change") in (None, *ROUTES), f"contract {c['id']}: change must be one of {ROUTES}")
     for r in P.get("change_routes", []):
         need(isinstance(r.get("paths"), list) and r["paths"] and r.get("route") in ROUTES, f"change_routes: each entry needs paths and a route in {ROUTES}")
+    for x in P.get("partitions", []):                               # gate/change.py merge (v0.13.0); optional
+        need(isinstance(x, dict) and x.get("id") and isinstance(x.get("paths"), list) and x["paths"], "partitions: each needs an id and paths")
+    need(len({x.get("id") for x in P.get("partitions", [])}) == len(P.get("partitions", [])), "partitions: duplicate id")
+    tr = P.get("traces")                                            # gate/packet.py, gate/trace.py (v0.13.0); optional
+    if tr is not None:
+        need(isinstance(tr, dict) and all(isinstance(tr.get(k), str) for k in tr if k in ("oracle", "render", "render_file", "replay")) and tr.get("oracle"),
+             "traces: oracle (a command), and optionally render, render_file and replay")
+    pk = P.get("packet")
+    if pk is not None:
+        need(isinstance(pk, dict) and isinstance(pk.get("vocabulary", []), list), "packet: vocabulary must be a list of the pack's documents")
+    rt = P.get("redteam")                                           # gate/redteam.py (v0.13.0); optional
+    if rt is not None:
+        need(isinstance(rt, dict) and (rt.get("examples") or rt.get("spec")), "redteam: needs an examples or a spec target")
+        if rt.get("examples"): need(isinstance(rt["examples"].get("base"), str) and isinstance(rt["examples"].get("mutate", []), list), "redteam.examples: base (a reference example) and mutate (globs)")
+        if rt.get("spec"): need(all(rt["spec"].get(k) for k in ("reference", "accepts", "violates", "wrong_dir")), "redteam.spec: reference, accepts, violates and wrong_dir")
 
 
 def expand(P, root, manifest, section="checks"):

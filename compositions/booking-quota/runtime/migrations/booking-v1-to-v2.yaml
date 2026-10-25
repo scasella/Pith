@@ -1,0 +1,44 @@
+# How ONE component of the running composition, booking, is upgraded from interval-booking-core/v1 to v2 while the quota
+# component and the coordinator stay as they are (format: pith.migration/v1, docs/rfc/0004-safe-evolution.md § 4, with the
+# per-component additions of docs/rfc/0007 § 3). `python3 gate/compose.py stagger compositions/booking-quota --component booking
+# --old-candidate examples/basic-v1 --candidate examples/basic --out OUT` executes it:
+#   populate  the OLD composed candidate (booking v1) produces state, including a compensated reservation and a saga in flight
+#   migrate   the NEW candidate's booking migrate entrypoint runs on booking's store ONLY (first refusing state it does not
+#             recognise, then twice, as an interrupted upgrade retried); quota's and the coordinator's state must stay byte-identical
+#   verify    the NEW composed candidate starts on the migrated state; the shared invariants hold and every receipt the old
+#             composition acknowledged replays identically
+# The per-component migration is judged by the booking pack's own gate/migrate.py (validation/upgrades.py booking); this adds only
+# what one pack cannot see: that the neighbours are untouched, and that the composition on the migrated state still agrees.
+format: pith.migration/v1
+component: booking
+from: { pack: pith.booking, contract_version: interval-booking-core/v1 }
+to: { pack: pith.booking, contract_version: interval-booking-core/v2 }
+records: [MIG1]
+state: { booking: booking, quota: quota, coordinator: coordinator }       # one directory per component under the state root
+populate: runtime/migrations/populate.py
+verify: runtime/migrations/verify.py
+migrate: "{python} -I components/booking/service/migrate.py --db {state}/booking/booking.db"
+unrecognised: { files: { booking/booking.db: "this is not a booking database\n" } }
+checks:
+  - { test: test_the_saga_in_flight_at_the_upgrade_completes_without_a_retry, shared: [QuotaMatchesBookings] }
+  - { test: test_the_migrated_components_agree, shared: [QuotaMatchesBookings] }
+  - { test: test_observed_receipts_replay_identically, shared: [ReceiptAgrees] }
+  - { test: test_observed_receipts_agree_with_the_migrated_components, shared: [ReceiptAgrees] }
+  - { test: test_new_reservations_on_the_upgraded_composition, shared: [QuotaMatchesBookings, ReceiptAgrees] }
+mapping: >
+  Booking's own mapping holds unchanged (the booking pack's MIG1: every version 1 resource gets buffer 0; every booking, active
+  and cancelled, keeps its id, resource, interval and state; every recorded request result is kept; the event history is kept).
+  What the composition adds: quota's store (every grant and every refusal it recorded) and the coordinator's store (its saga log
+  and every receipt) are not rewritten, so each receipt the version 1 composition acknowledged is still served as it was,
+  and a cancelled booking is still there for the compensated receipt that names it.
+in_flight: >
+  A saga the coordinator was killed in the middle of (the booking committed under version 1, no unit taken) is still in the
+  coordinator's log. The coordinator started on the migrated state completes it without any client retry: its book call is
+  replayed by the upgraded booking from the result version 1 recorded, then quota is asked once, and the receipt is written.
+rollback:
+  policy: forward-only
+  why: >
+    booking's own rollback is forward-only (version 1 cannot represent a resource with a buffer above 0; the booking pack's
+    from-v1.yaml). The composition adds nothing that would make it reversible: once the upgraded booking has decided a reservation
+    against a buffered resource, the coordinator holds a receipt that version 1 could not have produced. Backing out is a forward
+    repair in a new release, not a downgrade.

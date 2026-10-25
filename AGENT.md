@@ -20,7 +20,9 @@ with `--policy-from <pristine release> --expected-release <pinned digest>` by th
 additionally needs a signed human review (`gate/review.py`) that you cannot produce. Nothing else counts,
 including your own assessment of the code.
 
-**When the gate refuses, read `TASK.md` in the evidence directory first** (`task-packet.json` is the same, as
+**When the gate refuses, read `TASK.md` in the evidence directory first** (an operator who hands you only the release
+may give you `TASK.distilled.md` instead: the same packet with a structured counterexample in the contract's words and
+nothing of the judge's code or paths) (`task-packet.json` is the same, as
 JSON). It names the first failure, its category, the contract records it bears on, a minimal counterexample, what you
 may edit and the exact rerun command. The category says whose problem it is:
 
@@ -48,7 +50,7 @@ obligations/   what rings 1–3 must satisfy: TLA+ core actions + invariants + c
                adapter harness, boundary harness + generator + monitor suite, lint, delivery  FROZEN
 pack.yaml      the contract pack: checks, statuses, contract records                       FROZEN
 gate/          the evaluator (domain-free), frozen.sha256, isolation profile                FROZEN
-profiles/      shipped integration profile (sqlite); use it, or supply your own and pass the harness
+profiles/      shipped integration profiles (sqlite; sqlite-occ, optimistic concurrency); use one, or supply your own and pass the harness
 app.manifest.yaml  only the allowlisted keys (name, profile, adapter_module, extra_tests, ui_entry)   YOURS
 design/ service/ gen/out/ app/ ui/ (adapter/ if custom)   — the deployment artifact, digested whole   YOURS
 INTENT.md CUSTOMIZATION.md   read them; they say what may vary and what may not
@@ -72,7 +74,8 @@ missing. Read `kernel/core/claims.json`: `scope.does_not_cover` and
   `Consistent` or `CovRetry`: the frozen `MC.tla` binds them to your `responses`. The gate checks safety
   (including `DecideCorrect`), then that your model actually reaches retries, contention, declines under
   load, releases, and captures while another request is undecided. A model that models too little is refused.
-- Use the shipped `sqlite` profile or set `profile: custom` and write your own adapter. A custom adapter is
+- Use the shipped `sqlite` profile (or `sqlite-occ`, which decides without holding the write lock and commits only if the
+  account is unchanged; `examples/build-occ`), or set `profile: custom` and write your own adapter. A custom adapter is
   never imported by the judge: it is judged only through your running service by
   `obligations/service/lifecycle.py` (duplicate create, idempotent replay and conflicts, SIGKILL after commit
   then restart then retry, restart durability, event contract with `op_id`, hash chain and `state_after`,

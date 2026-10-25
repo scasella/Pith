@@ -1,0 +1,15 @@
+# compositions/booking-quota/examples/wrong/expected.yaml — known-wrong composed candidates and the verdict `gate/compose.py verify`
+# must reach (validation/judge_wrong.py --composition compositions/booking-quota). Each is ../basic with ONE defect, marked DEFECT in
+# its source. A refused candidate must fail exactly `failing_tests` (the driver's pytest function names, runtime/harness.py), which
+# show exactly the shared invariants in `violates` (composition.yaml runtime.checks maps each test to the invariants it checks).
+# The model twins of these two are wrong/ in the composition.
+split-saga-leak:
+  tool: compose verify
+  source: the coordinator keeps its saga log in memory (coordinator/saga.py), so a crash between the booking and the quota call forgets the saga and the recovery on start finds nothing to complete or compensate
+  failing_tests: [test_crash_between_booking_and_quota_is_recovered]
+  violates: [QuotaMatchesBookings]
+orphan-receipt-on-abort:
+  tool: compose verify
+  source: the coordinator records the receipt ACCEPTED as soon as the booking succeeds (coordinator/saga.py); a receipt is written once, so it keeps saying ACCEPTED after quota refuses and the booking is cancelled
+  failing_tests: [test_receipt_of_a_compensated_reservation_says_quota_exceeded]
+  violates: [ReceiptAgrees]

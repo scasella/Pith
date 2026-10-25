@@ -75,10 +75,11 @@ Every planned run is published, including failed, abandoned and excluded ones, w
 Transcripts are kept and released where participants agree. A holdout of the external criteria, maintained by
 someone outside the pack's maintainers, is to supplement the visible criteria; it does not exist yet.
 
-## Status (v0.12.0)
+## Status (v0.13.0)
 
 **No experiment with real models has been run.** (`evolution/handoff` records one handoff done by model agents; it is a
 validation record of one run, not this experiment: one task, no conditions, no repeats.) The protocol, the task family, the external criteria, the run
 record format, planning, validation, analysis and the scripted dry run exist and are tested in CI. Running it needs
 model access and budget, and its results need publishing with the failures; that is the M6 exit criterion this
-release does not meet.
+release does not meet. Since v0.13.0 a repair loop can be driven from the distilled packet alone (`experiments/harness.py
+feedback`; docs/rfc/0007 § 5), and the dry run's scripted agents do; that is still the harness tested, not an experiment.

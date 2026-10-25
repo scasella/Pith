@@ -8,10 +8,24 @@ Steps (harness/LIBRARY.md § How the pack drives it): {"op": "new", "id", "limit
 "id", "key", "now", "cost"?} | {"op": "peek", "id", "key", "now"} | {"op": "limit_for", "id", "key"} | {"op": "dump", "id"}
 | {"op": "load", "id", "from" | "text", "truncate"?} | {"op": "burst", "id", "key", "now", "cost", "threads", "calls", "keys"?}
 | {"op": "sleep", "ms"}. A missing "cost" or "limits" is not passed.
+
+    python3 -I harness/driver.py --interleave '<json>'  prints one JSON line: {"interleave": {...}}   (v0.13.0)
+
+The interleave mode explores the schedules of K threads calling acquire for the same key on a fresh limiter, with gate/interleave.py
+(docs/rfc/0007 § 6): the threads run one at a time and switch at every lock, every sleep and every line of the candidate's lib/, so
+a defect reachable within `bound` preemptions is found on every run. The program is {"limit", "window", "key", "now", "preload"?,
+"threads"?, "bound"?}: `preload` units of the key are taken in turn first, so the threads race for the last `limit - preload`. The
+controller is installed BEFORE the library is imported (it replaces threading.Lock and time.sleep for the code that follows).
 """
 import json, pathlib, sys, threading, time        # everything the driver needs, imported before lib/ is on sys.path
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+INTERLEAVE = sys.argv[1:2] == ["--interleave"]
+if INTERLEAVE:                                    # v0.13.0: the controller goes in before the library is imported; it is loaded by path, so
+    import importlib.util                         # that gate/ is not on sys.path where a candidate module could meet it
+    _spec = importlib.util.spec_from_file_location("interleave", ROOT / "gate" / "interleave.py")
+    IL = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(IL)
+    IL.install(roots=[ROOT / "lib"])
 sys.path.append(str(ROOT / "lib"))                # appended: a candidate module cannot shadow the standard library
 import limiter as L                               # noqa: E402  (the candidate's library)
 
@@ -74,5 +88,31 @@ def main():
     print(json.dumps({"results": results}))
 
 
+def interleave(prog):
+    """Every schedule, within the preemption bound, of `threads` calls to acquire(key) on a fresh limiter holding `limit - preload`
+    units of the key: exactly that many (or all of them, if fewer) must be granted, and no call may fail."""
+    limit, key, now, k = prog["limit"], prog["key"], prog["now"], prog.get("threads", 2)
+    left = limit - prog.get("preload", 0)
+
+    def setup():
+        lim = L.Limiter(limit=limit, window=prog["window"])
+        for _ in range(prog.get("preload", 0)): lim.acquire(key, now=now)
+        return lim
+
+    def call(lim): return decision(lim.acquire(key, now=now))
+
+    def check(lim, results):
+        bad = [r[1] for r in results if r[0] != "ok"]
+        if bad: return f"a call failed: {bad[0]}"
+        granted = sum(1 for r in results if r[1]["granted"])
+        if granted != min(k, left): return f"{granted} of {k} calls granted for {left} unit(s) left"
+        if lim.peek(key, now=now) != max(left - k, 0): return f"{granted} granted but {lim.peek(key, now=now)} left, not {max(left - k, 0)}"
+
+    rep = IL.explore(setup, [call] * k, check, bound=prog.get("bound", 1))
+    return {**{x: rep[x] for x in ("schedules", "bound", "complete")}, "violations": len(rep["violations"]), "first": rep["first"],
+            "inconclusive": rep["inconclusive"][:3], "deadlocks": rep["deadlocks"][:3]}
+
+
 if __name__ == "__main__":
-    main()
+    if INTERLEAVE: print(json.dumps({"interleave": interleave(json.loads(sys.argv[2]))}))
+    else: main()

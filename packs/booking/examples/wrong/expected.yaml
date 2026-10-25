@@ -14,7 +14,8 @@ closed-intervals:
 check-then-insert:
   source: custom-py whose availability check and insert are separate critical sections
   refused_at: service.lifecycle
-  failing_tests: [test_concurrent_requests_for_one_interval_accept_exactly_one_per_resource, test_concurrent_overlapping_bursts_keep_calendars_conflict_free]
+  failing_tests: [test_concurrent_requests_for_one_interval_accept_exactly_one_per_resource, test_concurrent_overlapping_bursts_keep_calendars_conflict_free,
+                  test_interleaved_bookings_of_one_interval_accept_exactly_one]          # 0.13.0: the deterministic test: 6 of its 30 schedules double-book, the same first one on every run
   may_also_fail: [test_concurrent_bursts_keep_the_buffer]          # 0.12.0: the same race in a burst on a resource with a buffer
   category: violation
   contracts: [Atomicity, B0]

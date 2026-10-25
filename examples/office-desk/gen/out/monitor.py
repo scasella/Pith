@@ -21,9 +21,26 @@ CONTRACT (what a silent monitor establishes, over the emitted events only):
              does not authenticate a source that rewrites the whole chain)
   STATE      op.committed.state_after equals the state reconstructed from the stream (limit, posted, reserved)
 Negative suite: obligations/boundary/test_monitor.py. A silent monitor says nothing about events never emitted.
+
+SHADOW MODE (v0.13.0, docs/rfc/0007 section 7). `Shadow` runs the Monitor on a live event feed AND reconstructs, at each op.committed,
+the operation the stream completes (create_account, authorize, release or capture, with the arguments and the answer the stream says the
+service gave, in the vocabulary of obligations/boundary/oracle.py), replays it through the offline oracle's step semantics (the verified
+core, loaded in-process from the release root: gen/out/monitor.py is at <root>/gen/out) and compares the answer and the committed
+state. A monitor alert or an oracle disagreement appends one `pith.divergence/v1` JSON line (the alert, the contract records it bears
+on, the disagreeing fields, the event window and every operation reconstructed so far, `diverged_at` the index of the one that
+diverged) to `out` and to `shadow.divergences`; `gate/cli.py trace harvest` shrinks such a line into a regression trace. Where the oracle
+cannot be imported the Shadow is monitor-only and says so (`shadow.mode`, `shadow.oracle_error`). `feed(event)` never raises: an
+internal failure is counted in `shadow.errors`. `attach(emit)` returns a wrapper that enqueues each event on a bounded queue drained by a
+daemon thread; it never blocks (a full queue is counted in `shadow.dropped`, and a divergence found after a drop is marked `lossy`: the
+reconstruction missed events) and adds nothing that can raise; an exception of the host's own emit propagates as it would without the
+shadow. As a separate process, `python3 gen/out/monitor.py shadow --events URL --out LOG [--poll S] [--once] [--release D]
+[--artifact D]` tails the service's `GET /events?since=N`, so it cannot crash or block the host (exit 1 with --once when it recorded a
+divergence). Limits: the shadow sees only what the service emits (a side effect that bypasses the events is invisible), and it must see
+the stream from its first event (the oracle starts with no accounts); a divergence whose only symptom is the committed state or the chain
+has no answer to disagree with, so the harvester cannot shrink it (it is still recorded).
 """
 from collections import defaultdict
-import hashlib, json
+import argparse, hashlib, importlib.util, json, pathlib, queue, signal, sys, threading, time, urllib.request
 
 PRODUCER = "auth-service"
 ZERO = "0" * 64
@@ -141,3 +158,224 @@ class Monitor:
         if expected_last_seq is not None and (self.last_seq or 0) < expected_last_seq:
             self.alert("INCOMPLETE", {"account_id": None, "request_id": None}, last_seq=self.last_seq, expected=expected_last_seq)
         return {"alerts": self.alerts, "antecedents": dict(self.antecedents), "events": len(events)}
+
+
+# ================================================================================================================
+# Shadow mode: the Monitor plus the offline oracle, on a live feed. The Monitor above is unchanged and stands alone.
+# ================================================================================================================
+DIVERGENCE = "pith.divergence/v1"
+# the contract records (pack.yaml `contracts`) an alert code, or an oracle disagreement on a field of the answer, bears on
+RECORDS = {"P0-obs": ["P0"], "P1-obs": ["P1"], "P2-obs": ["P2"], "P2-amount": ["P2"], "P2-duplicate-hold": ["P2"], "P3-obs": ["P3"], "INV1-obs": ["INV1"],
+           "R1-terminal": ["R1"], "R1-unknown": ["R1"], "C-obs": ["C1", "C2"], "C-amount": ["C1"], "AVAIL-MISMATCH": ["DecideCorrect"],
+           "STATE": ["EventContract"], "CHAIN": ["EventContract"], "ORDER": ["EventContract"], "PRODUCER": ["EventContract"]}
+FIELD_RECORDS = {"decision": ["P0", "P1"], "available_at_decision": ["DecideCorrect"], "released": ["R1", "R2"], "captured": ["C1", "C2", "C3"],
+                 "amount": ["C1"], "replayed": ["Receipts"], "status": ["BoundaryConformance"], "id": ["BoundaryConformance"], "limit": ["BoundaryConformance"],
+                 "request_id": ["BoundaryConformance"], "state_after": ["EventContract"]}
+_ORACLES = {}
+
+
+def load_oracle(root=None):
+    """The oracle module of the release at `root` (default: the root this file's gen/out sits in), loaded by path. Raises when it cannot be."""
+    root = pathlib.Path(root) if root else pathlib.Path(__file__).resolve().parents[2]
+    path = root / "obligations" / "boundary" / "oracle.py"
+    if path not in _ORACLES:
+        spec = importlib.util.spec_from_file_location("pith_boundary_oracle", path)
+        mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod); _ORACLES[path] = mod
+    return _ORACLES[path]
+
+
+class Shadow:
+    def __init__(self, out=None, release=None, artifact=None, root=None, oracle=None, queue_size=1024, max_records=20, listeners=()):
+        """out: file the divergence lines are appended to (None: kept in memory only); release/artifact: digests written into every record;
+        oracle: an object with step({"action","args"}) -> outcome, instead of the release's (tests); listeners: callables given each record."""
+        self.monitor = Monitor(); self.out = out; self.release = release; self.artifact = artifact
+        self.divergences = []; self.listeners = list(listeners); self.max_records = max_records
+        self.events = 0; self.errors = 0; self.dropped = 0; self.suppressed = 0; self.last_error = None
+        self.operations = []; self._buf = []; self._pending = []; self._lock = threading.Lock()
+        self.oracle = None; self._C = None; self.oracle_error = None; self.mode = "monitor-only"
+        try:
+            mod = load_oracle(root) if oracle is None else None
+            self.oracle = oracle if oracle is not None else mod.Oracle()
+            self._C = mod.C if mod is not None else None
+            self.mode = "oracle"
+        except Exception as e:
+            self.oracle_error = f"{type(e).__name__}: {e}"
+        self._q = queue.Queue(maxsize=queue_size); self._thread = None
+
+    # -- the feed ---------------------------------------------------------------------------------------------
+    def feed(self, ev):
+        """Show one event to the monitor and the oracle. NEVER raises: an internal failure is counted in `errors`."""
+        try:
+            with self._lock: self._feed(ev)
+        except Exception as e:
+            self.errors += 1; self.last_error = f"{type(e).__name__}: {e}"
+
+    def _feed(self, ev):
+        self.events += 1; n = len(self.monitor.alerts); closed = ev.get("op_id") in self.monitor.closed_ops
+        try: self.monitor.on_event(ev)
+        except (KeyError, TypeError, ValueError) as e:                  # an event the contract's shape does not allow is the service's anomaly
+            self.monitor.alerts.append({"code": "MALFORMED-EVENT", "seq": ev.get("seq"), "account_id": ev.get("account_id"), "request_id": ev.get("request_id"), "error": repr(e)})
+        self._pending += self.monitor.alerts[n:]
+        if ev.get("type") == "op.committed": self._commit(ev)
+        elif not closed: self._buf.append(ev)                           # an event of an operation already committed is the monitor's OP-after-commit alone
+
+    def _reconstruct(self, op, events):
+        """The operation the events of one commit complete, in the oracle's vocabulary, with the answer the stream says the service gave
+        (the oracle's outcome shape exactly: the harvester compares them for equality). None when they do not compose to `op`."""
+        def one(t):
+            es = [e for e in events if e.get("type") == t]
+            return es[0] if len(es) == 1 else None
+        try:
+            if op == "create_account" and one("account.created"):
+                e = one("account.created")
+                return {"action": op, "args": {"account": e["account_id"], "limit": e["limit"]}, "observed": {"id": e["account_id"], "limit": e["limit"]}}
+            if op == "authorize" and one("auth.decided"):
+                e = one("auth.decided")
+                return {"action": op, "args": {"account": e["account_id"], "request": e["request_id"], "amount": e["amount"]},
+                        "observed": {"request_id": e["request_id"], "decision": e["decision"], "available_at_decision": e["available_at_decision"], "replayed": False}}
+            if op == "release" and one("reservation.released"):
+                e = one("reservation.released")
+                return {"action": op, "args": {"account": e["account_id"], "request": e["request_id"]}, "observed": {"request_id": e["request_id"], "released": True, "replayed": False}}
+            if op == "capture" and one("capture.posted"):
+                e = one("capture.posted")
+                return {"action": op, "args": {"account": e["account_id"], "request": e["request_id"]},
+                        "observed": {"request_id": e["request_id"], "captured": True, "amount": e["amount"], "replayed": False}}
+        except KeyError:
+            return None
+        return None
+
+    def _oracle_state(self, account):
+        a = self.oracle.accounts.get(account) if hasattr(self.oracle, "accounts") and self._C is not None else None
+        return None if a is None else {"limit": int(a.limit), "posted": int(a.posted), "reserved": sum(self._C.holds(a).values())}
+
+    def _commit(self, ev):
+        events = [e for e in self._buf if e.get("op_id") == ev.get("op_id")]; self._buf = []
+        alerts, self._pending = self._pending, []
+        step = self._reconstruct(ev.get("op"), events); diverged = None; disagreement = None
+        if step is not None:
+            self.operations.append(step); diverged = len(self.operations) - 1
+            if self.oracle is not None:
+                want = self.oracle.step({"action": step["action"], "args": step["args"]}); got = step["observed"]
+                fields = sorted(k for k in set(want) | set(got) if want.get(k) != got.get(k))
+                declared = {k: (ev.get("state_after") or {}).get(k) for k in ("limit", "posted", "reserved")}; state = self._oracle_state(ev.get("account_id"))
+                disagree_state = {"declared": declared, "oracle": state} if state is not None and declared != state else None
+                if disagree_state: fields = sorted(fields + ["state_after"])
+                if fields:
+                    disagreement = {"expected": want, "observed": got, "fields": fields, **({"state_after": disagree_state} if disagree_state else {})}
+                    step["expected"] = want
+        if alerts or disagreement: self._record(ev, events + [ev], alerts, disagreement, diverged if step is not None else None)
+
+    def close(self):
+        """The end of a finite stream: an operation that never committed is itself a divergence (the monitor's COMPLETE-unterminated)."""
+        try:
+            with self._lock:
+                if self._buf:
+                    e = self._buf[-1]
+                    alert = {"code": "COMPLETE-unterminated", "seq": e.get("seq"), "account_id": e.get("account_id"), "request_id": e.get("request_id"), "op": e.get("op_id")}
+                    self.monitor.alerts.append(alert); self._record(e, list(self._buf), self._pending + [alert], None, None)
+                    self._buf = []; self._pending = []
+        except Exception as e:
+            self.errors += 1; self.last_error = f"{type(e).__name__}: {e}"
+
+    # -- a divergence -----------------------------------------------------------------------------------------
+    def _record(self, ev, events, alerts, disagreement, diverged_at):
+        if len(self.divergences) >= self.max_records:                   # a service that stays wrong would otherwise grow the log without bound
+            self.suppressed += 1; return
+        codes = [a["code"] for a in alerts]
+        records = sorted({r for c in codes for r in RECORDS.get(c, ["EventContract"])} | {r for f in (disagreement or {}).get("fields", []) for r in FIELD_RECORDS.get(f, [])})
+        rec = {"format": DIVERGENCE, "alert": codes[0] if codes else "ORACLE-DISAGREES", "alerts": alerts, "records": records,
+               "release_digest": self.release, "artifact_digest": self.artifact, "detected_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+               "mode": self.mode, "lossy": self.dropped > 0, "diverged_at": diverged_at,
+               "window": {"op_id": ev.get("op_id"), "first_seq": events[0].get("seq") if events else None, "last_seq": ev.get("seq")},
+               "events": events, "disagreement": disagreement, "operations": json.loads(json.dumps(self.operations))}
+        self.divergences.append(rec)
+        if self.out:
+            try:
+                with open(self.out, "a") as f: f.write(json.dumps(rec, sort_keys=True, default=str) + "\n")
+            except Exception as e:
+                self.errors += 1; self.last_error = f"{type(e).__name__}: {e}"
+        for fn in list(self.listeners):
+            try: fn(rec)
+            except Exception as e:
+                self.errors += 1; self.last_error = f"{type(e).__name__}: {e}"
+
+    # -- in-process: a bounded queue and a daemon thread ------------------------------------------------------
+    def attach(self, emit):
+        """A wrapper of the host's emit function. The host's emit runs first and its result is returned; its own exception, if it raises,
+        propagates unchanged (the event was not emitted, so the shadow is not shown it). What the wrapper adds never blocks or raises: the
+        event goes on a bounded queue (a full queue counts a drop) that a daemon thread drains into feed."""
+        if self._thread is None:
+            self._thread = threading.Thread(target=self._drain, name="pith-shadow", daemon=True); self._thread.start()
+        def wrapped(ev):
+            out = emit(ev)
+            try: self._q.put_nowait(ev)
+            except queue.Full: self.dropped += 1
+            except Exception as e: self.errors += 1; self.last_error = f"{type(e).__name__}: {e}"
+            return out
+        return wrapped
+
+    def _drain(self):
+        while True:
+            ev = self._q.get()
+            try: self.feed(ev)
+            finally: self._q.task_done()
+
+    def flush(self, timeout=5.0):
+        """Wait until the queue is drained (tests, shutdown); True if it was."""
+        t0 = time.time()
+        while self._q.unfinished_tasks and time.time() - t0 < timeout: time.sleep(0.005)
+        return not self._q.unfinished_tasks
+
+    def summary(self):
+        return {"mode": self.mode, "oracle_error": self.oracle_error, "events": self.events, "operations": len(self.operations),
+                "divergences": len(self.divergences), "suppressed": self.suppressed, "errors": self.errors, "dropped": self.dropped, "last_error": self.last_error,
+                "alerts": sorted({a["code"] for a in self.monitor.alerts})}
+
+
+# ---- the sidecar: a separate process that tails the service's event feed -----------------------------------------
+def fetch_events(url, since, timeout=10):
+    with urllib.request.urlopen(f"{url.rstrip('/')}/events?since={since}", timeout=timeout) as r:
+        return json.loads(r.read())
+
+
+def sidecar(argv):
+    ap = argparse.ArgumentParser(prog="monitor.py shadow", description="tail a service's GET /events and write pith.divergence/v1 lines")
+    ap.add_argument("--events", required=True, help="base URL of the service (its /events?since=N is read)"); ap.add_argument("--out", required=True, help="divergence log (JSON lines, appended)")
+    ap.add_argument("--poll", type=float, default=1.0); ap.add_argument("--once", action="store_true", help="read the feed to its end, then exit (1 when a divergence was recorded)")
+    ap.add_argument("--release"); ap.add_argument("--artifact"); ap.add_argument("--since", type=int, default=0)
+    a = ap.parse_args(argv)
+    sh = Shadow(out=a.out, release=a.release, artifact=a.artifact); since = a.since; stop = threading.Event(); fetch_errors = 0; stuck = False; old = {}
+    if sh.mode != "oracle": print(f"shadow: monitor-only ({sh.oracle_error})", file=sys.stderr)
+    if threading.current_thread() is threading.main_thread():
+        for s in (signal.SIGTERM, signal.SIGINT): old[s] = signal.signal(s, lambda *_: stop.set())
+    try:
+        while not stop.is_set():
+            try: evs = fetch_events(a.events, since)
+            except Exception as e:
+                fetch_errors += 1; print(f"shadow: cannot read {a.events}/events: {type(e).__name__}: {e}", file=sys.stderr)
+                if a.once: print(json.dumps({**sh.summary(), "fetch_errors": fetch_errors})); return 2
+                stop.wait(a.poll); continue
+            before = since
+            for ev in evs:
+                sh.feed(ev); seq = ev.get("seq") if isinstance(ev, dict) else None
+                if isinstance(seq, int): since = max(since, seq)
+            if evs and since == before:                                  # events without a position cannot be tailed: reading them again would feed them twice
+                stuck = True; print("shadow: the feed carries no seq; stopping", file=sys.stderr); break
+            if not evs:
+                if a.once: break
+                stop.wait(a.poll)
+    finally:
+        for s, h in old.items(): signal.signal(s, h)
+    sh.close()
+    print(json.dumps({**sh.summary(), "fetch_errors": fetch_errors, "out": a.out}))
+    return 2 if stuck else 1 if a.once and sh.divergences else 0
+
+
+def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] == "shadow": return sidecar(argv[1:])
+    print("usage: python3 monitor.py shadow --events URL --out LOG [--poll S] [--once] [--release DIGEST] [--artifact DIGEST]", file=sys.stderr); return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

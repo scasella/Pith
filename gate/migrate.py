@@ -59,7 +59,7 @@ def run(a):
                   "release_digest": REL.release_digest(new_rel), "artifact_digest": W.digest_dir(out / "artifact")}}
 
     def step(name, ok, detail, category=None, **kw):
-        rep["steps"].append({"step": name, "result": "pass" if ok else "fail", "detail": detail[-2000:] if isinstance(detail, str) else detail,
+        rep["steps"].append({"step": name, "result": "pass" if ok else "fail", "detail": detail[-12000:] if isinstance(detail, str) else detail,
                              **({"category": category} if not ok else {}), **kw})
         print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" — {detail.strip().splitlines()[-1][:160]}" if isinstance(detail, str) and detail.strip() else ""), file=sys.stderr)
         return ok
@@ -119,7 +119,18 @@ def run(a):
 
     code, o = sh(sub(S["verify"]), new_ws, env={"PITH_MIGRATION_STATE": str(state), "PITH_MIGRATION_OBSERVED": str(observed)})
     failing = sorted(set(re.findall(r"FAILED \S+::(\w+)", o)))
-    step("verify: the new service on the migrated state", code == 0, o, "violation", failing_tests=failing)
+    cx = None
+    if code != 0:                       # v0.13.0: the verify harness's structured counterexample, redacted (gate/packet.py)
+        try:
+            import packet as PT
+            m = PT.CX_LINE.search(o)
+            if m:
+                _, idents = PT.vocabulary(new_ws, P); X = PT.shrink_trace(json.loads(m.group(1)), P, new_ws)
+                cx = {"source": X.get("source", "migration"), "redacted": True, "text": PT._clip_middle(PT.redact(PT._cx_text(X), idents, 100000), 1400),
+                      **{k: PT._scrub(X[k], idents) for k in ("steps", "expected", "observed", "violated", "shrunk", "diverged_at") if k in X}}
+        except Exception as e:
+            cx = {"source": "migration", "redacted": True, "text": f"(not distilled: {type(e).__name__})"}
+    step("verify: the new service on the migrated state", code == 0, o, "violation", failing_tests=failing, **({"counterexample": cx} if cx else {}))
     rb = S.get("rollback") or {}
     step("rollback policy stated", rb.get("policy") in ("forward-only", "reversible") and bool(rb.get("why")), f"{rb.get('policy')}: {str(rb.get('why', '')).strip()}", "evidence_missing")
     return done()

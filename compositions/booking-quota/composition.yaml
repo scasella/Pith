@@ -1,0 +1,101 @@
+# A runtime composition (format: docs/rfc/0004-safe-evolution.md § 3; the `runtime` block: docs/rfc/0007-autonomous-assurance-
+# and-runtime-composition.md § 3). A reservation books a resource, then takes one quota unit for it; if quota refuses, the
+# booking is cancelled, so a rejected booking never burns quota. Three components, each its own process.
+#   python3 gate/compose.py check  compositions/booking-quota                       the model (model/, wrong/)
+#   python3 gate/compose.py verify compositions/booking-quota --candidate examples/basic --out OUT --known-wrong
+#   python3 gate/compose.py stagger compositions/booking-quota --component booking --old-candidate examples/basic-v1 \
+#                                   --candidate examples/basic --out OUT
+format: pith.composition/v1
+id: pith.booking-quota
+version: 1
+intent: >
+  A reservation takes a booking at the booking component and one quota unit for the resource at the quota component, in
+  that order; a refused unit cancels the booking. Three stores that nothing makes commit together: the booking, the unit
+  and the coordinator's log of what it has done and told the client. The composition says that whatever crashes or is
+  lost between those steps, once a reservation is no longer in flight its booking and its unit agree, and so does its receipt.
+model:
+  dir: model
+  integration: Integration          # the module a candidate integration replaces
+  contract: Contract                # extends the integration and states the shared invariants
+  constants: { Reqs: "{r1, r2}", Limit: 1 }
+components:
+  - id: booking
+    module: Booking
+    owns: [bk]
+    invariants: [BookingInv]
+    effects: ['\E r \in Reqs : BookAccept(r) \/ BookCancel(r)']
+  - id: quota
+    module: Quota
+    owns: [grants]
+    invariants: [QuotaInv]
+    effects: ['\E r \in Reqs : QuotaGrant(r)']
+  - id: coordinator
+    module: Coordinator
+    owns: [saga, receipt]
+    invariants: [CoordInv]
+    effects: ['\E r \in Reqs, s \in Phases, v \in Verdicts : CoordLog(r, s) \/ CoordRecord(r, v) \/ CoordFinish(r, v) \/ CoordClose(r)']
+shared_invariants:
+  - id: QuotaMatchesBookings
+    components: [booking, quota]
+    intent: >
+      At rest, a resource's active bookings and its quota grants name the same requests: no booking without its unit,
+      no unit without its booking.
+  - id: ReceiptAgrees
+    components: [coordinator, booking, quota]
+    intent: >
+      A receipt says ACCEPTED exactly when the booking is active and its unit granted; QUOTA_EXCEEDED only when the
+      booking was compensated (cancelled) and no unit is granted; CONFLICT only when there is no booking.
+atomicity:
+  - transition: Book
+    components: [booking]
+    requirement: a book call commits or does not, and its answer is recorded under the request id (the booking pack's obligation, Atomicity and Idempotency)
+  - transition: Acquire
+    components: [quota]
+    requirement: the decision and the record of the grant commit together, so a restart never grants a request twice or loses a grant it answered (the wrapper's single transaction)
+  - transition: Finish
+    components: [coordinator]
+    requirement: the receipt and the end of the saga commit together; the log records "denied" before the compensating cancel is issued
+assumptions:
+  - Each component's own atomicity, idempotency and durability (a book, a cancel and an acquire commit or do not, are recorded under their request id,
+    and survive SIGKILL) is that component's pack's obligation (pith.booking, pith.quota) or the wrapper's; this composition takes it as given and
+    checks only how the components are put together.
+  - The model checks safety at rest on a bounded model (two requests, one resource, a limit of one); that the coordinator actually resumes every
+    logged saga after a restart is checked only by the runtime tests, which exercise the injected faults (a coordinator killed when its call to
+    quota arrives, a lost quota answer, a coordinator killed on the response path, a severed cancel), not every crash point.
+  - A booking's refusal (a conflicting interval) is the booking component's own decision and is not modelled; the integration treats it as an answer that changes nothing.
+  - A client's retry of a request in flight drives the same saga as the coordinator's own recovery; request ids are unique per reservation and the
+    cancel's id is derived from it.
+wrong:
+  - dir: wrong/split-saga-leak
+    violates: [QuotaMatchesBookings]
+  - dir: wrong/orphan-receipt-on-abort
+    violates: [ReceiptAgrees]
+runtime:
+  contract: runtime/RUNTIME.md
+  owned_dirs: [components, coordinator]
+  driver: runtime/harness.py
+  components:                      # one process each; the driver substitutes {python} and {url:ID} (the fault proxy in front of component ID), gate/service.py {port} and {state}
+    - id: booking
+      ready: /resources
+      argv: ["{python}", "-I", "components/booking/service/run.py", "--port", "{port}", "--db", "{state}/booking.db"]
+    - id: quota
+      ready: /health
+      argv: ["{python}", "-I", "components/quota/service/run.py", "--port", "{port}", "--db", "{state}/quota.db", "--limit", "1", "--window", "1000000"]
+    - id: coordinator
+      ready: /health
+      argv: ["{python}", "-I", "coordinator/run.py", "--port", "{port}", "--state", "{state}", "--component", "booking={url:booking}", "--component", "quota={url:quota}"]
+  support: [obligations/app/faultproxy.py]
+  checks:
+    - { test: test_accepted_reservation_is_one_booking_and_one_unit, shared: [QuotaMatchesBookings, ReceiptAgrees], fault: "none (the baseline: one reservation, its receipt and its replay)" }
+    - { test: test_crash_between_booking_and_quota_is_recovered, shared: [QuotaMatchesBookings], fault: "the coordinator is killed when its call to quota arrives, after the booking committed; restarted, no client retry" }
+    - { test: test_lost_quota_answer_is_retried_without_a_second_grant, shared: [QuotaMatchesBookings], fault: "quota commits the grant and the answer is lost (once)" }
+    - { test: test_crash_on_the_quota_response_path_recovers, shared: [QuotaMatchesBookings], fault: "the coordinator is killed after quota granted and before it reads the answer; restarted; the client then retries" }
+    - { test: test_quota_refusal_cancels_the_booking, shared: [QuotaMatchesBookings], fault: "none (the limit is exhausted: a refusal on a non-conflicting interval)" }
+    - { test: test_severed_cancel_is_retried_until_done, shared: [QuotaMatchesBookings], fault: "the compensating cancel never arrives at booking (three times)" }
+    - { test: test_receipt_of_a_compensated_reservation_says_quota_exceeded, shared: [ReceiptAgrees], fault: "none (a compensated reservation's stored receipt and its replay)" }
+    - { test: test_conflict_burns_no_quota_and_receipts_replay, shared: [QuotaMatchesBookings, ReceiptAgrees], fault: "the client's answer is lost (once); the client retries" }
+  wrong:
+    - { dir: examples/wrong/split-saga-leak, violates: [QuotaMatchesBookings] }
+    - { dir: examples/wrong/orphan-receipt-on-abort, violates: [ReceiptAgrees] }
+  migrations:
+    - { component: booking, spec: runtime/migrations/booking-v1-to-v2.yaml }

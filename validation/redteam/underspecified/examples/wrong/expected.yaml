@@ -1,0 +1,7 @@
+# Known-wrong applications: each is a conforming example with one defect (marked DEFECT), and where it must be refused.
+# validation/judge_wrong.py --pack <this pack> checks both; category is the task packet's (gate/packet.py).
+replay-recounts:
+  refused_at: service.lifecycle
+  failing_tests: [test_replays_are_idempotent, test_crash_after_acknowledgement_then_restart]
+  category: violation
+  contracts: [Idempotency]

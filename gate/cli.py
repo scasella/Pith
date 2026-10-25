@@ -9,19 +9,29 @@ One stable entry point for people, agents and wrappers (Spec Kit, CI, an agent h
     python3 gate/cli.py doctor   [--pack DIR] [--json]                 is this machine ready to judge the pack? what to install if not
     python3 gate/cli.py verify   [--json] -- <app_gate.py arguments>   judge, then print the task packet (TASK.md, or its JSON)
     python3 gate/cli.py packet   EVIDENCE_DIR [--json]                  the task packet of an earlier run
+    python3 gate/cli.py packet distill EVIDENCE_DIR [--policy-from RELEASE] [--json]
+                                                                       the distilled packet: redacted, with a structured counterexample (gate/packet.py)
     python3 gate/cli.py pack new NAME --out DIR                        scaffold a draft pack (needs a Pith source checkout: templates/pack)
     python3 gate/cli.py pack check DIR [--release --reviews DIR --reviewer-key PUB ...] [--json]
                                                                        consistency and adequacy checks for a pack; with --release, also an
                                                                        independent signed review of this release (gate/review.py sign-pack)
+                                                                       and no open adequacy gap in the pack's red-team gap record
+    python3 gate/cli.py pack redteam DIR [--packet FILE ...] [--generate] [--max N] [--promote] [--out DIR] [--json]
+                                                                       mutants the pack's gate accepts although a witness shows they violate
+                                                                       its intent, recorded in its gap record; --promote moves the ones now refused
+                                                                       into its known-wrong suite (gate/redteam.py)
     python3 gate/cli.py adopt    --release DIR --project DIR --subsystem TEXT [--include PATH ...] [--name NAME] [--json]
                                                                        add a pack to one workflow of an existing project (docs/ADOPTING.md)
-    python3 gate/cli.py change   plan|classify ...                      what a change reaches and what it must re-establish (gate/change.py)
+    python3 gate/cli.py change   plan|classify|merge ...                what a change reaches and what it must re-establish (gate/change.py)
+    python3 gate/cli.py handoff merge --base-candidate DIR --base EV --branch NAME=DIR[:EV] ... --out DIR [--judge EV]
+                                                                       a fork-join handoff: parallel branches merged on disjoint partitions (gate/change.py merge)
     python3 gate/cli.py compose  check DIR                              check a composition contract (gate/compose.py)
     python3 gate/cli.py migrate  run ...                                judge a migration on populated state (gate/migrate.py)
     python3 gate/cli.py deploy   record|check ...                       bind evidence to a deployment (gate/deploy.py)
     python3 gate/cli.py impact   impact|verify ...                      evidence invalidation (gate/evidence.py)
     python3 gate/cli.py catalog  check|revoked|pin ...                  the catalog of maintained packs, and revocations (gate/catalog.py)
-      (these six pass their arguments through; with --json, where the tool takes it, stdout is one JSON document)
+    python3 gate/cli.py trace    harvest|replay ...                     a shadow oracle's divergence shrunk into a regression trace (gate/trace.py)
+      (these seven pass their arguments through; with --json, where the tool takes it, stdout is one JSON document)
 
 Agent-specific integrations should be thin wrappers over these commands (integrations/).
 Format of the task packet: gate/schemas/task-packet.schema.json; categories: gate/packet.py.
@@ -35,7 +45,8 @@ sys.path.insert(0, str(HERE))
 import workspace as W, pack as PK, packet as PT
 
 EXIT_OK, EXIT_NOT_OK, EXIT_INCOMPLETE, EXIT_USAGE = 0, 1, 2, 3
-DELEGATED = {"change": "change.py", "compose": "compose.py", "migrate": "migrate.py", "deploy": "deploy.py", "impact": "evidence.py", "catalog": "catalog.py"}
+DELEGATED = {"change": "change.py", "compose": "compose.py", "migrate": "migrate.py", "deploy": "deploy.py", "impact": "evidence.py", "catalog": "catalog.py",
+             "trace": "trace.py"}
 
 
 def emit(as_json, obj, text):
@@ -176,6 +187,10 @@ def pack_check(pack_dir, release_mode, reviews, keys, as_json, today=None):
     else:
         txt = intent.read_text(); unmentioned = [c["id"] for c in contracts if c.get("change") == "behavioral" and not re.search(rf"(?<![\w-]){re.escape(c['id'])}(?![\w-])", txt)]
         if unmentioned: warnings.append(f"INTENT.md does not mention behavioral records {unmentioned}: a reviewer cannot check them against plain words")
+    import redteam as RT                                             # v0.13.0: the adequacy ratchet's open gaps
+    gaps = RT.open_gaps(pack_dir, P); info["open_adequacy_gaps"] = gaps
+    if gaps: (errors if release_mode else warnings).append(f"open adequacy gap(s) {gaps}: the gate accepts these mutants although their witnesses "
+                                                         f"show they violate the intent (gate/redteam.py; tighten the checks, then `pack redteam --promote`)")
     wrong = pack_dir / "examples" / "wrong"
     if not (wrong / "expected.yaml").exists(): errors.append("examples/wrong/expected.yaml: no known-wrong applications with their expected refusals")
     else:
@@ -312,6 +327,10 @@ def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv[:1] and argv[0] in DELEGATED:                     # v0.10.0: the evolution tools, each with its own arguments
         return subprocess.run([sys.executable, str(HERE / DELEGATED[argv[0]])] + argv[1:]).returncode
+    if argv[:2] == ["handoff", "merge"]:                      # v0.13.0: a fork-join handoff (gate/change.py merge)
+        return subprocess.run([sys.executable, str(HERE / "change.py"), "merge"] + argv[2:]).returncode
+    if argv[:2] == ["packet", "distill"]:                     # v0.13.0
+        return subprocess.run([sys.executable, str(HERE / "packet.py")] + argv[1:]).returncode
     if argv[:1] == ["verify"]:
         rest = argv[1:]; as_json = "--json" in rest; rest = [x for x in rest if x != "--json"]
         if rest[:1] == ["--"]: rest = rest[1:]
@@ -326,6 +345,8 @@ def main(argv=None):
     n = ps.add_parser("new"); n.add_argument("name"); n.add_argument("--out", required=True)
     c = ps.add_parser("check"); c.add_argument("dir"); c.add_argument("--release", action="store_true"); c.add_argument("--reviews", default=None)
     c.add_argument("--reviewer-key", action="append", default=[]); c.add_argument("--today", default=None); c.add_argument("--json", action="store_true")
+    rt = ps.add_parser("redteam"); rt.add_argument("dir"); rt.add_argument("--packet", action="append", default=[]); rt.add_argument("--generate", action="store_true")
+    rt.add_argument("--max", default="60"); rt.add_argument("--promote", action="store_true"); rt.add_argument("--out", default=None); rt.add_argument("--json", action="store_true")
     a = sub.add_parser("adopt"); a.add_argument("--release", required=True); a.add_argument("--project", required=True); a.add_argument("--subsystem", required=True)
     a.add_argument("--include", action="append", default=[]); a.add_argument("--name", default=None); a.add_argument("--json", action="store_true")
     try: x = ap.parse_args(argv)
@@ -334,6 +355,11 @@ def main(argv=None):
     if x.cmd == "packet": return packet(x.evidence, x.json)
     if x.cmd == "pack" and x.pcmd == "new": return pack_new(x.name, x.out)
     if x.cmd == "pack" and x.pcmd == "check": return pack_check(x.dir, x.release, x.reviews, x.reviewer_key, x.json, x.today)
+    if x.cmd == "pack" and x.pcmd == "redteam":
+        import redteam as RT
+        args = (["promote", x.dir] if x.promote else ["run", x.dir, "--max", x.max] + sum((["--packet", p] for p in x.packet), []) + (["--generate"] if x.generate else [])) \
+               + (["--out", x.out] if x.out else []) + (["--json"] if x.json else [])
+        return RT.main(args)
     if x.cmd == "adopt": return adopt(x.release, x.project, x.subsystem, x.include, x.name, x.json)
     return EXIT_USAGE
 

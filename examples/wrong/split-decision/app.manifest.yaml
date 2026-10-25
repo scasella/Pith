@@ -1,0 +1,4 @@
+name: "payments-authorization-app/v2 known-wrong: the adapter decides against availability it read in an earlier critical section (Atomicity)"
+profile: custom
+extra_tests: []
+ui_entry: ui/console.html

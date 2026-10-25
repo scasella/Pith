@@ -14,8 +14,9 @@ can be recognised without re-running it.
     python3 gate/evidence.py verify PREV_EVIDENCE_DIR
         check evidence.json's self-digest and that statement.intoto.json binds the same artifact and records
 
-Reuse (app_gate.py --reuse DIR) is allowed only for checks the pack marks `cacheable`, only from a run of the same
-release and evaluator, only for records that passed, and only when the key is identical. Reused records say so.
+Reuse (app_gate.py --reuse DIR, repeatable since v0.13.0) is allowed only for checks the pack marks `cacheable`, only
+from a run of the same release and evaluator, only for records that passed, and only when the key is identical. Reused
+records say so, and name the evidence they came from.
 Format: docs/rfc/0001-contract-packs-and-evidence.md § Evidence.
 """
 import argparse, hashlib, json, pathlib, platform, shutil, sys, tempfile
@@ -53,7 +54,9 @@ def keys(concrete, root, toolchain, evaluator):
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent)); from workspace import files_matching
     out = {}
     for c in concrete:
-        files = files_matching(root, c.get("inputs", []))
+        # a manifest choice's result depends on the value chosen: key it on the manifest (v0.13.0), so a changed choice is
+        # never reported as holding (it was never reused: such checks are not cacheable)
+        files = files_matching(root, c.get("inputs", []) + (["app.manifest.yaml"] if c.get("kind") == "manifest_choice" else []))
         tools = {t: toolchain.get(t) for t in c.get("tools", [])}
         spec = {k: v for k, v in c.items() if k not in SPEC_FIELDS_NOT_KEYED}
         own = h({"spec": spec, "files": files, "tools": tools, "python": platform.python_version(), "evaluator": evaluator})
@@ -81,6 +84,16 @@ def reusable(prior, check, key, release_digest, evaluator):
     if r["result"] != "pass": return None, "prior record did not pass"
     if r["key"] != key: return None, "inputs changed"
     return r, None
+
+
+def reusable_from(priors, check, key, release_digest, evaluator):
+    """The first of several prior evidence documents [(source, evidence)] whose record may stand in for this check, each
+    judged by reusable() exactly as a single --reuse is (v0.13.0: a fork-join merge offers the base's and every branch's).
+    Returns (record, source, evidence) or (None, None, None)."""
+    for src, prior in priors:
+        r, _ = reusable(prior, check, key, release_digest, evaluator)
+        if r: return r, src, prior
+    return None, None, None
 
 
 def statement(E):

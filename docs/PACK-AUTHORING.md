@@ -107,6 +107,26 @@ What a harness author needs to know before writing one:
   comment (`packs/quota/harness/adequacy.py` runs each wrong core on its named trace; a wrong design that merely fails
   to verify may be failing for an unrelated reason). Have someone other than the person who wrote the formal
   statements read them before you seal.
+- **Red-team it** (v0.13.0, `docs/rfc/0007-autonomous-assurance-and-runtime-composition.md` § 4). The wrong examples you
+  thought of are the ones your checks already catch. Declare a `redteam` section (the reference example and the files
+  its generated mutants may change; for the model, the commands that say whether the release's checked properties accept
+  a design and whether a design violates one property) and run `python3 gate/cli.py pack redteam DIR --generate`, plus
+  `--packet FILE` for each saboteur packet (`gate/schemas/saboteur-packet.schema.json`) an agent or a colleague writes
+  against your `INTENT.md`. A packet is a mutant and a witness: a test (or, for the model, a property) that fails on the
+  mutant and passes on your reference. When your gate accepts the mutant, it is an adequacy gap, recorded in
+  `redteam/gaps.yaml`, and `pack check --release` refuses the pack until you tighten the checks; then `pack redteam
+  --promote` writes it into `examples/wrong/` (or the model's wrong directory) with the refusal it got. Generated mutants
+  without a witness are reported `unkilled`: candidates for a gap, or equivalent mutants, never counted as gaps.
+  `validation/redteam/underspecified` is a scaffold with two gaps left in on purpose; `validation/redteam.py` shows the
+  ratchet closing them.
+- **Make failures readable without your harness** (v0.13.0, RFC 0007 § 5). Every run writes a redacted packet
+  (`task-packet.distilled.json`) for agents that must not see your harness: no host paths, no stack frames, no code-shaped
+  name from your release's code unless your documents use it. Name those documents in `packet.vocabulary`. Where a test
+  can say what happened in your contract's words, put `gate.packet.cx_line(steps, expected, observed, violated=[...])` in
+  its assertion message (one line; raise the check's `why_tail` if the output is long), and if the steps can be replayed
+  offline, declare `traces.oracle` (a command reading `{"steps": [...]}` and printing `{"outcomes": [...]}` from your
+  verified core or reference model): the packet then shrinks the trace against it (`obligations/boundary/oracle.py` is the
+  reservation pack's).
 
 ## 6. Seal and validate
 

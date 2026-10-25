@@ -30,6 +30,8 @@ EXPECTED = {
     ("ring1", "lifecycle harness (black-box)"): "claim text names receipts; the test count rises",
     ("ring2", "boundary harness (black-box)"): "claim text names receipts; the test count rises",
     ("ring1", "shipped profile tests"): "the test count rises (receipts, the refusal of unmigrated state, the migration)",
+    # v0.13.0 (RFC 0007 § 7): the generated monitor gained shadow mode, and the frozen monitor suite tests it; same result
+    ("ring2", "monitor negative suite"): "claim text names the shadow oracle's tests",
 }
 
 
