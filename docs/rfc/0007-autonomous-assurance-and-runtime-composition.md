@@ -145,8 +145,8 @@ tighten the harness or the model and the survivor is now killed, `pack redteam -
 marks the gap `promoted`. A gap therefore cannot close silently: it either stays open and blocks release, or
 becomes a permanent known-wrong fixture.
 
-**Demonstration** (`validation/redteam.py`). An under-specified copy of `templates/pack` whose model configuration lacks
-`INVARIANT Bounded` and whose harness lacks the bound test: generated mutants of its reference service survive, a
+**Demonstration** (`validation/redteam.py`). An under-specified copy of the v0.12.0 scaffold whose model configuration
+lacks `INVARIANT Bounded` and whose harness lacks the bound test: generated mutants of its reference service survive, a
 saboteur packet's witness (the fourth request must be refused, INTENT's T1) confirms the gap, a spec packet (a design
 that ignores the bound) survives model checking, `pack check --release` refuses the pack; adding the invariant and the
 test kills both, and they are promoted and then refused for exactly their reasons by `judge_wrong.py`.
@@ -154,10 +154,15 @@ test kills both, and they are promoted and then refused for exactly their reason
 **Limits.** A gap is only as meaningful as its witness; the tool checks that the witness separates mutant from
 reference, not that the witness states the intent correctly, which stays a reviewer's question (`docs/FRONTIER.md`:
 validating a specification against intent without people is still open). The operators are syntactic; equivalent
-mutants are expected and are labelled, not counted as gaps. The fixture's first gap is not contrived: the scaffold
-`templates/pack` (and the tally demonstrations built from it) checks its known-wrong design against that design's own
-configuration rather than against `model/MC.cfg`, so dropping an invariant from `MC.cfg` would go unnoticed by its
-adequacy check; the tightening in `validation/redteam/tighten` is the fix, not yet applied to the scaffold.
+mutants are expected and are labelled, not counted as gaps. The fixture's first gap is not contrived: up to v0.12.0
+the scaffold `templates/pack` checked its known-wrong design against that design's own configuration rather than
+against `model/MC.cfg`, so dropping an invariant from `MC.cfg` went unnoticed by its adequacy check. The scaffold now
+carries the tightening in `validation/redteam/tighten`: `model.adequacy` runs every `model/wrong/*.tla` against the
+invariants `MC.cfg` checks (`model/redteam_tlc.py`), and the scaffold declares a `redteam` section. `evolution/tally-v1`
+and `evolution/tally-v2`, sealed demonstration releases built from the old scaffold, keep the old shape. One thing the
+old `tlc` check had that this does not: it required the named invariant to be violated, while `expect_exit: nonzero`
+also passes the helper's exit 3 (TLC did not run, or could not parse the design), so a known-wrong design with a
+syntax error passes `model.adequacy`.
 
 ## 5. Track 3 — distilled counterexamples (`gate/packet.py`, `gate/shrink.py`, `pith packet distill`)
 
