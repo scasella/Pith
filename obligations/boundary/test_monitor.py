@@ -1,9 +1,10 @@
 """Negative suite for the generated monitor, frozen. Each stream must raise exactly the named alert;
 the good stream must be silent. These are the reviewer's probes turned into obligations."""
-import pathlib, sys, pytest
+import pathlib, subprocess, sys, threading, time, pytest
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "gen" / "out"))
-from monitor import Monitor
+from monitor import Monitor, Shadow
+import monitor as MON
 
 P = "auth-service"
 import hashlib, json
@@ -103,3 +104,134 @@ def test_capture_stream_is_silent_and_available_shrinks_by_posted():
 
 def test_same_request_id_in_two_accounts_is_not_a_duplicate():
     assert "P3-obs" not in codes(GOOD)
+
+
+# ---- shadow mode: the monitor plus the offline oracle (obligations/boundary/oracle.py) on a live feed -------------------------------------
+import yaml
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+def shadow_of(stream, **kw):
+    sh = Shadow(**kw)
+    for ev in stream: sh.feed(ev)                                                  # feed never raises: asserted by every test that reaches here
+    return sh
+
+# an authorization the stream says was AUTHORIZED although the amount exceeds what was available: the monitor alerts (P1-obs) and the oracle
+# (the verified core, replayed) answers DECLINED to the same operation
+OVER_GRANT = resealed(created(1, 100, 1) + [decided(1, 1, 150, 100, "AUTHORIZED", 3), hold(1, 1, 150, 4), done(1, 1, "authorize", 5, reserved=150)])
+# a resealed stream (valid hashes) whose op.committed declares a state the events do not produce: the monitor alerts STATE, the oracle disputes state_after,
+# and the answer itself (what the client was told) is the one the contract requires
+WRONG_STATE = resealed(created(1, 100, 1) + [decided(1, 1, 60, 100, "AUTHORIZED", 3), hold(1, 1, 60, 4), done(1, 1, "authorize", 5, reserved=0)])
+
+def test_shadow_is_silent_on_a_good_stream_and_reconstructs_every_operation():
+    for stream, n in ((GOOD, 7), (GOOD_CAPTURE, 5)):
+        sh = shadow_of(stream); assert sh.mode == "oracle" and sh.divergences == [] and sh.errors == 0 and sh.dropped == 0, sh.summary()
+        assert len(sh.operations) == n and sh.events == len(stream)
+        assert [o["action"] for o in sh.operations][:2] == ["create_account", "authorize"] and all(o["observed"].get("replayed", False) is False for o in sh.operations)
+
+def test_shadow_records_an_over_grant_as_a_divergence_without_raising(tmp_path):
+    log = tmp_path / "divergence.jsonl"; sh = shadow_of(OVER_GRANT, out=str(log), release="r" * 64, artifact="a" * 64)
+    assert sh.errors == 0 and len(sh.divergences) == 1
+    rec = sh.divergences[0]
+    assert rec["format"] == "pith.divergence/v1" and rec["alert"] == "P1-obs" and rec["diverged_at"] == 1 and rec["mode"] == "oracle" and not rec["lossy"]
+    assert rec["release_digest"] == "r" * 64 and rec["artifact_digest"] == "a" * 64 and "P1" in rec["records"] and "P0" in rec["records"]
+    assert [o["action"] for o in rec["operations"]] == ["create_account", "authorize"]
+    d = rec["disagreement"]; assert d["fields"] == ["decision", "state_after"] and d["observed"]["decision"] == "AUTHORIZED" and d["expected"]["decision"] == "DECLINED"
+    assert rec["operations"][1]["args"] == {"account": 1, "request": 1, "amount": 150} and rec["operations"][1]["expected"] == d["expected"]
+    lines = [json.loads(l) for l in log.read_text().splitlines()]; assert len(lines) == 1 and lines[0] == json.loads(json.dumps(rec))
+
+def test_shadow_records_a_resealed_state_the_oracle_disputes():
+    sh = shadow_of(WRONG_STATE); assert sh.errors == 0 and len(sh.divergences) == 1
+    rec = sh.divergences[0]; d = rec["disagreement"]
+    assert rec["alert"] == "STATE" and "EventContract" in rec["records"] and rec["diverged_at"] == 1
+    assert d["fields"] == ["state_after"] and d["expected"] == d["observed"]                 # the answer agrees; only the committed state is disputed
+    assert d["state_after"]["declared"]["reserved"] == 0 and d["state_after"]["oracle"]["reserved"] == 60
+
+def test_shadow_is_monitor_only_when_the_oracle_cannot_be_loaded():
+    sh = shadow_of(OVER_GRANT, root="/nonexistent/release"); assert sh.mode == "monitor-only" and sh.oracle_error and sh.errors == 0
+    assert sh.summary()["mode"] == "monitor-only" and len(sh.divergences) == 1
+    rec = sh.divergences[0]; assert rec["alert"] == "P1-obs" and rec["mode"] == "monitor-only" and rec["disagreement"] is None and rec["diverged_at"] == 1
+
+def test_shadow_with_a_sound_oracle_but_a_silent_monitor_still_records_the_disagreement():
+    class Liar:                                                                       # an oracle that disagrees with a stream the monitor accepts
+        def step(self, s): return {"id": s["args"].get("account"), "limit": -1} if s["action"] == "create_account" else {"status": 500}
+    sh = shadow_of(GOOD[:2], oracle=Liar()); assert sh.monitor.alerts == [] and sh.mode == "oracle" and len(sh.divergences) == 1
+    assert sh.divergences[0]["alert"] == "ORACLE-DISAGREES" and sh.divergences[0]["disagreement"]["fields"] == ["limit"]
+
+def test_shadow_survives_failing_listeners_oracles_and_logs(tmp_path):
+    def boom(rec): raise RuntimeError("listener failed")
+    class Broken:
+        def step(self, s): raise RuntimeError("oracle failed")
+    seen = []
+    sh = shadow_of(OVER_GRANT, listeners=[boom, seen.append]); assert len(sh.divergences) == 1 and seen == sh.divergences and sh.errors == 1       # raised nothing, counted
+    sh = shadow_of(GOOD, oracle=Broken()); assert sh.errors >= 1 and sh.events == len(GOOD) and "RuntimeError" in sh.last_error                          # monitor still ran
+    sh = shadow_of(OVER_GRANT, out=str(tmp_path)); assert len(sh.divergences) == 1 and sh.errors == 1                                                   # a log that cannot be written
+    sh = Shadow(); sh.feed(None); sh.feed("not an event"); sh.feed({"type": "auth.decided"}); assert sh.errors >= 2 and "MALFORMED-EVENT" in sh.summary()["alerts"]
+
+def test_attach_enqueues_on_a_bounded_queue_and_never_blocks_the_caller():
+    sh = Shadow(queue_size=2); gate = threading.Event(); real = sh.feed
+    sh.feed = lambda ev: (gate.wait(5), real(ev))                                      # a slow consumer: the drain thread is stuck on its first event
+    host = []; emit = sh.attach(host.append); t0 = time.time()
+    for ev in GOOD: emit(ev)
+    assert time.time() - t0 < 1.0 and host == GOOD                                     # the caller was not held up and the host's emit ran for every event
+    assert sh.dropped >= len(GOOD) - 3 > 0, sh.dropped                                 # what did not fit was counted, not waited for
+    gate.set(); assert sh.flush(5) and sh.errors == 0
+    sh.feed(GOOD[-1]); assert sh.divergences and all(d["lossy"] for d in sh.divergences)   # an event after the gap breaks the chain: the record says the reconstruction missed events
+
+def test_attach_feeds_every_event_in_order_and_adds_nothing_that_raises():
+    host = []; sh = Shadow(); emit = sh.attach(lambda ev: host.append(ev) or "ok")
+    assert [emit(ev) for ev in OVER_GRANT] == ["ok"] * len(OVER_GRANT) and sh.flush(5)
+    assert sh.dropped == 0 and sh.errors == 0 and len(sh.divergences) == 1 and sh.divergences[0]["alert"] == "P1-obs"
+    sh2 = Shadow(oracle=type("B", (), {"step": lambda self, s: 1 / 0})()); emit2 = sh2.attach(lambda ev: None)
+    for ev in GOOD: emit2(ev)                                                          # an oracle that fails inside the drain thread never reaches the caller
+    assert sh2.flush(5) and sh2.errors >= 1
+    def failing_host(ev): raise OSError("the host's own failure")
+    sh3 = Shadow(); wrapped = sh3.attach(failing_host)
+    with pytest.raises(OSError): wrapped(GOOD[0])                                      # the host's exception is the host's: propagated unchanged, nothing queued
+    assert sh3.flush(5) and sh3.events == 0
+
+def test_a_shadow_that_keeps_finding_the_same_defect_bounds_its_log(tmp_path):
+    stream = created(1, 1000, 1)
+    for i in range(1, 8): stream += [decided(1, i, 150, 100, "AUTHORIZED", 2 * i + 1), done(1, i, "authorize", 2 * i + 2)]        # seven authorizations, each over what was available
+    sh = shadow_of(resealed(stream), out=str(tmp_path / "l.jsonl"), max_records=3)
+    assert len(sh.divergences) == 3 and sh.suppressed > 0 and len((tmp_path / "l.jsonl").read_text().splitlines()) == 3
+
+def test_an_operation_that_never_commits_is_a_divergence_at_the_end_of_the_stream():
+    sh = shadow_of(chain(created(1, 100, 1) + [decided(1, 1, 60, 100, "AUTHORIZED", 3), hold(1, 1, 60, 4)])); assert sh.divergences == []
+    sh.close(); assert [d["alert"] for d in sh.divergences] == ["COMPLETE-unterminated"] and sh.divergences[0]["diverged_at"] is None
+
+def test_records_name_contract_records_the_pack_declares():
+    declared = {c["id"] for c in yaml.safe_load((ROOT / "pack.yaml").read_text())["contracts"]}
+    named = {r for v in list(MON.RECORDS.values()) + list(MON.FIELD_RECORDS.values()) for r in v}
+    assert named <= declared, sorted(named - declared)
+
+class Feed(BaseHTTPRequestHandler):
+    events = []
+    def log_message(self, *a): pass
+    def do_GET(self):
+        since = int(self.path.split("since=")[1]) if "since=" in self.path else 0
+        data = json.dumps([e for e in self.events if (e.get("seq") or 0) > since]).encode()
+        self.send_response(200); self.send_header("Content-Length", str(len(data))); self.end_headers(); self.wfile.write(data)
+
+def serve_events(events):
+    Feed.events = events; srv = HTTPServer(("127.0.0.1", 0), Feed); threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, f"http://127.0.0.1:{srv.server_address[1]}"
+
+def test_sidecar_reads_the_feed_of_a_service_in_a_separate_process(tmp_path, capsys):
+    srv, url = serve_events(list(GOOD))
+    try:
+        log = tmp_path / "good.jsonl"
+        assert MON.main(["shadow", "--events", url, "--out", str(log), "--once"]) == 0 and not log.exists()
+        assert json.loads(capsys.readouterr().out.splitlines()[-1])["events"] == len(GOOD)
+        Feed.events = list(OVER_GRANT); log = tmp_path / "bad.jsonl"
+        r = subprocess.run([sys.executable, "-I", str(ROOT / "gen" / "out" / "monitor.py"), "shadow", "--events", url, "--out", str(log), "--once",
+                            "--release", "r" * 64, "--artifact", "a" * 64], capture_output=True, text=True, timeout=60)
+        assert r.returncode == 1, r.stderr                                             # a divergence was recorded
+        summary = json.loads(r.stdout.splitlines()[-1]); assert summary["mode"] == "oracle" and summary["divergences"] == 1 and summary["errors"] == 0
+        recs = [json.loads(l) for l in log.read_text().splitlines()]
+        assert len(recs) == 1 and recs[0]["alert"] == "P1-obs" and recs[0]["release_digest"] == "r" * 64 and recs[0]["artifact_digest"] == "a" * 64
+    finally:
+        srv.shutdown()
+
+def test_sidecar_reports_a_service_it_cannot_reach(tmp_path, capsys):
+    assert MON.main(["shadow", "--events", "http://127.0.0.1:9", "--out", str(tmp_path / "x"), "--once"]) == 2
+    assert json.loads(capsys.readouterr().out.splitlines()[-1])["fetch_errors"] == 1

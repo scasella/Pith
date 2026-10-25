@@ -37,6 +37,11 @@ not know.
 | Catalog, revocations | `pith.catalog/v1`, `pith.revocations/v1` | `GOVERNANCE.md`, `gate/catalog.py` |
 | Experiment run | `pith.experiment-run/v1` | `experiments/schemas/run.schema.json` |
 | Check kinds | the kinds in `gate/kinds.py` and their documented fields | RFC 0001 § 4 |
+| Runtime composition (optional `runtime` block), its report section | `pith.composition/v1`, `pith.composition-report/v1` (unchanged identifiers) | RFC 0007 § 3, `gate/compose.py` |
+| Saboteur packet, red-team report, gap record | `pith.saboteur-packet/v1`, `pith.redteam-report/v1`, `pith.redteam-gaps/v1` | RFC 0007 § 4, `gate/schemas/saboteur-packet.schema.json`, `gate/redteam.py` |
+| Distilled task packet (optional fields) | `pith.task-packet/v1` with `disclosure: redacted` and `counterexample.trace` | RFC 0007 § 5, `gate/packet.py` |
+| Divergence, trace, trace provenance | `pith.divergence/v1`, `pith.trace/v1`, `pith.trace-provenance/v1` | RFC 0007 § 7, `gate/trace.py` |
+| Merge report | `pith.merge-report/v1` | RFC 0007 § 8, `gate/change.py merge` |
 
 Not stable: anything under `validation/`, the human-readable text of claims and packets (`TASK.md`), file layouts
 inside a pack beyond what `pack.yaml` names, and every Python function in `gate/` that is not a command.

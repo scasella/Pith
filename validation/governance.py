@@ -9,7 +9,7 @@
      recomputes the primary outcome, labelled a dry run), and catches a false acceptance the external criteria see
 
 Writes OUT/governance-record.json; exit 1 if any expectation fails."""
-import json, pathlib, shutil, subprocess, sys
+import json, pathlib, re, shutil, subprocess, sys
 import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent; PY = sys.executable
@@ -58,6 +58,15 @@ expect("the experiment harness runs end to end on scripted agents", r.returncode
 expect("the analysis is labelled a dry run", "DRY RUN" in (A.get("note") or ""))
 expect("a false acceptance (own acceptance passed, external criteria failed) is counted", (A.get("by_condition", {}).get("core-tests", {}).get("false_acceptance") or 0) >= 1, A.get("by_condition"))
 expect("a repair cycle after a refused migration is counted", (A.get("by_condition", {}).get("pith", {}).get("repair_cycles") or 0) >= 1, A.get("by_condition"))
+turns = [t for f in sorted((OUT / "experiment/runs").glob("*.json")) if f.name != "plan.json" for st in json.loads(f.read_text())["stages"].values() for t in st.get("feedback", [])]
+expect("every refused turn of the pith condition handed the agent a distilled packet, recorded as its digest and first failure's check",
+       len(turns) >= 1 and all(t["disclosure"] == "redacted" and len(t["digest"]) == 64 and t["check"] for t in turns), turns)
+refused = [d for d in sorted((OUT / "experiment/evidence").glob("*-migration")) if not json.loads((d / "migration-report.json").read_text())["ok"]]
+r = run(PY, "experiments/harness.py", "feedback", refused[0], "--policy-from", OUT / "experiment/release-v2") if refused else None
+expect("`experiments/harness.py feedback` prints the distilled packet of a refused migration, with no host path or stack frame",
+       r is not None and r.returncode == 0 and "Task packet: REFUSED" in r.stdout and not re.search(r"/Users/|/home/|/private/|/var/folders/|/tmp/|Traceback|File \"", r.stdout), (r.stdout + r.stderr) if r else "no refused migration")
+r = run(PY, "experiments/harness.py", "feedback", OUT / "experiment/runs")
+expect("a directory with no distilled packet is refused, not guessed at", r.returncode != 0 and "no distilled packet" in (r.stdout + r.stderr), r.stdout + r.stderr)
 r = run(PY, "experiments/harness.py", "plan", "--models", "model-a", "model-b", "--repeats", "2", "--out", OUT / "plan.json")
 P = json.loads((OUT / "plan.json").read_text())
 cells = {(x["model"], x["task"], x["condition"], x["repeat"]) for x in P["runs"]}

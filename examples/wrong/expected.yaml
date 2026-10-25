@@ -31,3 +31,9 @@ retry-not-released:
   failing_tests: [test_receipts_are_returned_on_retry_across_a_crash]
   category: violation
   contracts: [Receipts]
+split-decision:
+  source: "examples/build-b (custom JSON-file adapter) whose authorize reads the availability under its lock, releases the lock, and commits the decision under the lock again, one DEFECT in adapter/jsonrepo.py: two requests can both be decided against the same availability (a lost update; new in 0.13.0, found by the deterministic interleaving test, not by timing)"
+  refused_at: lifecycle
+  failing_tests: [test_interleaved_authorizations_with_room_for_one_decide_exactly_one]
+  category: violation
+  contracts: [Atomicity]

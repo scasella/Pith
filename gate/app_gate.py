@@ -2,7 +2,7 @@
 """
 gate/app_gate.py — the judge. FROZEN. Domain-independent: everything it checks comes from the contract pack.
 
-    python3 gate/app_gate.py --out EVIDENCE [--expected-release DIGEST] [--review att.json --reviewer-key pub.pem] [--reuse PREV_EVIDENCE]
+    python3 gate/app_gate.py --out EVIDENCE [--expected-release DIGEST] [--review att.json --reviewer-key pub.pem] [--reuse PREV_EVIDENCE ...]
     python3 <pristine>/gate/app_gate.py --candidate DIR --out EVIDENCE --expected-release DIGEST ...
         authoritative: the judge's own code AND the pack come from the pristine release; DIR is only read for its artifact
     python3 gate/app_gate.py --policy-from DIR ...    same thing invoked from the checkout: re-executes DIR's gate with --candidate
@@ -89,12 +89,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--policy-from", default=None); ap.add_argument("--candidate", default=None); ap.add_argument("--out", required=True)
     ap.add_argument("--expected-release", default=None); ap.add_argument("--review", default=None); ap.add_argument("--reviewer-key", default=None)
-    ap.add_argument("--reuse", default=None, help="a previous run's evidence directory; cacheable checks with unchanged keys are not re-run")
+    ap.add_argument("--reuse", action="append", default=None, help="a previous run's evidence directory (repeatable, v0.13.0); cacheable checks whose key matches a record in any of them are not re-run")
     a = ap.parse_args()
     if a.policy_from:                      # re-exec the PRISTINE gate so the judge's code is not the candidate's copy
         pristine = pathlib.Path(a.policy_from).resolve()
         cmd = [sys.executable, "-I", str(pristine / "gate" / "app_gate.py"), "--candidate", str(ROOT), "--out", a.out] + \
-              sum(([f"--{k.replace('_', '-')}", v] for k, v in (("expected_release", a.expected_release), ("review", a.review), ("reviewer_key", a.reviewer_key), ("reuse", a.reuse)) if v), [])
+              sum(([f"--{k.replace('_', '-')}", v] for k, v in (("expected_release", a.expected_release), ("review", a.review), ("reviewer_key", a.reviewer_key)) if v), []) + \
+              sum((["--reuse", r] for r in (a.reuse or [])), [])
         sys.exit(subprocess.call(cmd))
     candidate = pathlib.Path(a.candidate).resolve() if a.candidate else ROOT
     out = pathlib.Path(a.out).absolute()
@@ -102,10 +103,11 @@ def main():
     if out.resolve().is_relative_to(candidate.resolve()): sys.exit("refused: evidence directory must be outside the candidate workspace")
     judge(candidate, ROOT, out, mode="authoritative" if a.candidate else "local (advisory)", expected_release=a.expected_release,
           review=a.review and pathlib.Path(a.review).absolute(), reviewer_key=a.reviewer_key and pathlib.Path(a.reviewer_key).absolute(),
-          reuse=a.reuse and pathlib.Path(a.reuse).absolute())
+          reuse=[pathlib.Path(r).absolute() for r in (a.reuse or [])])
 
 
 def judge(candidate, policy_src, out, mode, expected_release, review, reviewer_key, reuse=None):
+    reuse = [reuse] if isinstance(reuse, (str, pathlib.Path)) else list(reuse or [])
     out.mkdir(parents=True, exist_ok=False, mode=0o700)
     # ---- build the judged workspace: policy (trusted source) + artifact (copied)
     root = W.assemble(candidate, policy_src, out / "artifact")
@@ -127,7 +129,8 @@ def judge(candidate, policy_src, out, mode, expected_release, review, reviewer_k
                            "artifact_digest": claims["artifact_digest"], "gate_mode": mode, "authority": claims["authority"],
                            "isolation": (claims.get("isolation") or {}).get("status"), "toolchain": claims["toolchain"],
                            "statuses": {s: claims.get(s) for s in statuses}, "release_ready": claims["release_ready"],
-                           "reused_from": str(reuse) if reuse else None, "records": records,
+                           "reused_from": str(reuse[0]) if reuse else None, **({"reused_from_all": [str(r) for r in reuse]} if len(reuse) > 1 else {}),
+                           "records": records,
                            # what a later change is compared against (gate/change.py): each contract record's version and
                            # route, and every judged file's digest
                            "contracts": {c["id"]: {"version": c.get("version"), "change": c.get("change")} for c in (P or {}).get("contracts", [])},
@@ -136,7 +139,11 @@ def judge(candidate, policy_src, out, mode, expected_release, review, reviewer_k
         claims["task_packet"] = "task-packet.json"
         (out / "app-claims.json").write_text(json.dumps(claims, indent=2))
         PK_ = P or _raw_pack(root)
-        if PK_: PT.write(out, PT.build(claims, records, PK_, mode, candidate, policy_src, out, claims["toolchain"], claims["release_digest"] or ""))
+        if PK_:
+            pk = PT.build(claims, records, PK_, mode, candidate, policy_src, out, claims["toolchain"], claims["release_digest"] or "")
+            PT.write(out, pk)
+            try: PT.write_distilled(out, pk, claims, PK_, root)      # v0.13.0: the redacted packet with a structured counterexample
+            except Exception as e: print(f"[note] distilled packet not written: {type(e).__name__}: {e}")
         try: (candidate / "app-claims.json").write_text(json.dumps(claims, indent=2))
         except Exception: pass
         (out / "README.txt").write_text("Evidence applies ONLY to artifact/ (the copy that was judged) and release_digest.\n"
@@ -209,18 +216,19 @@ def judge(candidate, policy_src, out, mode, expected_release, review, reviewer_k
                                        + "nothing else in the candidate's repository is covered"}
     pre, main_checks = PK.expand(P, root, M, "preflight"), PK.expand(P, root, M); concrete = pre + main_checks
     keys.update(EV.keys(concrete, root, claims["toolchain"], evaluator))       # before anything runs: outputs never change a key
-    if reuse:
-        try: prior = EV.load(reuse)
-        except Exception as e: print(f"[note] --reuse {reuse} not used: {e}")
+    priors = []
+    for r_ in reuse:
+        try: priors.append((r_, EV.load(r_)))
+        except Exception as e: print(f"[note] --reuse {r_} not used: {e}")
     ctx = Ctx(root=root, out=out, pack=P, manifest=M, tools=tools, python=f"{sys.executable} -I", mode=mode, review=review, reviewer_key=reviewer_key,
               artifact_digest=claims["artifact_digest"], release_digest=rd, isolation_enforced=False)
     results = {}
 
     def run(c):
-        r, why_not = EV.reusable(prior, c, keys[c["id"]]["key"], rd, evaluator)
+        r, src, prior = EV.reusable_from(priors, c, keys[c["id"]]["key"], rd, evaluator)
         if r:
             res = K.Result(True, r["claim"], outputs=r.get("outputs", {}), outcome=r.get("outcome"))
-            reused = r.get("reused_from") or {"evidence": str(reuse), "evidence_digest": prior["digest"], "key": r["key"]}
+            reused = r.get("reused_from") or {"evidence": str(src), "evidence_digest": prior["digest"], "key": r["key"]}
         else:
             reused = None
             try: res = K.RUN[c["kind"]](c, ctx); exc = None

@@ -10,6 +10,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from harness.supervisor import Service
 from gate import sandbox as SB
+from gate.packet import cx_line
 
 STATE = pathlib.Path(os.environ["PITH_MIGRATION_STATE"]); OBS = json.loads(pathlib.Path(os.environ["PITH_MIGRATION_OBSERVED"]).read_text())
 
@@ -29,12 +30,27 @@ def call(c, op, args): return getattr(c, op)(*args)
 def with_buffer_0(x): return dict(x, buffer=0)
 
 
+ARGS = {"book": ("resource", "request", "start", "end"), "cancel": ("booking", "request"), "move": ("booking", "request", "start", "end")}
+
+
+def sent(steps, op, args, code, got):
+    """Record one operation sent to the migrated service, in the contract's words, with what it answered."""
+    steps.append({"step": len(steps) + 1, "action": op, "args": dict(zip(ARGS[op], args)), "observed": got if code == 200 and isinstance(got, dict) else {"status": code}})
+
+
+def cx(steps, expected, violated=("MIG1",), at=None):
+    """The one-line counterexample the task packet carries (gate/packet.py): the operations sent up to step `at` (the last one by
+    default) with the answers the migrated service gave and, on that step, the answer the contract requires."""
+    steps = steps[:len(steps) if at is None else at + 1]; steps[-1]["expected"] = expected
+    return cx_line(steps, expected=expected, observed=steps[-1]["observed"], violated=violated, diverged_at=len(steps) - 1, replayable=False, source="migration")
+
+
 def test_every_recorded_result_is_kept_and_replayed(svc):
     """Contract: MIG1, Idempotency."""
-    c = svc.client
+    c = svc.client; steps = []
     for rq, r in OBS["results"].items():
-        code, got = call(c, r["op"], r["args"])
-        assert code == 200 and got == dict(r["result"], replayed=True), (rq, r, code, got)
+        code, got = call(c, r["op"], r["args"]); sent(steps, r["op"], r["args"], code, got)
+        assert code == 200 and got == dict(r["result"], replayed=True), cx(steps, dict(r["result"], replayed=True), ("MIG1", "Idempotency"))
 
 
 def test_history_is_intact(svc):
@@ -78,10 +94,13 @@ def test_cancelled_bookings_stay_cancelled(svc):
 
 def test_in_flight_request_is_decided_once(svc):
     """Contract: MIG1, Durability, Idempotency."""
-    c = svc.client
+    c = svc.client; steps = []
     for f in OBS["in_flight"]:
-        code, first = call(c, f["op"], f["args"]); _, again = call(c, f["op"], f["args"])
-        assert code == 200 and first["outcome"] == "ACCEPTED" and again == dict(first, replayed=True), (first, again)
+        code, first = call(c, f["op"], f["args"]); sent(steps, f["op"], f["args"], code, first)
+        code2, again = call(c, f["op"], f["args"]); sent(steps, f["op"], f["args"], code2, again)
+        assert code == 200 and first["outcome"] == "ACCEPTED" and again == dict(first, replayed=True), (
+            cx(steps, {"outcome": "ACCEPTED"}, ("MIG1", "Durability"), at=len(steps) - 2) if not (code == 200 and first["outcome"] == "ACCEPTED")
+            else cx(steps, dict(first, replayed=True), ("MIG1", "Idempotency", "Durability")))
         rq = f["args"][1]
         assert [e["type"] for e in c.events()[1] if e.get("request_id") == rq].count("op.committed") == 1, "decided more than once"
         assert c.booking(rq)[1]["active"] is True

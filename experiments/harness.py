@@ -14,15 +14,24 @@ experiments/harness.py — plan, record, check and analyse the conditions experi
         are reported as missing, abandoned runs as failures, excluded runs with their reason
     python3 experiments/harness.py dryrun   OUT
         the whole pipeline with two scripted agents instead of models, to show the harness works end to end. Its numbers
-        measure the harness, not the conditions: the scripted agents were written to exercise each path
+        measure the harness, not the conditions: the scripted agents were written to exercise each path. Between turns the
+        agents are handed only the distilled packet of the refusal (below), never the full task packet or the judge's log
+    python3 experiments/harness.py feedback EVIDENCE [--policy-from RELEASE] [--json]
+        what an agent is shown for its next turn (docs/rfc/0007-autonomous-assurance-and-runtime-composition.md § 5): the
+        distilled task packet of a judge run (task-packet.distilled.json: redacted, a structured counterexample), or, for a
+        refused migration (a directory holding migration-report.json), the packet distilled from the failing step with
+        --policy-from, the release the candidate was judged under. TASK.distilled.md, or the JSON. A run record keeps only
+        each turn's `feedback`: the packet's digest and its first failure's check
 
 Run records: format pith.experiment-run/v1 (the schema). Nothing here talks to a model provider; a run is executed by
 whoever runs the agent, and recorded with what actually happened, failures included.
 """
-import argparse, hashlib, json, math, pathlib, shutil, subprocess, sys, time
+import argparse, hashlib, json, math, pathlib, re, shutil, subprocess, sys, time
 import yaml
 
 HERE = pathlib.Path(__file__).resolve().parent; ROOT = HERE.parent
+sys.path.insert(0, str(ROOT))
+from gate import packet as PT                      # the evaluator's own redaction and packet shape: the feedback is never written here
 PROTOCOL = yaml.safe_load((HERE / "protocol.yaml").read_text())
 SCHEMA = json.loads((HERE / "schemas/run.schema.json").read_text())
 CONDITIONS = list(PROTOCOL["conditions"])
@@ -104,6 +113,43 @@ def _median(xs):
     return None if not xs else (xs[len(xs) // 2] if len(xs) % 2 else (xs[len(xs) // 2 - 1] + xs[len(xs) // 2]) / 2)
 
 
+# ------------------------------------------------------------------ feedback: what an agent reads between turns
+HOST_PATH = re.compile(r"(?:file://)?/(?:Users|home|private|var/folders|tmp|opt|root|mnt|srv|Library)/|[A-Za-z]:\\")   # a path into the machine that ran the judge
+def feedback(ev, policy=None):
+    """The packet an agent is shown after a refused turn, and nothing else: {packet, markdown, digest, check, disclosure}.
+    `ev` is a judge's evidence directory (its task-packet.distilled.json) or a migration's output directory (the packet is
+    distilled from the failing step of its migration-report.json, under the release `policy`). Refuses, rather than hands over,
+    anything that is not redacted or still holds a host path or a stack frame: an agent never sees the full packet."""
+    ev = pathlib.Path(ev)
+    if (ev / "task-packet.distilled.json").is_file():
+        D = json.loads((ev / "task-packet.distilled.json").read_text()); md = (ev / "TASK.distilled.md").read_text() if (ev / "TASK.distilled.md").is_file() else PT.markdown(D)
+    elif (ev / "migration-report.json").is_file():
+        if not policy: raise SystemExit("a migration report is distilled under the release it was judged by: pass --policy-from RELEASE")
+        D = migration_packet(json.loads((ev / "migration-report.json").read_text()), pathlib.Path(policy)); md = PT.markdown(D)
+    else:
+        raise SystemExit(f"{ev}: no distilled packet (task-packet.distilled.json) and no migration report; `python3 gate/cli.py packet distill {ev}` writes the former")
+    leak = D.get("disclosure") != "redacted" or HOST_PATH.search(md) or any(p.search(l) for l in md.splitlines() for p in PT.FRAME_LINES)
+    if leak: raise SystemExit(f"{ev}: the packet is not distilled (disclosure {D.get('disclosure')!r}, or it still holds a host path or a stack frame); an agent is not handed it")
+    return {"packet": D, "markdown": md, "digest": hashlib.sha256(json.dumps(D, sort_keys=True).encode()).hexdigest(),
+            "check": (D.get("first_failure") or {}).get("check"), "disclosure": D["disclosure"]}
+
+
+def migration_packet(rep, policy):
+    """The distilled packet of a refused migration: its first failing step, in the evaluator's packet shape (gate/packet.py), under
+    the new release's pack and redaction vocabulary. A step's output is what the harness printed, a counterexample line included."""
+    P = yaml.safe_load((policy / "pack.yaml").read_text()); fail = next((x for x in rep["steps"] if x["result"] == "fail"), None)
+    if fail is None: raise SystemExit("the migration report has no failing step")
+    rec = {"id": "migration." + re.split(r"[:\s]", fail["step"])[0], "check": fail["step"], "kind": "command", "result": "fail", "blocking": True, "why": fail.get("detail") or "", "area": "migration", "method": "test",
+           "category": fail.get("category", "violation"), "category_basis": "reported by the migration report", "establishes": list(rep.get("records") or [])}
+    claims = {"pack": {"id": rep["to"]["pack"], "version": rep["to"].get("version")}, "artifact_digest": rep["to"]["artifact_digest"], "release_ready_missing": [], "checks": [rec]}
+    pk = PT.build(claims, [rec], P, "migration", "<candidate>", "<release>", "<evidence>", {}, rep["to"]["release_digest"])
+    D = PT.distill(pk, claims, P, policy); D["gate_mode"] = "migration"
+    return D
+
+
+def _turn(attempts, fb): return {"turn": attempts, "digest": fb["digest"], "check": fb["check"], "disclosure": fb["disclosure"]}
+
+
 # ------------------------------------------------------------------ dry run
 SCRIPTED = {   # what each scripted agent submits at each stage, in order of attempts (paths under the repository)
     "scripted:careful": {"build": ["evolution/tally-v1/examples/basic"], "change": ["evolution/tally-v2/examples/basic"]},
@@ -134,7 +180,7 @@ def dryrun(out):
     for run in P["runs"]:
         t0 = time.time(); agent = SCRIPTED[run["model"]]; base = out / "work" / run["run_id"]; stages = {}; prev = None
         for stage in ("build", "change"):
-            attempts = 0; own = {"result": "none"}; ws = base / stage
+            attempts = 0; own = {"result": "none"}; ws = base / stage; turns = []
             for src in agent[stage]:
                 attempts += 1
                 if ws.exists(): shutil.rmtree(ws)
@@ -144,9 +190,13 @@ def dryrun(out):
                     shutil.copytree(HERE / "tasks/counters/core-tests", ws, dirs_exist_ok=True)
                 own = acceptance(run["condition"], stage, ws, prev, rel, rid, out / "evidence" / f"{run['run_id']}-{stage}-{attempts}")
                 if own["result"] != "refused": break                 # the agent stops when its own acceptance stops refusing
+                if run["condition"] == "pith":                       # it repairs from the distilled packet it was handed, which is all it was handed
+                    if "feedback" not in own: raise SystemExit(f"{run['run_id']}: a refused turn handed the agent no distilled packet")
+                    turns.append(_turn(attempts, own["feedback"]))
             ext = json.loads(sh([sys.executable, HERE / "external/counters_check.py", "--workspace", ws, "--stage", stage, "--json"] + (["--previous", prev] if prev else [])).stdout)
-            stages[stage] = {"attempts": attempts, "own_acceptance": own, "external": {"passed": ext["passed"], "criteria": ext["criteria"], **({"error": ext["error"]} if ext.get("error") else {})},
-                             "interventions": [], "setup_failures": [], "abandoned": False, "workspace_digest": tree_digest(ws), "transcript_sha256": None}
+            stages[stage] = {"attempts": attempts, "own_acceptance": {k: v for k, v in own.items() if k != "feedback"}, "external": {"passed": ext["passed"], "criteria": ext["criteria"], **({"error": ext["error"]} if ext.get("error") else {})},
+                             "interventions": [], "setup_failures": [], "abandoned": False, "workspace_digest": tree_digest(ws), "transcript_sha256": None,
+                             **({"feedback": turns} if turns else {})}
             prev = ws
         rec = {"format": "pith.experiment-run/v1", "protocol": PROTOCOL["id"], "run_id": run["run_id"], "dry_run": True,
                "planned": {k: run[k] for k in ("model", "task", "condition", "repeat", "order")},
@@ -172,12 +222,15 @@ def acceptance(condition, stage, ws, prev, rel, rid, ev):
     v = "v1" if stage == "build" else "v2"
     ev.parent.mkdir(parents=True, exist_ok=True)
     r = sh([sys.executable, "-I", rel[v] / "gate/app_gate.py", "--candidate", ws, "--out", ev, "--expected-release", rid[v]])
-    if r.returncode != 0: return {"result": "refused", "detail": f"judge exit {r.returncode}; {ev / 'TASK.md'}"}
+    if r.returncode != 0:
+        fb = feedback(ev, rel[v]); return {"result": "refused", "detail": f"judge exit {r.returncode}; first failure {fb['check']} (the distilled packet is the agent's only feedback)", "feedback": fb}
     if stage == "change":
         old_ev = sorted(ev.parent.glob(ev.name.rsplit("-change-", 1)[0] + "-build-*"))[-1]
         m = sh([sys.executable, "gate/migrate.py", "run", "--release", rel["v2"], "--candidate", ws, "--old-release", rel["v1"], "--old-candidate", prev,
                 "--old-evidence", old_ev, "--out", str(ev) + "-migration"])
-        if m.returncode != 0: return {"result": "refused", "detail": f"judge accepted; migration refused ({str(ev)}-migration/migration-report.json)"}
+        if m.returncode != 0:
+            fb = feedback(str(ev) + "-migration", rel["v2"])
+            return {"result": "refused", "detail": f"judge accepted; migration refused at {fb['packet']['first_failure']['name']!r} (the distilled packet is the agent's only feedback)", "feedback": fb}
     return {"result": "accepted", "detail": f"judge exit 0 ({ev})"}
 
 
@@ -187,6 +240,7 @@ def main():
     v = sub.add_parser("validate"); v.add_argument("records", nargs="+")
     a = sub.add_parser("analyze"); a.add_argument("runs"); a.add_argument("--plan"); a.add_argument("--json", action="store_true")
     d = sub.add_parser("dryrun"); d.add_argument("out")
+    f = sub.add_parser("feedback"); f.add_argument("evidence"); f.add_argument("--policy-from"); f.add_argument("--json", action="store_true")
     x = ap.parse_args()
     if x.cmd == "plan":
         P = plan(x.models, x.repeats); pathlib.Path(x.out).parent.mkdir(parents=True, exist_ok=True); pathlib.Path(x.out).write_text(json.dumps(P, indent=1))
@@ -197,6 +251,8 @@ def main():
             errs = validate(json.loads(pathlib.Path(f).read_text())); bad += bool(errs)
             print(f"{'ok' if not errs else 'INVALID'}  {f}" + "".join(f"\n  - {e}" for e in errs))
         sys.exit(1 if bad else 0)
+    elif x.cmd == "feedback":
+        fb = feedback(x.evidence, x.policy_from); print(json.dumps(fb["packet"], indent=1) if x.json else fb["markdown"])
     else:
         A = analyze(x.runs, x.plan) if x.cmd == "analyze" else dryrun(x.out)
         if getattr(x, "json", False): print(json.dumps(A, indent=1)); return

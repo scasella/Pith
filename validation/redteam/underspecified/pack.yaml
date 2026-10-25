@@ -1,0 +1,128 @@
+# pack.yaml — a DELIBERATELY UNDER-SPECIFIED pack (validation/redteam.py; docs/rfc/0007 § 4): the scaffold of
+# `python3 gate/cli.py pack new` with two gaps an author could easily leave. T1 says the tally never exceeds its bound,
+# but model/MC.cfg does not check Bounded (and the adequacy check checks the known-wrong design against Bounded directly,
+# so it does not notice), and the harness never tests the bound. Every check below passes for the reference example and
+# for a service that grants one request too many. gate/redteam.py finds both gaps; tighten/ holds what closes them.
+
+format: pith.pack/v1
+pack:
+  id: draft.underspec
+  version: 0.1.0
+  title: "underspec (draft): a bounded tally with idempotent requests, deliberately under-specified (a red-team fixture)"
+  contract_version: underspec/v1
+  intent: INTENT.md
+  maintainers: [you]                                             # who answers for this pack; a reviewer must not be one of them
+
+policy_dirs: [model, harness]                                    # frozen pack content; the evaluator adds gate/ and this file
+
+candidate:
+  owned_dirs: [service]                                          # plus app.manifest.yaml
+  manifest_allowlist: [name, include, subsystem]
+  runtimes: [python]
+
+parameters:                                                      # every manifest key: its domain and what evidence covers it
+  name: { domain: "free text", evidence: none (report label) }
+  include: { domain: "relative paths inside the candidate, not policy (gate/workspace.py)", evidence: "judged only through service/run.py: service.lifecycle" }
+  subsystem: { domain: "free text", evidence: none (names the covered subsystem in the report) }
+
+tools:
+  TLA2TOOLS: { env: TLA2TOOLS, default: tla2tools.jar }
+
+toolchain:
+  tlc: { command: "java -cp {TLA2TOOLS} tlc2.TLC -h; java -version", regex: 'TLC2 Version [^\n]*|TLC - [^\n]*Version [^\n]*' }
+  java: { command: "java -version", regex: 'version "([^"]+)"', group: 1 }
+
+pytest: "{python} -m pytest -q -p no:cacheprovider --noconftest -c /dev/null --rootdir={root}"
+
+statuses:
+  model_assurance:
+    rule: all_pass
+    passed: "passed; scoped: model/Spec.tla's invariants hold over model/MC.cfg, and the known-wrong design violates them"
+    ready: { startswith: passed }
+  behavioral_assurance:
+    rule: all_pass
+    passed: "passed; scoped: the service not falsified by the frozen black-box harness (by test, not proof)"
+    ready: { startswith: passed }
+refusal_status: behavioral_assurance
+completion_status: behavioral_assurance
+
+checks:
+  - id: model.safety
+    about: release
+    area: model
+    name: model checked
+    kind: tlc
+    jar: "{TLA2TOOLS}"
+    workdir: model
+    copy: { from: model, suffixes: [.tla, .cfg] }
+    module: MC.tla
+    cfg: MC.cfg
+    expect: no_error
+    claim: "Bounded and Exact hold over model/MC.cfg"
+    status: model_assurance
+    method: model-check
+    inputs: ["model/**"]
+    tools: [tlc, java]
+    cacheable: true
+    establishes: [T1, T2]
+
+  - id: model.adequacy
+    about: release
+    area: model
+    name: the model rejects a tally without its bound
+    kind: command
+    command: "TLA2TOOLS={TLA2TOOLS} {python} model/redteam_tlc.py --design model/wrong/WrongUnbounded.tla --property Bounded"
+    expect_exit: nonzero
+    claim: a design that ignores the bound violates Bounded (checked against Bounded itself, not against model/MC.cfg)
+    why: model/wrong/WrongUnbounded.tla no longer violates Bounded
+    status: model_assurance
+    method: model-check
+    inputs: ["model/**"]
+    tools: [tlc, java]
+    cacheable: true
+
+  - id: service.entrypoint
+    area: service
+    name: service entrypoint
+    kind: files_present
+    files: [service/run.py]
+    claim: service/run.py present (run by the evaluator as a separate process)
+    why: "service/run.py missing: write it to harness/SERVICE.md"
+    status: behavioral_assurance
+    method: structural
+    inputs: ["service/**"]
+
+  - id: service.lifecycle
+    area: service
+    name: lifecycle harness (black-box)
+    kind: command
+    command: "{pytest} harness/lifecycle.py"
+    count: '(\d+) passed'
+    claim: "through the running service: the bound, refusals at the bound, idempotent replays, SIGKILL + restart, concurrent requests ({count} checks)"
+    status: behavioral_assurance
+    method: test
+    inputs: ["service/**", "app.manifest.yaml", "harness/**"]
+    depends_on: [service.entrypoint]
+    establishes: [Idempotency, Durability]
+
+contracts:
+  - { id: T1, version: 1, intent: "The tally never exceeds its bound.", semantics: { tla: "model/Spec.tla Bounded [T1]" },
+      verified_by: [model.safety, service.lifecycle], wrong: [model/wrong/WrongUnbounded.tla], change: behavioral }
+  - { id: T2, version: 1, intent: "The tally equals the number of accepted requests.", semantics: { tla: "model/Spec.tla Exact [T2]" },
+      verified_by: [model.safety, service.lifecycle], change: behavioral }
+  - { id: Idempotency, version: 1, intent: "request_id is the idempotency key; a replay returns the recorded result.", semantics: { markdown: "harness/SERVICE.md" },
+      verified_by: [service.lifecycle], change: integration }
+  - { id: Durability, version: 1, intent: "An acknowledged request survives a crash and restart.", semantics: { python: "harness/lifecycle.py" }, timing: after acknowledgement,
+      verified_by: [service.lifecycle], change: integration }
+
+domain_vocabulary: [tally, WrongUnbounded, harness/lifecycle.py]
+
+redteam:                                                         # gate/redteam.py (docs/rfc/0007 § 4); the gap record is the pack's, not the release's
+  gaps: redteam/gaps.yaml
+  examples: { base: examples/basic, mutate: ["service/**"] }
+  witness: "{pytest} {witness}"
+  spec:
+    reference: model/Spec.tla
+    accepts: "TLA2TOOLS={TLA2TOOLS} {python} model/redteam_tlc.py --design {design} --work {work}"
+    violates: "TLA2TOOLS={TLA2TOOLS} {python} model/redteam_tlc.py --design {design} --property {property} --work {work}"
+    wrong_dir: model/wrong

@@ -36,3 +36,14 @@ def run(steps, root=ROOT, timeout=60):
     res = json.loads(lines[0])["results"]
     if len(res) != len(steps): raise DriverFailed(f"{len(res)} results for {len(steps)} steps")
     return res
+
+
+def interleave(program, root=ROOT, timeout=120):
+    """Explore the schedules of concurrent calls to the candidate's Python library (harness/driver.py --interleave, v0.13.0,
+    docs/rfc/0007 § 6): returns {"schedules", "bound", "complete", "violations", "first", "inconclusive", "deadlocks"}. Python only: a
+    Node.js library runs single-threaded JavaScript. The driver runs as the candidate, like every other program."""
+    code, out, err = SB.run_as_candidate_full(DRIVER["python"] + ["--interleave", json.dumps(program)], cwd=root, timeout=timeout, limits=LIMITS["python"])
+    lines = [l for l in (out or "").splitlines() if l.startswith('{"interleave"')]
+    if code != 0 or len(lines) != 1:
+        raise DriverFailed(f"driver exited {code}; stdout {out[-400:]!r}; stderr {err[-800:]!r}")
+    return json.loads(lines[0])["interleave"]

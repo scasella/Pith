@@ -1,0 +1,32 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Auth desk</title>
+<style>body{font:14px ui-monospace,monospace;background:#111;color:#ddd;margin:0;padding:1rem}h1{font-size:1rem;color:#fff}form{display:inline-block;margin:0 1rem .6rem 0}input{width:5rem;background:#222;color:#eee;border:1px solid #444;padding:.2rem}
+button{background:#333;color:#eee;border:1px solid #555;padding:.2rem .6rem;cursor:pointer}#out{white-space:pre;border:1px solid #333;padding:.6rem;margin-top:.6rem;min-height:6rem}
+.AUTHORIZED{color:#7fd;font-weight:700}.DECLINED{color:#f76;font-weight:700;text-decoration:underline}.REJECTED,.UNKNOWN{color:#fc6}.stale{color:#fc6}table{border-collapse:collapse}td,th{padding:.15rem .6rem;border-bottom:1px solid #333}</style></head>
+<body><h1>Auth desk · decisions are the service's; this page computes nothing</h1>
+<form onsubmit="create();return false">acct <input id="a" data-testid="acct-id" value="1"> limit <input id="l" data-testid="acct-limit" value="100"> <button data-testid="btn-create">create</button> <button type="button" data-testid="btn-load" onclick="load(v('a'))">load</button></form>
+<form onsubmit="authorize();return false">req <input id="r" data-testid="req-id" value="1"> amount <input id="m" data-testid="req-amount" value="60"> <button data-testid="btn-authorize">authorize</button></form>
+<div id="dec"></div><p id="view" data-testid="loaded-account">no account loaded</p><table id="h"><thead><tr><th>hold</th><th>amount</th><th></th></tr></thead><tbody></tbody></table><pre id="out" data-testid="events"></pre>
+<script>
+// Hand-written state handling (no shared library): the typed account is a draft; `shown` is the account a successful
+// response produced, and every row and action is bound to it. `seq` drops late responses for superseded loads.
+const $=id=>document.getElementById(id), v=id=>+$(id).value;
+let shown=null, seq=0;
+async function call(m,p,b){try{const r=await fetch(p,{method:m,headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});let d=null;try{d=await r.json();}catch(_){}return{status:r.status,data:d};}catch(_){return{status:null,data:null};}}
+const kind=s=>s===null?'UNKNOWN':s<300?'OK':s<500?'REJECTED':'UNKNOWN';
+async function load(a){const mine=++seq;const r=await call('GET',`/accounts/${a}`);if(mine!==seq)return;
+ if(kind(r.status)==='OK'){shown={id:r.data.id,s:r.data,stale:false};}
+ else if(shown&&shown.id===a){shown.stale=true;}
+ draw(kind(r.status)==='OK'?'':`account ${a} could not be loaded${shown?`; still showing ${shown.id}`:''}`);events();}
+function draw(problem){const p=$('view');
+ if(!shown){p.textContent=problem||'no account loaded';$('h').tBodies[0].innerHTML='';return;}
+ const s=shown.s;p.dataset.accountId=shown.id;p.dataset.state=shown.stale?'stale':'current';
+ p.innerHTML=`acct ${shown.id} · available: <span data-testid="available">${s.available}</span> · posted: <span data-testid="posted">${s.posted}</span>${shown.stale?' <span class="stale">[stale: refresh failed; press load]</span>':''}${problem?` · ${problem}`:''}`;
+ $('h').tBodies[0].innerHTML=Object.entries(s.holds||{}).map(([k,x])=>`<tr data-testid="hold-row" data-account-id="${shown.id}" data-request-id="${k}"><td>${k}</td><td>${x}</td><td><button data-testid="btn-release" onclick="act('release',${shown.id},${k})">release</button> <button data-testid="btn-capture" onclick="act('capture',${shown.id},${k})">capture</button></td></tr>`).join('');}
+async function create(){const a=v('a');const r=await call('POST','/accounts',{id:a,limit:v('l')});if(kind(r.status)==='OK')await load(a);else draw(`create refused: ${r.data&&r.data.error}`);}
+async function authorize(){if(!shown){draw('load an account first');return;}const a=shown.id,q=v('r');
+ const r=await call('POST',`/accounts/${a}/authorize`,{request_id:q,amount:v('m')});const k=kind(r.status);const d=k==='OK'?r.data.decision:k;
+ $('dec').innerHTML=`<p data-testid="decision" data-decision="${d}" data-account-id="${a}" data-request-id="${q}" class="${d}">acct ${a} req ${q}: ${d}${k==='OK'&&r.data.replayed?' (replay of the original receipt)':''}${k==='REJECTED'?' (refused; nothing decided)':''}${k==='UNKNOWN'?' (no response; outcome unknown, retry with the same req)':''}</p>`;
+ if(k==='OK')$('r').value=q+1;await load(a);}
+async function act(op,a,k){await call('POST',`/accounts/${a}/${op}`,{request_id:k});await load(a);}
+async function events(){const r=await call('GET','/events');if(r.status===200)$('out').textContent='events (monitor view):\n'+r.data.slice(-20).map(e=>e.type+' '+JSON.stringify(e)).join('\n');}
+</script></body></html>

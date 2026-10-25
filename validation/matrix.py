@@ -6,7 +6,9 @@ import shutil, subprocess, pathlib, os, re, sys, json, tempfile
 # Usage: BUILD_A=<assembled candidate dir> BUILD_B=<assembled candidate dir> python3 validation/matrix.py [case indexes]
 # Assemble candidates with validation/judge_example.sh (it prints the temp dir) or by overlaying examples/* onto a seed copy.
 # DAFNY and TLA2TOOLS from the environment. Cases that mutated boundary_client.py in v2 now mutate service/run.py.
-A = pathlib.Path(os.environ["BUILD_A"]); B = pathlib.Path(os.environ["BUILD_B"])
+if sys.argv[1:] != ["--runners"] and not (os.environ.get("BUILD_A") and os.environ.get("BUILD_B")):
+    sys.exit("usage: BUILD_A=<assembled candidate> BUILD_B=<assembled candidate> python3 validation/matrix.py [case indexes]   |   python3 validation/matrix.py --runners")
+A = pathlib.Path(os.environ.get("BUILD_A", "")); B = pathlib.Path(os.environ.get("BUILD_B", ""))
 ENV = dict(os.environ, BOUNDARY_EXAMPLES=os.environ.get("BOUNDARY_EXAMPLES", "8"))
 
 def fresh(src):
@@ -50,7 +52,31 @@ case("service always declines (never calls the adapter)", A, "lifecycle harness"
 case("generated schema hand-edited", A, "generated artifacts current", lambda d: sed(d, "gen/out/openapi.yaml", "minimum: 1", "minimum: 0"))
 case("absent UI", A, "application delivery", lambda d: (d / "ui/index.html").unlink(), expect_exit=2)
 case("empty SPEC.md", A, "application delivery", lambda d: (d / "app/SPEC.md").write_text("# nothing\n"), expect_exit=2)
+# v0.13.0 (RFC 0007): a candidate cannot drop the shadow oracle the generator ships, and a race in a custom adapter is
+# refused by the deterministic interleaving test on every run (validation/interleavings.py shows the repeatability)
+case("generated monitor hand-edited to drop shadow mode", A, "generated artifacts current", lambda d: sed(d, "gen/out/monitor.py", "class Shadow:", "class _NoShadow:"))
+case("custom adapter decides outside its lock (a race no timing test is sure to see)", B, "lifecycle harness", lambda d: sed(d, "adapter/jsonrepo.py",
+     "            avail = core.available(a); d, a2 = self.core.Decide(a, core.Request(req_id, amount)); check_decide_post(a, req_id, amount, d, a2); decision = \"AUTHORIZED\" if d.is_Authorized else \"DECLINED\"",
+     "            avail = core.available(a)\n        with self.lock:\n            self._op = uuid.uuid4().hex; doc = self._read()\n            d, a2 = self.core.Decide(a, core.Request(req_id, amount)); check_decide_post(a, req_id, amount, d, a2); decision = \"AUTHORIZED\" if d.is_Authorized else \"DECLINED\""))
 case("SPEC claims the app authorizes over-limit requests (flagged, not refused)", A, None, lambda d: sed(d, "app/SPEC.md", "- OC-4 (W5)", "- OC-8 informal: the desk shall authorize any request that exceeds the limit when the operator insists. Evaluation: product review.\n- OC-4 (W5)"), expect_exit=0)
+
+# The validation runner of every capability, by release (the mutation cases above are the reservation pack's; each runner
+# below has its own known-wrong cases and refuses them for exactly their defect). `python3 validation/matrix.py --runners`
+# lists them; CI runs each one (.github/workflows/gate.yml).
+RUNNERS = [
+    ("v0.9.0 failure categories and task packets", "validation/test_packet.py, validation/packets.py"),
+    ("v0.10.0 change, composition, migration, deployment", "validation/evolution.py, validation/compositions.py"),
+    ("v0.12.0 contract upgrades with populated state", "validation/upgrades.py"),
+    ("v0.13.0 runtime composition and staggered migration (RFC 0007 § 3)", "validation/compositions.py; validation/judge_wrong.py --composition compositions/booking-quota"),
+    ("v0.13.0 adversarial adequacy ratchet (§ 4)", "validation/redteam.py"),
+    ("v0.13.0 distilled counterexamples, zero leakage (§ 5)", "validation/test_packet.py, validation/packets.py"),
+    ("v0.13.0 deterministic interleavings, optimistic-concurrency profile (§ 6)", "validation/interleavings.py; profiles/sqlite_occ/tests/test_occ.py"),
+    ("v0.13.0 shadow oracle and trace harvesting (§ 7)", "validation/shadow.py; obligations/boundary/test_monitor.py"),
+    ("v0.13.0 fork-join handoffs (§ 8)", "validation/handoff.py, validation/evidence_reuse.py; validation/judge_wrong.py --handoff evolution/handoff/fork-join"),
+]
+if sys.argv[1:] == ["--runners"]:
+    for what, how in RUNNERS: print(f"- {what}: {how}")
+    sys.exit(0)
 
 rows = []
 sel = [int(x) for x in sys.argv[1:]] or list(range(len(CASES)))

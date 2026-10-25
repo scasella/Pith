@@ -17,7 +17,7 @@ layer must satisfy (TLA+ invariants, black-box harnesses, a UI contract with int
 evaluator that runs the candidate as a separate, unprivileged process and never trusts its output. An agent clones the repository, reads
 `AGENT.md`, and builds the design model, service, and user interface. The gate decides when it is done.
 
-> Status: research prototype, v0.12.0. The method and the judge have been through five external reviews, one
+> Status: research prototype, v0.13.0. The method and the judge have been through five external reviews, one
 > unassisted agent build and two reference-assisted agent builds (see `docs/VALIDATION.md`). It is not a payment system; no funds move. Read
 > `INTENT.md` for what the core means and `kernel/tcb.yaml` for what a green result rests on.
 

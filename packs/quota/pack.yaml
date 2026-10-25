@@ -13,7 +13,7 @@
 format: pith.pack/v1
 pack:
   id: pith.quota
-  version: 0.2.0
+  version: 0.3.0
   title: Sliding-window quotas (half-open windows, a limit per key, exact retry hints, a caller-supplied clock) delivered as a Python or Node.js library
   contract_version: sliding-window-quota/v2
   intent: packs/quota/INTENT.md
@@ -264,7 +264,7 @@ contracts:
       verified_by: [library.lifecycle], wrong: [packs/quota/examples/wrong/shared-state], change: integration }
   - { id: Persistence, version: 2, intent: "dump/load carries the configuration with its per-key limits, the clock and every grant that can still count.", semantics: { markdown: "harness/LIBRARY.md § The semantics" }, timing: "from the dump, for every later sequence of calls",
       verified_by: [library.lifecycle, library.conformance, delivery], change: integration }
-  - { id: Atomicity, version: 1, intent: "A Python limiter shared by threads decides each call against the state left by the calls before it.", semantics: { python: "harness/lifecycle.py test_one_limiter_shared_by_threads_grants_exactly_the_limit" },
+  - { id: Atomicity, version: 1, intent: "A Python limiter shared by threads decides each call against the state left by the calls before it.", semantics: { python: "harness/lifecycle.py test_one_limiter_shared_by_threads_grants_exactly_the_limit", python-interleaved: "harness/lifecycle.py test_interleaved_acquires_of_the_last_unit_grant_exactly_once" },
       assumptions: ["Node.js: run-to-completion of a synchronous call (spec/tcb.yaml)"], verified_by: [library.lifecycle], wrong: [packs/quota/examples/wrong/unlocked], change: integration }
   - { id: Determinism, version: 1, intent: "Decisions depend only on the calls, never on the wall clock.", semantics: { python: "harness/lifecycle.py test_decisions_do_not_depend_on_the_wall_clock" }, verified_by: [library.lifecycle], change: integration }
   - { id: BoundaryConformance, version: 2, intent: "Malformed arguments, per-key limits included, raise InvalidArgument and change nothing.", semantics: { markdown: "harness/LIBRARY.md § Values" }, verified_by: [library.boundary], change: integration }
@@ -284,6 +284,10 @@ contracts:
 
 migrations:                                                      # gate/migrate.py; the evidence for MIG1 is its report, not a judge run
   - { from: sliding-window-quota/v1, spec: migrations/from-v1.yaml }
+
+# v0.13.0 (docs/rfc/0007 § 5): the documents whose words are this pack's domain vocabulary, which a distilled task packet may repeat
+packet:
+  vocabulary: [harness/LIBRARY.md, delivery/CONSUMER-CONTRACT.md]
 
 domain_vocabulary: [quota, limiter, QuotaSpec, QuotaCore, TraceData, retry_after, retryAfter, ClockRegression, sliding window, lib/limiter, oracle-py, spec/wrong, harness/, delivery/,
                     limit_for, limitFor, LimitOf, LimitReporter, per-key limit, lib/migrate]

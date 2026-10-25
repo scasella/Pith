@@ -48,3 +48,8 @@ had to guess; (3) is left as it is in this demonstration release.
 **What this does not show.** How often agents do this; whether a smaller model would; anything about a pack other
 than this small one. The contract findings above are recorded here and in `docs/rfc/0006-upgrading-the-main-packs.md`
 § 6.
+
+**Fork-join (v0.13.0).** `fork-join/` is the other kind of handoff, between agents working in parallel from one accepted
+application (`examples/build-a`) rather than one after the other, and merged by `gate/change.py merge`
+(`docs/rfc/0007-autonomous-assurance-and-runtime-composition.md` § 8). It is scripted, not a model run: its README says what
+each branch does and what the three merges show, and `validation/handoff.py` re-checks it (and this record) in CI.

@@ -34,7 +34,7 @@ jobs:
         run: |
           # the monitor suite tests the generated gen/out/monitor.py; generate it, then remove it so the next step sees a fresh seed
           python3 obligations/boundary/generate.py
-          python3 -m pytest obligations/boundary/test_monitor.py profiles/sqlite/tests/test_profile.py -q -p no:cacheprovider --noconftest -c /dev/null
+          python3 -m pytest obligations/boundary/test_monitor.py obligations/boundary/test_oracle.py profiles/sqlite/tests/test_profile.py profiles/sqlite_occ/tests/test_occ.py -q -p no:cacheprovider --noconftest -c /dev/null
           rm -rf gen
       - name: fresh seed refuses at ring 1
         run: |
@@ -43,7 +43,7 @@ jobs:
       - name: judge the examples with the pristine gate
         run: |
           set -o pipefail   # a failing judge must fail the step, not be hidden by tail
-          for ex in build-a build-b club-desk office-desk; do   # examples/archive is not judged (conforms to an earlier release)
+          for ex in build-a build-b build-occ club-desk office-desk; do   # examples/archive is not judged (conforms to an earlier release)
             validation/judge_example.sh "examples/$ex" "$RUNNER_TEMP/ev-$ex" | tail -1
           done
       - name: known-wrong fixtures are refused for exactly their defects
@@ -67,7 +67,7 @@ jobs:
   packs:
     # M3: the booking, approval and quota packs, judged by the same evaluator as the reservation pack (docs/rfc/0002-generality.md)
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90    # v0.13.0: the runtime composition and the fork-join handoff add sequential judges
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -131,13 +131,13 @@ jobs:
           python3 gate/cli.py pack new demo --out "$D" && python3 gate/release.py seal --pack "$D" && python3 gate/cli.py pack check "$D"
           validation/judge_example.sh --pack "$D" "$D/examples/basic" "$RUNNER_TEMP/ev-scaffold-basic" | tail -1
           python3 validation/judge_wrong.py --pack "$D" "$RUNNER_TEMP"
-      - name: a composition contract tells a broken integration from a broken component; the reservation kernels restated as one (M5)
+      - name: a composition contract tells a broken integration from a broken component, in the model and at runtime under injected faults, with a staggered upgrade; the reservation kernels restated as one (M5; RFC 0007 § 3)
         run: python3 validation/compositions.py "$RUNNER_TEMP/compositions"
       - name: handoff, rewrite, contract upgrade with populated state, composition (M5 exit check)
         run: |
           python3 validation/evolution.py "$RUNNER_TEMP/evolution"
           python3 validation/judge_wrong.py --pack evolution/tally-v2 "$RUNNER_TEMP"
-      - name: the recorded handoff between two model agents still holds (validation/handoff.py; evolution/handoff)
+      - name: the recorded handoff between two model agents still holds, and the fork-join handoff merges only what it may (validation/handoff.py; evolution/handoff; RFC 0007 § 8)
         run: python3 validation/handoff.py "$RUNNER_TEMP/handoff"
       - name: the catalog matches its packs; revocation and the experiment harness work end to end (M6)
         run: |
@@ -152,6 +152,39 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with: { name: evidence-packs, path: "${{ runner.temp }}/ev-*\n${{ runner.temp }}/wrong-*\n${{ runner.temp }}/adoption\n${{ runner.temp }}/evolution\n${{ runner.temp }}/handoff\n${{ runner.temp }}/compositions\n${{ runner.temp }}/governance", retention-days: 14 }
+
+  assurance:
+    # v0.13.0 (docs/rfc/0007-autonomous-assurance-and-runtime-composition.md): concurrency defects found deterministically,
+    # a shadow oracle's divergence shrunk into a regression trace, and the adequacy ratchet (about 20 minutes of judging)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with: { python-version: "3.12" }
+      - uses: actions/setup-java@v6
+        with: { distribution: temurin, java-version: "21" }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22" }
+      - uses: actions/cache@v6
+        with: { path: .tools, key: "tools-${{ runner.os }}-${{ hashFiles('bootstrap.sh') }}" }
+      - name: toolchain
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          bash bootstrap.sh
+          .venv/bin/python -m playwright install-deps chromium >/dev/null 2>&1 || true
+          echo "DAFNY=$PWD/.tools/dafny/dafny" >> "$GITHUB_ENV"
+          echo "TLA2TOOLS=$PWD/.tools/tla2tools.jar" >> "$GITHUB_ENV"
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - name: every race is found on every run with the same schedule; the optimistic profile is linearizable within the bound (RFC 0007 § 6)
+        run: python3 validation/interleavings.py "$RUNNER_TEMP/interleavings"
+      - name: a drifted brownfield desk is caught by the shadow oracle, its divergence harvested, rendered and replayed (RFC 0007 § 7)
+        run: python3 validation/shadow.py "$RUNNER_TEMP/shadow"
+      - name: the adequacy ratchet finds an under-specified pack's gaps, refuses it for release, and promotes them once closed (RFC 0007 § 4)
+        run: python3 validation/redteam.py "$RUNNER_TEMP/redteam"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with: { name: evidence-assurance, path: "${{ runner.temp }}/interleavings\n${{ runner.temp }}/shadow\n${{ runner.temp }}/redteam", retention-days: 14 }
 
   upgrades:
     # v0.12.0: each main pack's contract upgrade from its v0.11.0 release, judged on state the old release's accepted

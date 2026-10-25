@@ -1,0 +1,4 @@
+name: "payments-authorization-app/v2 build OCC (sqlite-occ profile, web console)"
+profile: sqlite-occ
+extra_tests: []
+ui_entry: ui/index.html

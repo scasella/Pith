@@ -12,8 +12,18 @@ A fault matches one (method, path) pair and can:
   * forward    — with status: still forward the request first, so the service commits and the response is lost
   * times      — apply to this many matching requests, then expire (None: until cleared)
 Every request is logged with whether a fault touched it; the log is evidence, the page never sees it.
+
+v0.13.0 (docs/rfc/0007-autonomous-assurance-and-runtime-composition.md § 3): the same proxy stands in front of each
+component of a runtime composition, where a fault must land between the steps of a cross-component operation. Added,
+all optional, so the interaction obligations above are unchanged:
+  * a path may contain `*` (matched with fnmatch); an exact path is still looked up first
+  * sever      — "before": close the connection without forwarding or answering (the call never arrives);
+                 "after": forward, let the service commit, then close without answering (the answer is lost)
+  * hook, hook_at — a judge callable run when a matching request arrives ("request") or after the service answered
+                 and before the answer is relayed ("response"); the driver uses it to kill a process at that instant
+PUT, DELETE and PATCH are proxied like GET and POST.
 """
-import json, threading, time, urllib.error, urllib.request
+import fnmatch, http.client, json, socket, threading, time, urllib.error, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
@@ -23,9 +33,12 @@ class FaultProxy:
         self.faults = {}; self.log = []; self._lock = threading.Lock(); self.srv = None
 
     # ---- programming (judge only) ----
-    def fault(self, method, path, status=None, delay=0.0, forward=False, times=None, message="judge-injected fault"):
+    def fault(self, method, path, status=None, delay=0.0, forward=False, times=None, message="judge-injected fault", sever=None, hook=None, hook_at="request"):
+        if sever not in (None, "before", "after"): raise ValueError("sever must be None, 'before' or 'after'")
+        if hook_at not in ("request", "response"): raise ValueError("hook_at must be 'request' or 'response'")
         with self._lock:
-            self.faults[(method, path)] = {"status": status, "delay": delay, "forward": forward, "times": times, "message": message}
+            self.faults[(method, path)] = {"status": status, "delay": delay, "forward": forward, "times": times, "message": message,
+                                           "sever": sever, "hook": hook, "hook_at": hook_at}
 
     def clear(self):
         with self._lock: self.faults.clear()
@@ -35,11 +48,13 @@ class FaultProxy:
 
     def _take(self, method, path):
         with self._lock:
-            f = self.faults.get((method, path))
+            key = (method, path) if (method, path) in self.faults else \
+                  next((k for k in self.faults if k[0] == method and "*" in k[1] and fnmatch.fnmatchcase(path, k[1])), None)
+            f = self.faults.get(key) if key else None
             if f is None: return None
             if f["times"] is not None:
                 f["times"] -= 1
-                if f["times"] <= 0: self.faults.pop((method, path))
+                if f["times"] <= 0: self.faults.pop(key)
             return dict(f)
 
     # ---- serving ----
@@ -54,24 +69,43 @@ class FaultProxy:
                 path = self.path.split("?", 1)[0]
                 f = proxy._take(method, path)
                 if f and f["delay"]: time.sleep(f["delay"])
+                if f and f.get("hook") and f.get("hook_at") == "request": f["hook"]({"method": method, "path": self.path})
                 status, data, ctype = None, b"", "application/json"
-                if not f or f["status"] is None or f["forward"]:
+                if f and f.get("sever") == "before": return self._sever(method, body, f, None)
+                if not f or f["status"] is None or f["forward"] or f.get("sever") == "after":
                     req = urllib.request.Request(proxy.upstream + self.path, data=body, method=method,
                                                  headers={"Content-Type": self.headers.get("Content-Type") or "application/json"})
                     try:
                         with urllib.request.urlopen(req, timeout=15) as r: status, data, ctype = r.status, r.read(), r.headers.get("Content-Type") or ctype
                     except urllib.error.HTTPError as e: status, data, ctype = e.code, e.read(), e.headers.get("Content-Type") or ctype
+                    except (urllib.error.URLError, http.client.HTTPException, OSError):
+                        # the service died or dropped the call (a crash the judge caused, for instance): the client sees what it
+                        # would have seen without the proxy, a connection closed without an answer; the log records it
+                        return self._sever(method, body, f or {"upstream": "no answer"}, None)
                 upstream_status = status
+                if f and f.get("hook") and f.get("hook_at") == "response": f["hook"]({"method": method, "path": self.path, "status": status})
+                if f and f.get("sever") == "after": return self._sever(method, body, f, upstream_status)
                 if f and f["status"] is not None:
                     status, data, ctype = f["status"], json.dumps({"error": f["message"]}).encode(), "application/json"
                 with proxy._lock:
                     proxy.log.append({"method": method, "path": self.path, "body": body.decode(errors="replace") if body else None,
-                                      "status": status, "upstream_status": upstream_status, "fault": f})
+                                      "status": status, "upstream_status": upstream_status, "fault": f and {k: v for k, v in f.items() if k != "hook"}})
                 self.send_response(status); self.send_header("Content-Type", ctype); self.send_header("Content-Length", str(len(data)))
                 self.send_header("Cache-Control", "no-store"); self.end_headers(); self.wfile.write(data)
 
+            def _sever(self, method, body, f, upstream_status):
+                with proxy._lock:
+                    proxy.log.append({"method": method, "path": self.path, "body": body.decode(errors="replace") if body else None,
+                                      "status": None, "upstream_status": upstream_status, "fault": {k: v for k, v in f.items() if k != "hook"}})
+                self.close_connection = True
+                try: self.connection.shutdown(socket.SHUT_RDWR)
+                except OSError: pass
+
             def do_GET(self): self._handle("GET")
             def do_POST(self): self._handle("POST")
+            def do_PUT(self): self._handle("PUT")
+            def do_DELETE(self): self._handle("DELETE")
+            def do_PATCH(self): self._handle("PATCH")
 
         self.srv = ThreadingHTTPServer(("127.0.0.1", 0), H); self.srv.daemon_threads = True
         threading.Thread(target=self.srv.serve_forever, daemon=True).start()

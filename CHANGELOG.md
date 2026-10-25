@@ -1,5 +1,62 @@
 # Changelog
 
+## v0.13.0 — 2026-10-24
+Milestone 7: assurance that runs with less of a person in the loop, each piece with a known-wrong case it must refuse
+for exactly its reason. RFC: `docs/rfc/0007-autonomous-assurance-and-runtime-composition.md`. No format identifier is
+withdrawn or changed: every format change adds an optional field or a new identifier (`COMPATIBILITY.md`). Evaluator
+changes throughout, so every release digest changes.
+
+- **Runtime composition** (§ 3; `gate/compose.py verify | stagger`, `compositions/booking-quota`): a composition contract
+  may add a `runtime` block. Booking, quota and a coordinator run as separate processes, each behind a judge-owned fault
+  proxy (`obligations/app/faultproxy.py` gains `sever`, request and response hooks, wildcard paths); the driver kills or
+  severs between the steps of a reservation and checks `QuotaMatchesBookings` and `ReceiptAgrees` from each component's
+  own state. Known-wrong coordinators `split-saga-leak` and `orphan-receipt-on-abort` (and their TLA+ twins); a staggered
+  upgrade of the booking component from interval-booking-core/v1 with the quota store held byte-identical, and two
+  known-wrong migrations (`touches-quota-store`, `drops-compensated`). The booking and quota components are each accepted
+  by their own packs. `validation/judge_wrong.py --composition`.
+- **Adversarial adequacy** (§ 4; `gate/redteam.py`, `pith pack redteam`, `gate/schemas/saboteur-packet.schema.json`):
+  generated mutants and saboteur packets (a mutant and a witness); a mutant the gate accepts although its witness shows
+  it wrong is an open gap in `redteam/gaps.yaml`, `pack check --release` refuses the pack until it is closed, and
+  `--promote` writes it into the known-wrong suite. `validation/redteam.py` closes the two gaps left on purpose in
+  `validation/redteam/underspecified`.
+- **Distilled counterexamples** (§ 5; `gate/packet.py`, `gate/shrink.py`, `pith packet distill`): every run also writes
+  `task-packet.distilled.json` and `TASK.distilled.md`: no host path, no stack frame, no code-shaped name from the
+  release's code, and a structured counterexample (from a harness's `pith-counterexample` line, a TLC trace, a delivery
+  workflow or a migration's verify step), truncated after its first diverging step and shrunk against the pack's offline
+  oracle (`obligations/boundary/oracle.py`, decisions from the verified core). `experiments/harness.py feedback`.
+- **Deterministic interleavings** (§ 6; `gate/interleave.py`): the threads under test run one at a time and every
+  schedule within a preemption bound is explored, so booking `check-then-insert`, quota `unlocked` and the new
+  reservation `split-decision` are refused on every run with the same counterexample; `retry-not-released` is the
+  control (a receipt defect, not a race). **Reservation 0.13.0** gains the `sqlite-occ` profile (version-checked commits,
+  bounded retries; linearizable within the bound against the oracle), `examples/build-occ` and
+  `examples/wrong/split-decision`; `Atomicity`'s wording now covers both profiles, its version unchanged.
+  **Booking 0.13.0** and **quota 0.3.0** gain the deterministic tests; no contract record changes.
+- **Shadow oracle** (§ 7; `obligations/boundary/monitor.template.py`, `gate/trace.py`, `pith trace harvest | replay`): the
+  generated monitor can run beside a live service as a sidecar and replay each committed operation through the oracle; a
+  divergence is shrunk into a regression trace, rendered as a Dafny test, replayed against a candidate, and paired with a
+  draft revocation. A drifted club desk is caught, its trace shrinks from 15 operations to 6, and the replay separates it
+  from the accepted desk (`validation/shadow.py`).
+- **Fork-join handoffs** (§ 8; `gate/change.py merge`, `pith handoff merge`, pack `partitions`, repeatable `--reuse`):
+  branches from one accepted base merge when their partitions are disjoint; the merged tree is judged again reusing only
+  cacheable evidence. Every check that starts the service still runs again (a deliberate rule; RFC 0007 § 1), which is
+  what refuses two branches that work alone and break together (`evolution/handoff/fork-join`, scripted).
+- **Evaluator fixes found on the way**: a manifest choice's evidence key now depends on the manifest, so a changed choice
+  is never reported as holding; `gate/migrate.py` keeps 12000 characters of a failing step and its redacted
+  counterexample.
+- **Validation**: new runners `validation/redteam.py`, `validation/interleavings.py`, `validation/shadow.py`; extended
+  `compositions.py`, `handoff.py`, `evidence_reuse.py`, `packets.py`, `test_packet.py`, `judge_wrong.py`
+  (`--composition`, `--handoff`, `promoted_from`); `validation/matrix.py --runners` and two new matrix cases; CI job
+  `assurance`. Record: `docs/VALIDATION.md`, v0.13.0.
+- **Not done here**: no model runs in CI, and every scenario in this release is scripted; the isolation container job was
+  not run locally (no x86 Linux host). Self-reviewed: there is no second maintainer (`GOVERNANCE.md`).
+
+Release digests: reservation `5d7f29267112f767f306ce1c8a4c37e154b986d5659cdac794d105a9df4f0b80`, booking
+`5f3087f0733584f4c9282eb94c557170c6f6213f92c4aef2dc9f79b58db19022`, approval
+`58bc244aaedccea21f72c942e69f12c0d6a001dcf979552623108c368d4b592f`, quota
+`b866d2d714005873c302f757cda2a8dbfc2f5e37cb8ef74f0f10aabc941a06d7`; demonstrations (contracts unchanged, new evaluator)
+tally 1.0.0 `f9bf06d6cf5d7fb2781b89395156545065bf4bc16b5e300c8f605c1919572966`, tally 2.0.0
+`222c1107fdf823884bc919fe47911a34e89f3a54410efdd20e80d750386a7154`.
+
 ## v0.12.0 — 2026-10-13
 What M5 left open and a maintainer can close alone: a contract upgrade with a migration on each of the four main
 packs, the reservation pack's two kernels as a composition contract, and the handoff done once by model agents. RFC:

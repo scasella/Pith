@@ -1,0 +1,16 @@
+# A design that lets the tally pass its bound; the release's checked invariants (model/MC.cfg) accept it.
+format: pith.saboteur-packet/v1
+id: over-bound-design
+pack: draft.underspec
+target: spec
+author: validation/redteam.py (scripted saboteur)
+claims:
+  records:
+  - T1
+  intent: The tally never exceeds its bound (INTENT.md, T1).
+mutant:
+  design:
+    name: OverBound.tla
+    content: "---- MODULE OverBound ----\n(* Known wrong (a red-team design): accepts one request past the bound. *)\nEXTENDS Naturals, FiniteSets\nCONSTANTS Bound, Reqs\nVARIABLES tally, results          \\* results: request id -> \"OK\" | \"REFUSED\" (absent: not yet seen)\nvars == <<tally, results>>\n\nInit == tally = 0 /\\ results = [r \\in {} |-> \"OK\"]\n\nRequest(r) ==\n  /\\ r \\notin DOMAIN results\n  /\\ IF tally <= Bound\n       THEN tally' = tally + 1 /\\ results' = [x \\in DOMAIN results \\cup {r} |-> IF x = r THEN \"OK\" ELSE results[x]]\n       ELSE UNCHANGED tally /\\ results' = [x \\in DOMAIN results \\cup {r} |-> IF x = r THEN \"REFUSED\" ELSE results[x]]\n\nNext == \\E r \\in Reqs : Request(r)\nSpec == Init /\\ [][Next]_vars\n\nBounded == tally <= Bound                                                      \\* [T1]\nExact == tally = Cardinality({r \\in DOMAIN results : results[r] = \"OK\"})       \\* [T2]\n====\n"
+witness:
+  property: Bounded

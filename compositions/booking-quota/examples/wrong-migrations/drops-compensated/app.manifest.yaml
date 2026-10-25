@@ -1,0 +1,3 @@
+# app.manifest.yaml — a composed application: the components it is made of (each is also a candidate of its own pack).
+name: Reservations (booking + quota, coordinated)
+composes: [booking, quota]

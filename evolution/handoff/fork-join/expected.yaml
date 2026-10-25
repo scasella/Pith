@@ -1,0 +1,29 @@
+# evolution/handoff/fork-join/expected.yaml — the fork-join merges that must be refused, and for exactly what.
+# Checked by `validation/judge_wrong.py --handoff evolution/handoff/fork-join <root>`, which validation/handoff.py runs (and
+# CI through it). Each entry: the base (an accepted application), the branches (directories of this one, each holding only
+# the files it changes relative to the base), and where the refusal must come from. Same "exactly" as the other negatives:
+# the judge's verdict on a merge is not enough if it is refused for another reason than the one the scenario is about.
+#
+# The merge of agent-a (storage profile, integration) and agent-b (page, presentation) is accepted; it is a positive
+# expectation of validation/handoff.py, not an entry here.
+
+agent-b+agent-c:
+  tool: handoff merge
+  base: examples/build-a
+  branches: [agent-b, agent-c]
+  source: "agent-b: the page reads the authorization amount bounds from the service's /openapi.yaml and disables every action when it cannot; agent-c: the service no longer serves /openapi.yaml (nothing in the judge fetches it, and the base page never does). Each passes alone; the partitions are disjoint (presentation, integration); the merged page cannot read what the merged service no longer publishes"
+  refused: judge
+  first_failure: delivery
+  # the merged page keeps every button disabled, so the workflow run raises before W1 completes (the browser harness records that under its own id,
+  # `error`, which is why W1-W6 are absent rather than failed) and each interaction obligation reports a precondition it could not reach.
+  # Nothing before delivery fails: the merged application passes the proof, the model checks, the lifecycle, the monitor and the boundary harness.
+  failing_workflows: [I1, I2, I3, I4, I5, I6, error]
+  category: violation
+agent-a+agent-c:
+  tool: handoff merge
+  base: examples/build-a
+  branches: [agent-a, agent-c]
+  source: "agent-a swaps the storage profile (app.manifest.yaml, service/app.py, service/run.py in `integration`, service/migrate.py in `migration`); agent-c edits service/app.py (`integration`). Two branches in one partition: refused before anything runs"
+  refused: partition
+  conflict: { kind: partition, partition: integration }
+  textual: [service/app.py]            # both rewrote service/app.py; the tool compares whole files and does not merge hunks

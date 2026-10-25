@@ -1,0 +1,5 @@
+# app.manifest.yaml — the agent's configuration. Only the keys in pack.yaml:candidate.manifest_allowlist.
+name: Room Calendar (own booking logic)
+runtime: python            # python (service/run.py) or node (service/run.mjs)
+profile: custom            # its own booking logic (service/store.py)
+ui_entry: ui/index.html    # served at "/"

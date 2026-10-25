@@ -1,0 +1,78 @@
+{
+ "format": "pith.merge-report/v1",
+ "authoritative": false,
+ "note": "advisory: disjoint partitions say which evidence carries over, never that the merged application works; the judge run on the merged tree decides",
+ "conflicts": [
+  {
+   "kind": "textual",
+   "path": "service/app.py",
+   "branches": [
+    "agent-a",
+    "agent-c"
+   ]
+  },
+  {
+   "kind": "partition",
+   "partition": "integration",
+   "branches": [
+    "agent-a",
+    "agent-c"
+   ]
+  }
+ ],
+ "problems": [],
+ "branches": [
+  {
+   "name": "agent-a",
+   "dir": "<run>/fork-join/handoff-fork-join-cand/build-a+agent-a",
+   "changed": [
+    {
+     "path": "app.manifest.yaml",
+     "partition": "integration",
+     "deleted": false
+    },
+    {
+     "path": "service/app.py",
+     "partition": "integration",
+     "deleted": false
+    },
+    {
+     "path": "service/migrate.py",
+     "partition": "migration",
+     "deleted": false
+    },
+    {
+     "path": "service/run.py",
+     "partition": "integration",
+     "deleted": false
+    }
+   ],
+   "partitions": [
+    "integration",
+    "migration"
+   ],
+   "evidence_digest": "4af8f158bb0a7bbcf34ab5e0b6d066bac890ac7c2e3e851de74144e27bb982a9"
+  },
+  {
+   "name": "agent-c",
+   "dir": "<run>/fork-join/handoff-fork-join-cand/build-a+agent-c",
+   "changed": [
+    {
+     "path": "service/app.py",
+     "partition": "integration",
+     "deleted": false
+    }
+   ],
+   "partitions": [
+    "integration"
+   ],
+   "evidence_digest": "23445f656c3d28777c6359523ac1a37e7a773950e0236f6c3e0e9f72cd80358d"
+  }
+ ],
+ "base": {
+  "evidence_digest": "cd994f1fdb2812225bfc32a15cb39f93086f8f4337e30679835ccf2622531018",
+  "artifact_digest": "d371b4a3936e428881286eb1c3428bf36c3c34d75473c2ce33bc63f5947b3564",
+  "release_digest": "5d7f29267112f767f306ce1c8a4c37e154b986d5659cdac794d105a9df4f0b80"
+ },
+ "ok": false
+}

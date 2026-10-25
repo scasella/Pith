@@ -1,3 +1,61 @@
+# Validation record — Pith v0.13.0 (M7: runtime composition, adversarial adequacy, distilled counterexamples, deterministic interleavings, shadow oracle, fork-join handoffs)
+
+Releases: reservation `5d7f29267112f767f306ce1c8a4c37e154b986d5659cdac794d105a9df4f0b80`, booking
+`5f3087f0733584f4c9282eb94c557170c6f6213f92c4aef2dc9f79b58db19022`, approval
+`58bc244aaedccea21f72c942e69f12c0d6a001dcf979552623108c368d4b592f`, quota
+`b866d2d714005873c302f757cda2a8dbfc2f5e37cb8ef74f0f10aabc941a06d7`; tally 1.0.0
+`f9bf06d6cf5d7fb2781b89395156545065bf4bc16b5e300c8f605c1919572966`, tally 2.0.0
+`222c1107fdf823884bc919fe47911a34e89f3a54410efdd20e80d750386a7154`. RFC: `docs/rfc/0007-autonomous-assurance-and-runtime-composition.md`.
+
+Where it ran. Every step of the CI jobs `judge`, `packs`, `assurance` and `upgrades` (all four packs), plus the
+wrong-candidate matrix, in one sequential run on macOS 27 (arm64; Python 3.13; judges one at a time), and the same run on
+the same tree in a native arm64 Linux container (Debian bookworm, Python 3.12, Dafny 4.11 from the .NET tool with Z3
+4.12.1 built from source, since no arm64 Linux Z3 4.12.1 is published): 34 of 34 on both, the Linux run without any shim. The `isolated` job (the x86
+isolation container) was not run: it needs an x86 Linux host. Local runs are advisory (isolation not enforced, browser
+unsandboxed), as before. On macOS two local-only shims in the virtual environment were needed and are not part of the
+repository: macOS refuses `setrlimit(RLIMIT_AS)` in the candidate's limits, and resets connections when a 5-deep listen
+backlog overflows under the harnesses' 16-thread bursts (Linux queues them). The unmodified v0.12.0 tree passed all 26
+CI steps on both platforms before any change (Linux without shims).
+
+### results (34 of 34 steps)
+- Judge job: every reservation example accepted (build-a, build-b, the new build-occ, club-desk, office-desk); every
+  known-wrong refused for exactly its defect (club-desk, office-desk, retry-not-released, the new split-decision);
+  `packets.py` (six categories, every distilled packet schema-valid and leak-free, retry-not-released's counterexample a
+  domain trace shrunk against the oracle, every known-wrong evidence directory leak-free); `compare_m1.py` (the M2
+  baseline; one more expected claim-text difference: the monitor suite names the shadow tests); `evidence_reuse.py`
+  (four checks, the fourth multi-source reuse); frozen unit suites 105 passed.
+- Packs job: every booking, approval and quota example accepted and every known-wrong refused (with the reservation
+  pack's, 20 fixtures in all, including check-then-insert and unlocked now refused by the deterministic tests);
+  adoption, scaffold, governance, evolution and generality as before; `domain_free.py` (6 packs, 180 terms).
+- `compositions.py` 9 of 9: the two model compositions and the reservation kernels' correspondence as before;
+  `booking-quota` holds in the model (each TLA+ twin breaks exactly its invariant), at runtime (8 driver tests, faults at
+  the component proxies), `split-saga-leak` violates exactly `QuotaMatchesBookings` and `orphan-receipt-on-abort` exactly
+  `ReceiptAgrees`; the staggered upgrade passes all 8 steps; `touches-quota-store` is refused at the untouched-state step
+  and `drops-compensated` at verify for `ReceiptAgrees` (`judge_wrong.py --composition`).
+- `redteam.py`: both planted gaps confirmed, the pack refused for release while they are open, both killed after the
+  tightening, promoted and refused by `judge_wrong.py`; generated mutants: 18 of 38 killed before, 23 of 38 after (the
+  rest are unkilled candidates or equivalent mutants, not gaps).
+- `interleavings.py` 35 of 35: five runs each, identical failing sets and first schedules (booking check-then-insert 30
+  schedules, 6 violating; quota unlocked 40, 6; reservation split-decision 10, 4; OCC blind_write 74, 54;
+  unversioned_read 150, 22; receipt_outside_cas 64, 46); every correct counterpart 0 violating; the timing-based burst
+  test never caught split-decision in five runs; retry-not-released fails its one test identically every time.
+- `shadow.py` 19 of 19: the drifted club desk caught by the sidecar, the divergence harvested from 15 operations to 6,
+  the rendered Dafny test passing against the verified core (and failing with the observed figure), replay failing on the
+  drifted desk and passing on the accepted one, the revocation a draft not to be filed.
+- `handoff.py` 30 of 30: the two-agent record as before; fork-join a+b accepted reusing exactly the 10 cacheable results,
+  b+c refused at delivery although disjoint, a+c refused for a partition conflict; `judge_wrong.py --handoff` holds both
+  refusals to exactly their reasons; the fresh reports agree with `recorded/`.
+- `upgrades.py` for all four packs: every expectation holds (the v0.11.0 releases rebuilt from 8e63d7b; every example
+  migrated; every known-wrong migration refused at verify).
+- Wrong-candidate matrix: 21 of 21 as expected, including the two new cases (a generated monitor without shadow mode is
+  refused as hand-edited; a custom adapter deciding outside its lock is refused at the lifecycle harness).
+
+### intermittent failures seen while validating
+- Several reservation-pack judges started at once: TLC fails about one run in six ("Module-Table lookup failure for
+  module name MC"); single runs never did. Every run recorded here judged one candidate at a time.
+- Booking's profile test `test_store_agrees_with_the_core_applied_in_order` failed intermittently when re-run in the same
+  workspace, also on the unmodified tree (a saved Hypothesis example replayed); a judged workspace is fresh each time.
+
 # Validation record — Pith v0.12.0 (contract upgrades on the main packs, the reservation kernels as a composition, a model-agent handoff)
 
 Releases: reservation `10d14f9cd91450c14c4861ebaaff23bf13d88e7e5ae804bba04d048613a937b0`, booking

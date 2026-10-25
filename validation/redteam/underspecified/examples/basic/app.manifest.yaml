@@ -1,0 +1,2 @@
+# app.manifest.yaml — only the keys in pack.yaml:candidate.manifest_allowlist.
+name: Basic tally

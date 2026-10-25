@@ -155,6 +155,30 @@ not on an empty database. A deployment record binds the evidence to what is depl
 v0.12.0 (`docs/rfc/0006-upgrading-the-main-packs.md`) did this for real on all four main packs, each judged from the
 release it actually published (`validation/upgrades.py`).
 
+## Assurance that runs on its own (v0.13.0)
+
+`docs/rfc/0007-autonomous-assurance-and-runtime-composition.md` adds six things, each with a known-wrong case it must
+refuse, and none weakening a rule above:
+
+- **Composition at runtime.** A composition contract may add a `runtime` block: one process per component behind a
+  judge-owned fault proxy, a driver that kills or severs between the steps of a cross-component operation, and shared
+  invariants checked from each component's own state (`gate/compose.py verify`). `compose stagger` upgrades one component
+  of a running composition and requires the others' state byte-identical (`compositions/booking-quota`).
+- **Adequacy by adversaries.** `gate/redteam.py` takes mutants (generated, or brought as saboteur packets with a witness)
+  and records each one the gate accepts although its witness shows it wrong; `pack check --release` refuses a pack with
+  an open gap until the checks are tightened and the gap promoted into its known-wrong suite.
+- **Packets an agent can act on without seeing the judge.** Every run also writes a redacted packet with a structured,
+  shrunk counterexample in the contract's own words.
+- **Concurrency without timing.** `gate/interleave.py` runs the threads under test one at a time and explores every
+  schedule within a preemption bound, so a race within the bound is found on every run; the reservation pack gains an
+  optimistic-concurrency profile (`sqlite-occ`) checked for linearizability within that bound.
+- **A shadow oracle beside the live service.** The generated monitor can run as a sidecar that replays each committed
+  operation through the pack's oracle; `gate/trace.py` shrinks a divergence into a regression trace and a draft revocation.
+- **Fork-join handoffs.** Branches made in parallel from one accepted base merge when they touch disjoint partitions the
+  pack declares; the merged tree is judged again, reusing only cacheable evidence. Disjointness says which evidence
+  carries over, never that the merged application works: every check that starts the service runs again, and that is
+  what catches two branches that each work alone and break together.
+
 ## What this is not
 
 Not a proof of the application. Not a stdlib-only host (the Dafny Python runtime is required to run the core).

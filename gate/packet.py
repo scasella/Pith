@@ -28,8 +28,21 @@ on, a minimal counterexample, what may and may not be edited, and the exact reru
 on it without reading the log.
 
     python3 gate/packet.py EVIDENCE_DIR [--json]      print the packet of a run (TASK.md, or the JSON)
+    python3 gate/packet.py distill EVIDENCE_DIR [--policy-from RELEASE] [--json]
+                                                      the distilled packet (below), recomputed from a run's evidence
+
+Distilled packets (v0.13.0, docs/rfc/0007-autonomous-assurance-and-runtime-composition.md § 5). Every run also writes
+task-packet.distilled.json and TASK.distilled.md: the same packet with `disclosure: redacted`, a structured
+counterexample (`trace` of domain steps, `expected`, `observed`, `violated` records, `shrunk`) and every free-text
+field passed through a redaction filter: no absolute host path, no Python or Node.js stack frame, and no identifier
+defined in the release's own code (collected with ast) unless the pack's own documents use the word (its intent, the
+documents its contract records cite, `packet.vocabulary`). A counterexample is read, in order, from a
+`pith-counterexample: {json}` line a harness or verify step printed, from a model checker's state trace, from a
+delivery adapter's per-workflow evidence, and from a migration report; a trace is truncated after its first diverging
+step, and shrunk (gate/shrink.py) only against an offline oracle the pack declares (`traces.oracle`), never by
+re-running the candidate. task-packet.json is unchanged for agents that hold the seed.
 """
-import json, pathlib, re, sys
+import ast, json, pathlib, re, sys
 
 FORMAT = "pith.task-packet/v1"
 CATEGORIES = ("violation", "not_exercised", "evidence_missing", "toolchain_unavailable", "contract_change", "infrastructure")
@@ -213,9 +226,223 @@ def write(out, pk):
     (pathlib.Path(out) / "TASK.md").write_text(markdown(pk))
 
 
+# ---------------------------------------------------------------- distilled packets (v0.13.0)
+CX_LINE = re.compile(r"pith-counterexample:\s*(\{.*\})")
+PATH = re.compile(r"""(?<![\w./-])(?:file://)?(?:/(?:Users|home|private|var|tmp|opt|Library|root|usr|etc|mnt|srv|workspace|candidate|evidence|pith|src|app)\b|[A-Za-z]:\\)[^\s'"`),\]]*""")
+FRAME_LINES = [re.compile(p) for p in (r'^\s*File "[^"]*", line \d+', r"^\s*Traceback \(most recent call last\)", r"^\s*\S+\.(py|mjs|js|cjs|ts):\d+(:\d+)?:?",
+                                         r"^\s*at (?:async )?\S.*\(?\S+:\d+:\d+\)?\s*$", r"^\s*\^+\s*$", r"^\s*~*\^+~*\s*$", r"^\s*node:internal")]
+WORD = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+PROTOCOL_WORDS = {"step", "action", "args", "observed", "expected", "violated", "source", "trace", "state", "shrunk", "against", "oracle",
+                  "from_steps", "to_steps", "diverged_at", "redacted", "text", "true", "false", "null", "none", "None", "True", "False"}
+
+
+def cx_line(steps, expected=None, observed=None, violated=(), diverged_at=None, replayable=False, source="harness"):
+    """The one line a harness (or a migration's verify step) puts in a failing assertion's message so that the packet
+    can carry its counterexample as domain steps: steps are [{"step", "action", "args", "observed", "expected"?}] in the
+    contract's own words. `replayable`: the steps can be replayed through the pack's offline oracle (traces.oracle)."""
+    X = {"source": source, "steps": list(steps), "expected": expected, "observed": observed, "violated": list(violated), "replayable": bool(replayable)}
+    if diverged_at is not None: X["diverged_at"] = diverged_at
+    return "pith-counterexample: " + json.dumps(X, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def vocabulary(root, P):
+    """(allowed words, identifiers of the release's own code). Allowed: every word in the pack's intent document, in the
+    documents its contract records cite (markdown, yaml, TLA+, Dafny, JSON schema) and in `packet.vocabulary`, plus the
+    record and check ids. Code identifiers: every name a Python module of the release (gate/ and the policy dirs) defines."""
+    root = pathlib.Path(root); docs = set(); allowed = set(PROTOCOL_WORDS)
+    if (P.get("pack") or {}).get("intent"): docs.add(str(P["pack"]["intent"]).split("/", 2)[-1] if not (root / P["pack"]["intent"]).exists() else P["pack"]["intent"])
+    for c in P.get("contracts", []):
+        allowed.add(c["id"])
+        for v in (c.get("semantics") or {}).values():
+            f = str(v).split()[0].split("#")[0]
+            if not f.endswith((".py", ".mjs", ".js")): docs.add(f)
+    docs |= set(((P.get("packet") or {}).get("vocabulary")) or [])
+    for c in P.get("preflight", []) + P.get("checks", []): allowed |= {c["id"], *re.split(r"[./]", c["id"])}
+    for d in docs:
+        f = root / d
+        if f.is_file(): allowed |= set(WORD.findall(f.read_text(errors="ignore")))
+    allowed |= set(WORD.findall(json.dumps([c.get("intent") for c in P.get("contracts", [])])))
+    code = set()
+    for d in ["gate"] + list(P.get("policy_dirs", [])):
+        for f in (root / d).rglob("*.py") if (root / d).is_dir() else []:
+            try: tree = ast.parse(f.read_text(errors="ignore"))
+            except SyntaxError: continue
+            for n in ast.walk(tree):
+                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)): code.add(n.name)
+                elif isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store): code.add(n.id)
+                elif isinstance(n, ast.arg): code.add(n.arg)
+                elif isinstance(n, ast.alias): code.add((n.asname or n.name).split(".")[0])
+    return allowed, {w for w in code if code_shaped(w) and w not in allowed}
+
+
+def code_shaped(w):
+    """A name only code produces: snake_case, camelCase or with digits inside. A plain word ("found", "rows") reads as
+    prose wherever it appears, so it is not masked even when some module also uses it as a name."""
+    return len(w) > 2 and ("_" in w.strip("_") or re.search(r"[a-z][A-Z]", w) is not None or re.search(r"[A-Za-z]\d", w) is not None)
+
+
+def redact(text, code, limit=1200):
+    """Text with stack frames removed, absolute paths replaced by «path» and the release's code identifiers by «code»."""
+    if not text: return ""
+    lines = []; src = str(text).splitlines()
+    pytest_echo = any(l.startswith("E ") for l in src)               # pytest echoes the judge's own source before its E lines
+    skip_next = False
+    for l in src:
+        if skip_next and l.startswith("    "): skip_next = False; continue
+        skip_next = False
+        if any(p.search(l) for p in FRAME_LINES): skip_next = l.lstrip().startswith("File "); continue
+        if pytest_echo and (l.startswith(">") or (l[:1].isspace() and not l.startswith("E ")) or re.match(r"^test \S+$", l)): continue
+        if l.startswith("E "): l = l[1:].strip()
+        if not l.strip() or l.strip() in ("Use -v to get more diff",) or l.strip().startswith(("Omitting ", "Full diff", "Use -v")): continue
+        if re.match(r"^(={3,}|_{3,}|-{3,})", l.strip()) or re.match(r"^(FAILED|ERROR|PASSED|SKIPPED|XFAIL|XPASS) \S", l.strip()): continue
+        if re.match(r"^[.FEsxX]+\s*(\[\s*\d+%\])?$", l.strip()) or re.match(r"^\d+ (passed|failed|error)", l.strip()): continue
+        if "pith-counterexample:" in l: continue                     # carried structured in the counterexample, never as text
+        l = re.sub(r"<[\w.]+ object at 0x[0-9a-fA-F]+>", "<object>", l)
+        lines.append(l)
+    t = PATH.sub("«path»", "\n".join(lines))
+    t = WORD.sub(lambda m: "«code»" if m.group(0) in code else m.group(0), t)
+    t = re.sub(r"(«code»[\s.,:()\[\]]*){2,}", "«code» ", t)
+    return _clip(re.sub(r"\n{3,}", "\n\n", t).strip(), limit)
+
+
+def _clip_middle(s, n):
+    """Keep the head and the tail (where a trace's diverging step is), drop the middle."""
+    s = s.strip()
+    if len(s) <= n: return s
+    keep = n - 40; return s[:keep // 3] + "\n… (steps omitted) …\n" + s[-(keep - keep // 3):]
+
+
+def _scrub(o, code):
+    if isinstance(o, str): return redact(o, code, 400)
+    if isinstance(o, list): return [_scrub(x, code) for x in o]
+    if isinstance(o, dict): return {k: _scrub(v, code) for k, v in o.items()}
+    return o
+
+
+def _tlc_trace(text):
+    steps = []
+    for n, block in enumerate(re.split(r"\n(?=State \d+:)", text)[1:], 1):
+        head, *rest = block.splitlines()
+        m = re.match(r"State (\d+):\s*<?([A-Za-z_][\w]*)?", head)
+        action = (m.group(2) if m and m.group(2) and m.group(2) not in ("Initial",) else ("initial state" if "Initial" in head else None))
+        state = {}
+        for l in rest:
+            v = re.match(r"^\s*/\\\s*(\w+)\s*=\s*(.*)$", l)
+            if v: state[v.group(1)] = v.group(2).strip()[:200]
+        steps.append({"step": n, "action": action, "state": state})
+    return steps
+
+
+def structured(first, claims, P, root):
+    """A structured counterexample for the first failure (None when nothing structured can be read)."""
+    why = first.get("why") or ""
+    m = CX_LINE.search(why)
+    if m:
+        try:
+            X = json.loads(m.group(1)); X.setdefault("source", "harness counterexample"); return X
+        except ValueError: pass
+    if first.get("kind") == "tlc" or "The behavior up to this point is:" in why:
+        v = re.search(r"(?:Invariant|Action property|Temporal property) (\S+) is violated", why)
+        steps = _tlc_trace(why[why.find("The behavior up to this point is:"):]) if "The behavior up to this point is:" in why else []
+        return {"source": "model checker (shortest trace, breadth-first)", "trace": steps, "violated_property": v and v.group(1)} if (steps or v) else None
+    D = claims.get((next((c for c in P.get("checks", []) if c["id"] == first.get("check")), {}) or {}).get("claims_key") or "", {}) or {}
+    bad = {k: w for k, w in (D.get("workflows") or {}).items() if not w.get("ok")}
+    if bad:
+        trace = []
+        for k, w in bad.items():
+            for e in w.get("evidence") or []:
+                for part in re.split(r";\s*(?:then\s+)?", str(e)):
+                    if part.strip(): trace.append({"step": len(trace) + 1, "workflow": k, "action": part.strip()[:300]})
+        return {"source": "delivery workflows", "violated": sorted(bad), "trace": trace[:24]}
+    return None
+
+
+def shrink_trace(X, P, root):
+    """Truncate after the first diverging step; shrink against the pack's offline oracle when it declares one."""
+    steps = X.get("steps")
+    if not isinstance(steps, list) or not steps: return X
+    k = X.get("diverged_at", len(steps) - 1)
+    if isinstance(k, int) and 0 <= k < len(steps) - 1:
+        X["shrunk"] = {"from_steps": len(steps), "to_steps": k + 1, "against": "truncated after the first diverging step"}; steps = steps[:k + 1]
+    cmd = ((P.get("traces") or {}).get("oracle"))
+    if cmd and X.get("replayable", False) and len(steps) > 1:
+        try:
+            sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent)); import shrink as SH
+            cmd = cmd.replace("{python}", sys.executable)
+            want = SH.oracle(cmd, steps, cwd=root)[-1]
+            small, calls = SH.ddmin(steps, lambda s: SH.oracle(cmd, s, cwd=root)[-1] == want, keep_last=True)
+            if len(small) < len(steps):
+                X["shrunk"] = {"from_steps": len(X["steps"]), "to_steps": len(small), "against": "oracle", "oracle_calls": calls}; steps = small
+        except Exception as e:
+            X.setdefault("notes", []).append(f"not shrunk against the oracle: {type(e).__name__}")
+    X["steps"] = [dict(st, step=i + 1) if isinstance(st, dict) else st for i, st in enumerate(steps)]
+    if "diverged_at" in X or X.get("shrunk"): X["diverged_at"] = len(steps) - 1
+    return X
+
+
+def distill(pk, claims, P, root):
+    """The redacted, structured packet (format unchanged, `disclosure: redacted`)."""
+    allowed, code = vocabulary(root, P)
+    D = {k: v for k, v in pk.items() if k not in ("rerun", "evidence", "first_failure", "other_failures")}
+    D["disclosure"] = "redacted"
+    D["rerun"] = {"full": "rerun the judge as you did (a fresh --out directory; --reuse this run's evidence)", "focused": None,
+                  "impact": "gate/evidence.py impact --evidence <this run's evidence>"}
+    D["evidence"] = {"claims": "app-claims.json", "records": "evidence.json"}
+    if pk.get("coverage"): D["coverage"] = {**pk["coverage"], "judged_paths": [p for p in pk["coverage"].get("judged_paths", []) if not PATH.match(str(p))]}
+    f = pk.get("first_failure")
+    if f:
+        first = next((r for r in claims.get("checks", []) if r.get("id") == f["check"]), {}) or {}
+        X = structured({**first, "kind": f.get("kind"), "check": f["check"]}, claims, P, root)
+        X = shrink_trace(X, P, root) if X else None
+        cons = [{"id": c["id"], "intent": c.get("intent"), "change": c.get("change"),
+                 "semantics": {k: v for k, v in (c.get("semantics") or {}).items() if not str(v).split()[0].endswith((".py", ".mjs", ".js"))}} for c in f.get("contracts", [])]
+        cx = None
+        if X:
+            cx = {"source": X.get("source", "counterexample"), "text": _clip_middle(redact(_cx_text(X), code, 100000), 1400), "redacted": True,
+                  **{k: _scrub(X[k], code) for k in ("trace", "steps", "expected", "observed", "violated", "violated_property", "shrunk", "diverged_at") if k in X}}
+            if "steps" in cx and "trace" not in cx: cx["trace"] = cx.pop("steps")
+        elif f.get("counterexample"):
+            cx = {"source": f["counterexample"]["source"], "text": redact(f["counterexample"]["text"], code, 1400), "redacted": True}
+        D["first_failure"] = {**{k: f.get(k) for k in ("check", "name", "area", "kind", "method", "category", "category_basis", "blocking", "contracts_basis", "next")},
+                              "contracts": cons, "counterexample": cx, "why": redact(f.get("why"), code, 600 if X else 900)}
+    else:
+        D["first_failure"] = None
+    D["other_failures"] = [{"check": o["check"], "category": o.get("category"), "why": redact(o.get("why"), code, 240)} for o in pk.get("other_failures", [])]
+    return D
+
+
+def _cx_text(X):
+    L = []
+    for s in X.get("trace") or X.get("steps") or []:
+        if not isinstance(s, dict): L.append(str(s)); continue
+        bits = [f"Step {s.get('step', len(L) + 1)}:"] + [f"{s[k]}" for k in ("workflow", "action") if s.get(k)]
+        if s.get("args") is not None: bits.append(json.dumps(s["args"], sort_keys=True))
+        if "observed" in s: bits.append(f"-> observed {json.dumps(s['observed'], sort_keys=True)}")
+        if "expected" in s: bits.append(f"(expected {json.dumps(s['expected'], sort_keys=True)})")
+        if s.get("state"): bits.append(" ".join(f"{k}={v}" for k, v in s["state"].items()))
+        L.append(" ".join(bits))
+    if "expected" in X or "observed" in X: L.append(f"Expected {json.dumps(X.get('expected'), sort_keys=True)}; observed {json.dumps(X.get('observed'), sort_keys=True)}.")
+    if X.get("violated") or X.get("violated_property"): L.append(f"Violates {X.get('violated') or X.get('violated_property')}.")
+    return "\n".join(L)
+
+
+def write_distilled(out, pk, claims, P, root):
+    D = distill(pk, claims, P, root)
+    (pathlib.Path(out) / "task-packet.distilled.json").write_text(json.dumps(D, indent=1))
+    (pathlib.Path(out) / "TASK.distilled.md").write_text(markdown(D))
+    return D
+
+
 def main():
     a = sys.argv[1:]
     if not a: sys.exit(__doc__)
+    if a[0] == "distill":
+        ev = pathlib.Path(a[1]); pol = pathlib.Path(a[a.index("--policy-from") + 1]) if "--policy-from" in a else pathlib.Path(__file__).resolve().parent.parent
+        import yaml
+        P = yaml.safe_load((pol / "pack.yaml").read_text()); pk = json.loads((ev / "task-packet.json").read_text())
+        claims = json.loads((ev / "app-claims.json").read_text()) if (ev / "app-claims.json").exists() else {}
+        D = write_distilled(ev, pk, claims, P, pol)
+        print(json.dumps(D, indent=1) if "--json" in a else markdown(D)); return
     pk = json.loads((pathlib.Path(a[0]) / "task-packet.json").read_text())
     print(json.dumps(pk, indent=1) if "--json" in a else markdown(pk))
 

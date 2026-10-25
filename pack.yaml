@@ -11,7 +11,7 @@
 format: pith.pack/v1
 pack:
   id: pith.reservation
-  version: 0.12.0
+  version: 0.13.0
   title: Reservation and capture (authorization holds, release, posting) with a browser-delivered application
   # v3 (v0.12.0): every write answers with a receipt and a retry returns it (record Receipts), with the upgrade of a
   # running v2 deployment (MIG1, migrations/from-v2.yaml). The proven kernels did not change: their own identity is
@@ -40,6 +40,13 @@ toolchain:                                                       # recorded in e
   cryptography: { python_package: cryptography }
   tlc: { command: "java -cp {TLA2TOOLS} tlc2.TLC -h; java -version", regex: 'TLC2 Version [^\n]*|TLC - [^\n]*Version [^\n]*' }
   java: { command: "java -version", regex: 'version "([^"]+)"', group: 1 }
+
+partitions:                                                      # gate/change.py merge (v0.13.0): which branch of a fork-join handoff owns what; first match wins
+  - { id: migration, paths: ["service/migrate.py"] }
+  - { id: design, paths: ["design/**"] }
+  - { id: integration, paths: ["service/**", "adapter/**", "app.manifest.yaml"] }
+  - { id: presentation, paths: ["ui/**", "app/**"] }
+  - { id: interface, paths: ["gen/**"], boundary: true }         # generated from the kernel and diffed by gen.current: a boundary no branch may move
 
 change_routes:                                                   # the route a change to the candidate's own paths takes (gate/change.py; advisory)
   - { paths: ["ui/**", "app/**"], route: presentation, why: "the browser application and its SPEC: delivery and interaction checks" }
@@ -91,6 +98,7 @@ preflight:
     default: sqlite
     choices:
       sqlite: " (shipped; in-process tests apply)"
+      sqlite-occ: " (shipped; optimistic concurrency: reads without the write lock and commits by compare-and-swap on the account's version; in-process tests apply, including every interleaving of two and of three operations within two preemptions)"
       custom: " (custom; judged only through the service)"
     claim: "profile = {value}{note}"
     why: profile must be sqlite or custom
@@ -274,18 +282,33 @@ checks:
     inputs: ["profiles/**", "kernel/core/py/**"]
     establishes: [Atomicity]
 
+  - id: profile.occ.tests
+    about: release                                              # the pack's own oracle: a failure is the release's, not the candidate's
+    area: ring1
+    name: shipped optimistic-concurrency profile tests
+    kind: command
+    when: { manifest: { profile: sqlite-occ } }
+    command: "{pytest} profiles/sqlite_occ/tests/test_occ.py"
+    count: '(\d+) passed'
+    claim: "sqlite-occ profile (frozen) in-process tests pass ({count}): the shipped profile's outcomes, events and receipts, its refusals, bursts of real threads, and EVERY interleaving within two preemptions of two and of three concurrent operations linearizable against the verified core, with INV1 kept; three known-wrong stores each have a violating schedule"
+    status: behavioral_assurance
+    method: test
+    inputs: ["profiles/**", "kernel/core/py/**", "obligations/boundary/oracle.py"]
+    establishes: [Atomicity]
+
   - id: lifecycle
     area: ring1
     name: lifecycle harness (black-box)
     kind: command
     command: "{pytest} obligations/service/lifecycle.py"
+    why_tail: 8000       # the counterexample line (pith-counterexample, gate/packet.py) must survive a failure's source echo and diff
     count: '(\d+) passed'
-    claim: "through the running service: duplicate create, idempotent replay and conflicts, crash (SIGKILL) + restart + retry, receipts of release and capture on retry, restart durability, event contract (op_id, chain, state_after, one commit per op), concurrency with readers ({count} checks)"
+    claim: "through the running service: duplicate create, idempotent replay and conflicts, crash (SIGKILL) + restart + retry, receipts of release and capture on retry, restart durability, event contract (op_id, chain, state_after, one commit per op), concurrency with readers, and every interleaving of two concurrent authorizations within one preemption ({count} checks)"
     status: behavioral_assurance
     method: test
     inputs: ["service/**", "adapter/**", "design/**", "app/**", "ui/**", "gen/**", "app.manifest.yaml", "profiles/**", "kernel/core/py/**", "obligations/service/**"]   # the service may read anything in the artifact
     depends_on: [kernel, service.entrypoint, gen.current]
-    establishes: [Idempotency, Durability, EventContract, Receipts]
+    establishes: [Idempotency, Durability, EventContract, Receipts, Atomicity]
 
   - id: extra
     area: ring1
@@ -302,10 +325,10 @@ checks:
     name: monitor negative suite
     kind: command
     command: "{pytest} obligations/boundary/test_monitor.py"
-    claim: "generated monitor detects each named violation (rehashed mutants), op lifecycle, watermark; silent on the good stream"
+    claim: "generated monitor detects each named violation (rehashed mutants), op lifecycle, watermark; silent on the good stream; the shadow oracle records an anomalous transition without raising, survives failing listeners, bounds its queue and its log"
     status: behavioral_assurance
     method: test
-    inputs: ["gen/**", "obligations/boundary/**"]
+    inputs: ["gen/**", "obligations/boundary/**", "profiles/**", "kernel/core/py/**"]      # the shadow tests replay streams through the offline oracle: the translated core
     depends_on: [gen.current]
 
   - id: boundary
@@ -466,9 +489,13 @@ contracts:
     change: behavioral
   - id: Atomicity
     version: 2
-    intent: The shipped profile executes each core call atomically and reads availability in the decision transaction.
-    semantics: { python: "profiles/sqlite/tests/test_profile.py" }
-    verified_by: [profile.tests]
+    intent: "The shipped profile executes each core call atomically: a decision is computed from the availability current when it commits (read in the decision transaction, or, for the optimistic profile, re-validated there by the account's version)."
+    semantics: { python: "profiles/sqlite/tests/test_profile.py", python-occ: "profiles/sqlite_occ/tests/test_occ.py", python-interleaved: "obligations/service/lifecycle.py test_interleaved_authorizations_with_room_for_one_decide_exactly_one" }
+    verified_by: [profile.tests, profile.occ.tests, lifecycle]
+    # v0.13.0: the intent's wording now covers the sqlite-occ profile, which decides without the write lock and commits only if the account is
+    # still at the version it decided from. The obligation (a decision against the availability of its own atomic step) is unchanged, so the
+    # version is unchanged; whether that is a wording change or a meaning change is the reviewer's call (GOVERNANCE.md).
+    wrong: [examples/wrong/split-decision, profiles/sqlite_occ/tests/wrong/blind_write.py, profiles/sqlite_occ/tests/wrong/unversioned_read.py, profiles/sqlite_occ/tests/wrong/receipt_outside_cas.py]
     change: integration
   - id: Idempotency
     version: 2
@@ -538,6 +565,21 @@ contracts:
 
 migrations:                                                      # gate/migrate.py; MIG1's evidence is the migration report, not a judge run
   - { from: authorization-and-posting-core/v2, spec: migrations/from-v2.yaml }
+
+# v0.13.0 (docs/rfc/0007 § 5): the offline reference oracle of the service contract (obligations/boundary/oracle.py, the verified
+# core and nothing else), which the evaluator shrinks a harness's counterexample against without running the candidate; and the
+# documents whose words are the pack's own domain vocabulary, which a distilled task packet may repeat (the words of the
+# harness's code are masked, gate/packet.py)
+traces:
+  oracle: "{python} obligations/boundary/oracle.py"
+  # a trace harvested from a shadow divergence (docs/rfc/0007 § 7, gate/trace.py): rendered as a Dafny test against the verified core
+  # (the include is relative to kernel/, so it is checked beside kernel/core), and replayed against a candidate's service
+  render: "{python} obligations/boundary/render_trace.py"
+  render_file: traces.dfy
+  render_dir: kernel/adequacy
+  replay: "{pytest} obligations/boundary/replay.py"
+packet:
+  vocabulary: [kernel/glossary.yaml, obligations/app/UI-CONTRACT.md]
 
 # Words that belong to this pack and must never appear in the evaluator (validation/domain_free.py, CI).
 domain_vocabulary: [ReleaseResponse, CaptureResponse, available_at_decision, account, authoriz, reservation, Capture, posting, posted, declin, ledger, CoreActions, INV1, Design.tla, sqlite, service/run.py, kernel/, obligations/, profiles/, browser_workflows, delivery.yaml, openapi]

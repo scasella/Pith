@@ -7,28 +7,28 @@ format: pith.catalog/v1
 packs:
   - id: pith.reservation
     path: .
-    version: 0.12.0
+    version: 0.13.0
     status: supported
     stage: draft
-    release_digest: 10d14f9cd91450c14c4861ebaaff23bf13d88e7e5ae804bba04d048613a937b0
+    release_digest: 5d7f29267112f767f306ce1c8a4c37e154b986d5659cdac794d105a9df4f0b80
     scope: >
       authorization against a limit with reservations, release and capture (posting), over a proven Dafny core; an
       agent-written TLA+ design, service and browser application around it
     assumptions: kernel/tcb.yaml
-    examples: [examples/build-a, examples/build-b, examples/club-desk, examples/office-desk]
-    wrong: [examples/wrong/club-desk, examples/wrong/office-desk, examples/wrong/retry-not-released, examples/wrong-migrations/skips-declines, examples/wrong-migrations/stamps-history]
-    profiles: [sqlite (shipped), custom (judged black-box)]
+    examples: [examples/build-a, examples/build-b, examples/build-occ, examples/club-desk, examples/office-desk]
+    wrong: [examples/wrong/club-desk, examples/wrong/office-desk, examples/wrong/retry-not-released, examples/wrong/split-decision, examples/wrong-migrations/skips-declines, examples/wrong-migrations/stamps-history]
+    profiles: [sqlite (shipped), sqlite-occ (shipped, optimistic concurrency), custom (judged black-box)]
     reference_implementations: [examples/build-a, examples/build-b]
     evidence: "CI job judge: every example judged with the pristine release, the known-wrong fixtures, the M2 baseline, the wrong-candidate matrix (docs/VALIDATION.md)"
-    upgrade_policy: "0.12.0 upgraded authorization-and-posting-core/v2 to authorization-and-posting/v3 with a forward-only migration (migrations/from-v2.yaml; docs/rfc/0006-upgrading-the-main-packs.md); 0.11.0 stays supported for 90 days so deployments can upgrade through it (GOVERNANCE.md)"
+    upgrade_policy: "0.13.0 (v0.13.0, docs/rfc/0007-autonomous-assurance-and-runtime-composition.md) adds the sqlite-occ profile, a deterministic interleaving test, the shadow oracle and partitions; contract unchanged (authorization-and-posting/v3), so no migration; 0.12.0 upgraded authorization-and-posting-core/v2 to authorization-and-posting/v3 with a forward-only migration (migrations/from-v2.yaml; docs/rfc/0006-upgrading-the-main-packs.md); 0.11.0 stays supported for 90 days so deployments can upgrade through it (GOVERNANCE.md)"
     maintainers: [scasella]
     reviews: []
   - id: pith.booking
     path: packs/booking
-    version: 0.12.0
+    version: 0.13.0
     status: supported
     stage: draft
-    release_digest: 3adf212726d64e3b2f9ba12673f3e39d5a7da7d05bb39b85ce893611ef737cbc
+    release_digest: 5f3087f0733584f4c9282eb94c557170c6f6213f92c4aef2dc9f79b58db19022
     scope: interval booking with half-open intervals, a turnaround buffer per resource, cancellation and atomic rescheduling, over a verified Dafny core
     assumptions: spec/tcb.yaml
     examples: [examples/calendar-py, examples/desk-node, examples/custom-py]
@@ -36,7 +36,7 @@ packs:
     profiles: [python (SQLite), node (journal), custom]
     reference_implementations: [examples/calendar-py, examples/desk-node]
     evidence: "CI job packs: examples, known-wrong applications, generality across packs"
-    upgrade_policy: "0.12.0 upgraded interval-booking-core/v1 to interval-booking-core/v2 with a forward-only migration (migrations/from-v1.yaml; docs/rfc/0006-upgrading-the-main-packs.md); 0.11.0 stays supported for 90 days so deployments can upgrade through it (GOVERNANCE.md)"
+    upgrade_policy: "0.13.0 adds a deterministic interleaving test (RFC 0007 § 6); contract unchanged (interval-booking-core/v2); 0.12.0 upgraded interval-booking-core/v1 to interval-booking-core/v2 with a forward-only migration (migrations/from-v1.yaml; docs/rfc/0006-upgrading-the-main-packs.md); 0.11.0 stays supported for 90 days so deployments can upgrade through it (GOVERNANCE.md)"
     maintainers: [scasella]
     reviews: []
   - id: pith.approval
@@ -44,7 +44,7 @@ packs:
     version: 0.12.0
     status: supported
     stage: draft
-    release_digest: 4ae7a61844ef11c848ab086a4403317b1bf14c4ec4fc5ae973d31e21fc420977
+    release_digest: 58bc244aaedccea21f72c942e69f12c0d6a001dcf979552623108c368d4b592f
     scope: document approval with roles, per-revision separation of duties, revision-bound approvals and a quorum per document (2 to 5, fixed at creation)
     assumptions: model/assumptions.yaml
     examples: [examples/approvals-py, examples/approvals-node, examples/adopt-handbook]
@@ -57,10 +57,10 @@ packs:
     reviews: []
   - id: pith.quota
     path: packs/quota
-    version: 0.2.0
+    version: 0.3.0
     status: demonstration          # its author decides whether it is supported (GOVERNANCE.md: a catalog status change is the pack's maintainers' call)
     stage: draft
-    release_digest: 8e81efd2474c99f90f4caae157f198ac09917e54fd546aea4d92e9d07a8add38
+    release_digest: b866d2d714005873c302f757cda2a8dbfc2f5e37cb8ef74f0f10aabc941a06d7
     scope: sliding-window quotas per key, each key with its own limit or the default (half-open windows, exact retry hints, a caller-supplied clock), delivered as a Python or Node.js library
     assumptions: spec/tcb.yaml
     examples: [examples/sliding-log-py, examples/tally-node]
@@ -68,7 +68,7 @@ packs:
     profiles: [a library on python or node, imported by the pack's driver; no service]
     reference_implementations: [examples/sliding-log-py, examples/tally-node]
     evidence: "CI job packs: examples and known-wrong libraries"
-    upgrade_policy: "0.2.0 upgraded sliding-window-quota/v1 to sliding-window-quota/v2 with a forward-only migration (migrations/from-v1.yaml; docs/rfc/0006-upgrading-the-main-packs.md); 0.1.1 stays supported for 90 days so deployments can upgrade through it (GOVERNANCE.md)"
+    upgrade_policy: "0.3.0 adds a deterministic interleaving test (RFC 0007 § 6); contract unchanged (sliding-window-quota/v2); 0.2.0 upgraded sliding-window-quota/v1 to sliding-window-quota/v2 with a forward-only migration (migrations/from-v1.yaml; docs/rfc/0006-upgrading-the-main-packs.md); 0.1.1 stays supported for 90 days so deployments can upgrade through it (GOVERNANCE.md)"
     maintainers: [outside-author, scasella]   # scasella made the 0.2.0 upgrade; the author has not reviewed it (packs/quota/AUTHORING-NOTES.md)
     reviews: []
   - id: demo.tally
@@ -76,7 +76,7 @@ packs:
     version: 1.0.0
     status: demonstration
     stage: draft
-    release_digest: c0b1d23e8b992db871d54932d9f5b7f4d915fc8750f51d44a0668e75579598b0
+    release_digest: f9bf06d6cf5d7fb2781b89395156545065bf4bc16b5e300c8f605c1919572966
     scope: "one bounded tally with idempotent requests: the scaffold's example contract, the 'before' of the evolution demonstrations"
     assumptions: harness/SERVICE.md
     examples: [examples/basic]
@@ -92,7 +92,7 @@ packs:
     version: 2.0.0
     status: demonstration
     stage: draft
-    release_digest: 57d8620daecde6872faecb7850a8b738d0a07e3349145be4968c1b50eb72c55c
+    release_digest: 222c1107fdf823884bc919fe47911a34e89f3a54410efdd20e80d750386a7154
     scope: "a bounded tally per named counter, upgraded from 1.0.0 with its state: the 'after' of the evolution demonstrations"
     assumptions: harness/SERVICE.md
     examples: [examples/basic, examples/journal]
